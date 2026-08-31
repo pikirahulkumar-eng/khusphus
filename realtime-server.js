@@ -22,6 +22,24 @@ const turso = createClient({
   authToken: process.env.TURSO_AUTH_TOKEN || 'dummy-token',
 });
 
+// Search API Endpoint
+app.get('/api/search', async (req, res) => {
+  const { query } = req.query; console.log('Search request received for:', query);
+  if (!query) return res.json([]);
+
+  try {
+    // Search by phone or name (partial match)
+    const result = await turso.execute({
+      sql: 'SELECT phone, name FROM users WHERE phone LIKE ? OR name LIKE ?',
+      args: [`%${query}%`, `%${query}%`]
+    });
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Search error:', error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
 const connectedUsers = new Map();
 
 io.on('connection', (socket) => {
@@ -63,6 +81,13 @@ io.on('connection', (socket) => {
     const targetSocketId = connectedUsers.get(data.to);
     if (targetSocketId) {
       io.to(targetSocketId).emit('ice-candidate', data.candidate);
+    }
+  });
+
+  socket.on('message', (data) => {
+    const targetSocketId = connectedUsers.get(data.targetUserId);
+    if (targetSocketId) {
+      io.to(targetSocketId).emit('message', data);
     }
   });
 

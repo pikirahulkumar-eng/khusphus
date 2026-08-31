@@ -1,33 +1,36 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, SafeAreaView, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, SafeAreaView, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
+import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
 
-export default function LoginScreen({ onLoginSuccess }: { onLoginSuccess: () => void }) {
+export default function LoginScreen({ onLoginSuccess }: { onLoginSuccess: (phone: string) => void }) {
   const [step, setStep] = useState<'PHONE' | 'OTP'>('PHONE');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
+  const [confirm, setConfirm] = useState<FirebaseAuthTypes.ConfirmationResult | null>(null);
 
-  const handleSendOtp = () => {
+  const handleSendOtp = async () => {
     if (phoneNumber.length < 10) return;
     setLoading(true);
-    // TODO: Connect Firebase Phone Auth here
+    
+    // Bypassing Firebase for dummy testing as requested
     setTimeout(() => {
       setLoading(false);
       setStep('OTP');
-    }, 1500);
+    }, 1000);
   };
 
-  const handleVerifyOtp = () => {
+  const handleVerifyOtp = async () => {
     if (otp.length < 6) return;
     setLoading(true);
     
-    // Dummy OTP logic for testing
+    // Dummy verify logic
     setTimeout(() => {
       setLoading(false);
       if (otp === '123456') {
-        onLoginSuccess();
+        onLoginSuccess(phoneNumber);
       } else {
-        alert('Invalid OTP! Please enter 123456 for testing.');
+        Alert.alert('Invalid OTP', 'Please enter 123456 for dummy testing.');
       }
     }, 1000);
   };
