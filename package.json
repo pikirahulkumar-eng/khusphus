@@ -5,6 +5,7 @@
   "dependencies": {
     "@expo/metro-runtime": "~57.0.14",
     "@expo/vector-icons": "^15.0.2",
+    "@libsql/client": "^0.17.4",
     "@react-native-firebase/app": "^26.3.2",
     "@react-native-firebase/auth": "^26.3.2",
     "@react-native-firebase/messaging": "^26.3.2",
