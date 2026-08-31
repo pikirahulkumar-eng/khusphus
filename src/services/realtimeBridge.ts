@@ -4,6 +4,7 @@ import messaging from '@react-native-firebase/messaging';
 type RealtimeListener = (event: { type: string; payload: any; targetUserId?: string }) => void;
 
 class RealtimeBridgeManager {
+  private wsUrl: string = 'https://khusphus-epsm.onrender.com';
   private socket: Socket | null = null;
   private listeners: Set<RealtimeListener> = new Set();
   private isConnected = false;
@@ -27,11 +28,9 @@ class RealtimeBridgeManager {
 
   private connectWebSocket() {
     try {
-      // Connect to local Node server for testing
-      const wsUrl = 'http://localhost:10000';
-      console.log(`[WS_CONNECTING] ${wsUrl}`);
+      console.log(`[WS_CONNECTING] ${this.wsUrl}`);
       
-      this.socket = io(wsUrl, {
+      this.socket = io(this.wsUrl, {
         transports: ['websocket'],
       });
 
