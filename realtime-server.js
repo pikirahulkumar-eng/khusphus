@@ -3,7 +3,18 @@ const http = require('http');
 const { Server } = require('socket.io');
 const { createClient } = require('@libsql/client');
 const cors = require('cors');
+const admin = require('firebase-admin');
+const fs = require('fs');
 
+if (fs.existsSync('./firebase-service-account.json')) {
+  const serviceAccount = require('./firebase-service-account.json');
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+  });
+  console.log('Firebase Admin Initialized for FCM');
+} else {
+  console.warn('FCM disabled: firebase-service-account.json not found');
+}
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -45,19 +56,30 @@ const connectedUsers = new Map();
 io.on('connection', (socket) => {
   console.log('A user connected:', socket.id);
 
-  socket.on('register', async (userId) => {
+  socket.on('register', async (data) => {
+    // data can be just userId string (legacy) or object { userId, fcmToken }
+    const userId = typeof data === 'string' ? data : data.userId;
+    const fcmToken = typeof data === 'string' ? null : data.fcmToken;
+    
     connectedUsers.set(userId, socket.id);
     console.log(`User ${userId} registered with socket ${socket.id}`);
     
-    // Example: You can now save registered users to Turso SQLite
     try {
-       // await turso.execute('INSERT OR IGNORE INTO users (id, socket_id) VALUES (?, ?)', [userId, socket.id]);
+       // Ensure fcm_token column exists (lazy migration)
+       try { await turso.execute('ALTER TABLE users ADD COLUMN fcm_token TEXT'); } catch(e) {}
+       
+       if (fcmToken) {
+         await turso.execute({
+           sql: 'UPDATE users SET fcm_token = ? WHERE phone = ?',
+           args: [fcmToken, userId]
+         });
+       }
     } catch (e) {
-       console.log('Turso DB not fully configured yet for insertion.');
+       console.error('Failed to save FCM token:', e);
     }
   });
 
-  socket.on('call-user', (data) => {
+  socket.on('call-user', async (data) => {
     const receiverSocketId = connectedUsers.get(data.to);
     if (receiverSocketId) {
       io.to(receiverSocketId).emit('incoming-call', {
@@ -65,6 +87,36 @@ io.on('connection', (socket) => {
         offer: data.offer,
         isVideo: data.isVideo
       });
+    }
+
+    // Always attempt to send an FCM push to wake up the device (or if offline)
+    try {
+      if (admin.apps.length > 0) {
+        const result = await turso.execute({
+          sql: 'SELECT fcm_token FROM users WHERE phone = ?',
+          args: [data.to]
+        });
+        const fcmToken = result.rows[0]?.fcm_token;
+        if (fcmToken) {
+          await admin.messaging().send({
+            token: fcmToken,
+            data: {
+              type: 'INCOMING_CALL',
+              callId: data.from + '-' + Date.now(), // Generate a unique call ID
+              callerName: data.from,
+              callerId: data.from,
+              callType: data.isVideo ? 'video' : 'audio',
+              callerPhoto: ''
+            },
+            android: {
+              priority: 'high'
+            }
+          });
+          console.log(`Sent FCM wakeup to ${data.to}`);
+        }
+      }
+    } catch (e) {
+      console.error('FCM Error:', e);
     }
   });
 
