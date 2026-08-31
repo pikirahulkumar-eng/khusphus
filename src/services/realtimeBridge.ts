@@ -1,4 +1,5 @@
 import { io, Socket } from 'socket.io-client';
+import messaging from '@react-native-firebase/messaging';
 
 type RealtimeListener = (event: { type: string; payload: any; targetUserId?: string }) => void;
 
@@ -12,11 +13,15 @@ class RealtimeBridgeManager {
     this.connectWebSocket();
   }
 
-  public registerUser(userId: string) {
+  public async registerUser(userId: string) {
     this.registeredUserId = userId;
     if (this.socket && this.isConnected && userId) {
-      this.socket.emit('register', userId);
-      console.log(`[REALTIME_BRIDGE] Registered user: ${userId}`);
+      let fcmToken = null;
+      try {
+        fcmToken = await messaging().getToken();
+      } catch (e) { console.warn('Could not get FCM token', e); }
+      this.socket.emit('register', { userId, fcmToken });
+      console.log(`[REALTIME_BRIDGE] Registered user: ${userId} with FCM token`);
     }
   }
 
