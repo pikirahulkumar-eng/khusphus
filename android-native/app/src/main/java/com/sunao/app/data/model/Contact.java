@@ -1,17 +1,17 @@
 package com.sunao.app.data.model;
 
-public class PresenceContact {
+public class Contact {
     private String phone;
     private String name;
-    private boolean isOnline;
+    private String about;
 
-    public PresenceContact(String phone, String name, boolean isOnline) {
+    public Contact(String phone, String name, String about) {
         this.phone = phone;
         this.name = name;
-        this.isOnline = isOnline;
+        this.about = about;
     }
 
     public String getPhone() { return phone; }
     public String getName() { return name; }
-    public boolean isOnline() { return isOnline; }
+    public String getAbout() { return about; }
 }

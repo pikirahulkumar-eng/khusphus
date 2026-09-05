@@ -2,9 +2,12 @@
 <resources>
     <style name="Theme.Sunao" parent="Theme.MaterialComponents.Light.NoActionBar">
         <item name="colorPrimary">@color/primary_emerald</item>
-        <item name="colorPrimaryDark">@color/primary_emerald_dark</item>
-        <item name="colorAccent">@color/primary_emerald</item>
+        <item name="colorPrimaryDark">@color/header_dark</item>
+        <item name="colorAccent">@color/accent_mint</item>
         <item name="android:windowBackground">@color/slate_bg</item>
-        <item name="android:statusBarColor">@color/primary_emerald_dark</item>
+        <item name="android:statusBarColor">@color/header_dark</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:navigationBarColor">@color/slate_bg</item>
+        <item name="android:windowLightNavigationBar">true</item>
     </style>
 </resources>

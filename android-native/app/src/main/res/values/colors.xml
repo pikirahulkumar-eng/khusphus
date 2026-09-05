@@ -1,23 +1,44 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Sunao Official Design System Palette from khusphus -->
+    <!-- Dark Header & Bottom Nav Palette -->
+    <color name="header_dark">#0F172A</color>
+    <color name="header_dark_surface">#1E293B</color>
+    <color name="header_icon_circle">#1E293B</color>
+    <color name="bottom_nav_dark">#0F172A</color>
+    <color name="bottom_nav_active_pill">#065F46</color>
+    
+    <!-- Primary Emerald Theme -->
     <color name="primary_emerald">#059669</color>
     <color name="primary_emerald_dark">#047857</color>
-    <color name="emerald_light">#ECFDF5</color>
+    <color name="primary_emerald_light">#ECFDF5</color>
     <color name="emerald_border">#A7F3D0</color>
     <color name="accent_mint">#10B981</color>
-    <color name="blue_video">#2563EB</color>
-    <color name="blue_video_light">#EFF6FF</color>
+    
+    <!-- Surface & Card Colors -->
     <color name="slate_bg">#F8FAFC</color>
     <color name="card_white">#FFFFFF</color>
-    <color name="text_primary">#0F172A</color>
-    <color name="text_secondary">#475569</color>
-    <color name="text_muted">#94A3B8</color>
-    <color name="border_light">#E2E8F0</color>
+    <color name="card_border">#E2E8F0</color>
     <color name="divider">#F1F5F9</color>
-    <color name="call_green">#10B981</color>
-    <color name="call_red">#EF4444</color>
-    <color name="tick_blue">#38BDF8</color>
-    <color name="white">#FFFFFF</color>
     <color name="surface_light">#F1F5F9</color>
+    <color name="white">#FFFFFF</color>
+    
+    <!-- Text Colors -->
+    <color name="text_primary">#0F172A</color>
+    <color name="text_secondary">#64748B</color>
+    <color name="text_muted">#94A3B8</color>
+    <color name="text_white">#FFFFFF</color>
+    
+    <!-- Badges & Indicators -->
+    <color name="badge_red">#EF4444</color>
+    <color name="badge_emerald">#059669</color>
+    <color name="online_green">#10B981</color>
+    <color name="tick_blue">#38BDF8</color>
+    
+    <!-- Action Button Colors -->
+    <color name="call_audio_bg">#ECFDF5</color>
+    <color name="call_audio_border">#A7F3D0</color>
+    <color name="call_audio_icon">#059669</color>
+    <color name="call_video_bg">#EFF6FF</color>
+    <color name="call_video_border">#BFDBFE</color>
+    <color name="call_video_icon">#2563EB</color>
 </resources>

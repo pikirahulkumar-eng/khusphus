@@ -3,6 +3,7 @@ package com.sunao.app.ui.adapters;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageButton;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
@@ -11,15 +12,16 @@ import com.sunao.app.data.model.PresenceContact;
 import java.util.List;
 
 public class PresenceAdapter extends RecyclerView.Adapter<PresenceAdapter.ViewHolder> {
-    private final List<PresenceContact> list;
+    private final List<PresenceContact> contacts;
     private final OnPresenceClickListener listener;
 
     public interface OnPresenceClickListener {
-        void onPresenceClick(PresenceContact contact);
+        void onContactClick(PresenceContact contact);
+        void onCallClick(PresenceContact contact);
     }
 
-    public PresenceAdapter(List<PresenceContact> list, OnPresenceClickListener listener) {
-        this.list = list;
+    public PresenceAdapter(List<PresenceContact> contacts, OnPresenceClickListener listener) {
+        this.contacts = contacts;
         this.listener = listener;
     }
 
@@ -32,27 +34,24 @@ public class PresenceAdapter extends RecyclerView.Adapter<PresenceAdapter.ViewHo
 
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-        PresenceContact item = list.get(position);
-        holder.tvName.setText(item.getName());
-        holder.tvInitial.setText(item.getInitial());
-        holder.liveDot.setVisibility(item.isOnline() ? View.VISIBLE : View.GONE);
-        holder.itemView.setOnClickListener(v -> listener.onPresenceClick(item));
+        PresenceContact contact = contacts.get(position);
+        holder.tvName.setText(contact.getName());
+        holder.tvInitial.setText(contact.getName().substring(0, 1).toUpperCase());
+        holder.itemView.setOnClickListener(v -> listener.onContactClick(contact));
+        holder.btnCall.setOnClickListener(v -> listener.onCallClick(contact));
     }
 
     @Override
-    public int getItemCount() {
-        return list.size();
-    }
+    public int getItemCount() { return contacts.size(); }
 
     static class ViewHolder extends RecyclerView.ViewHolder {
         TextView tvName, tvInitial;
-        View liveDot;
-
+        ImageButton btnCall;
         ViewHolder(View v) {
             super(v);
             tvName = v.findViewById(R.id.tvPresenceName);
             tvInitial = v.findViewById(R.id.tvPresenceInitial);
-            liveDot = v.findViewById(R.id.presenceLiveDot);
+            btnCall = v.findViewById(R.id.btnMiniCall);
         }
     }
 }

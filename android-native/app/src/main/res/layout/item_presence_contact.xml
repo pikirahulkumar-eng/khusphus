@@ -1,52 +1,57 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="wrap_content"
+    android:layout_width="62dp"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
     android:gravity="center_horizontal"
-    android:paddingHorizontal="8dp"
-    android:paddingVertical="4dp">
+    android:orientation="vertical"
+    android:paddingHorizontal="3dp">
 
-    <RelativeLayout
-        android:layout_width="54dp"
-        android:layout_height="54dp">
+    <FrameLayout
+        android:layout_width="48dp"
+        android:layout_height="48dp">
 
         <View
-            android:id="@+id/presenceAvatarRing"
-            android:layout_width="54dp"
-            android:layout_height="54dp"
+            android:id="@+id/presenceAvatarBg"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
             android:background="@drawable/bg_presence_ring" />
 
         <TextView
             android:id="@+id/tvPresenceInitial"
-            android:layout_width="46dp"
-            android:layout_height="46dp"
-            android:layout_centerInParent="true"
-            android:gravity="center"
-            android:textColor="@color/primary_emerald"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="R"
+            android:textColor="@color/text_primary"
             android:textSize="18sp"
-            android:textStyle="bold"
-            android:text="R" />
+            android:textStyle="bold" />
 
         <View
-            android:id="@+id/presenceLiveDot"
-            android:layout_width="12dp"
-            android:layout_height="12dp"
-            android:layout_alignParentBottom="true"
-            android:layout_alignParentEnd="true"
+            android:layout_width="10dp"
+            android:layout_height="10dp"
+            android:layout_gravity="bottom|end"
             android:background="@drawable/bg_online_dot" />
-    </RelativeLayout>
+    </FrameLayout>
 
     <TextView
         android:id="@+id/tvPresenceName"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
+        android:layout_marginTop="4dp"
         android:ellipsize="end"
         android:maxLines="1"
         android:text="Rahul"
-        android:textColor="@color/text_primary"
+        android:textColor="@color/text_secondary"
         android:textSize="11sp"
         android:textStyle="bold" />
 
+    <!-- Mini call trigger button below contact name -->
+    <ImageButton
+        android:id="@+id/btnMiniCall"
+        android:layout_width="22dp"
+        android:layout_height="22dp"
+        android:layout_marginTop="3dp"
+        android:background="@drawable/bg_mini_call_btn"
+        android:src="@drawable/ic_call_svg"
+        android:padding="4dp" />
 </LinearLayout>
