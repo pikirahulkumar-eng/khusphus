@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/text_primary">
+
+    <!-- WebRTC Remote Video Surface -->
+    <org.webrtc.SurfaceViewRenderer
+        android:id="@+id/remoteVideoView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- WebRTC Local Video PiP -->
+    <org.webrtc.SurfaceViewRenderer
+        android:id="@+id/localVideoView"
+        android:layout_width="110dp"
+        android:layout_height="150dp"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentEnd="true"
+        android:layout_margin="20dp" />
+
+    <!-- Caller Info Overlay -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        android:paddingTop="60dp">
+
+        <TextView
+            android:id="@+id/tvCallPeerName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Peer User"
+            android:textColor="@color/white"
+            android:textSize="24sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvCallStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Connected (C++ NDK Engine)"
+            android:textColor="@color/primary_emerald"
+            android:textSize="14sp" />
+    </LinearLayout>
+
+    <!-- Call Control Actions -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:paddingBottom="48dp">
+
+        <ImageButton
+            android:id="@+id/btnToggleMic"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:layout_marginHorizontal="16dp"
+            android:background="@drawable/bg_input_box"
+            android:src="@android:drawable/ic_btn_speak_now"
+            app:tint="@color/text_primary" />
+
+        <ImageButton
+            android:id="@+id/btnEndCall"
+            android:layout_width="68dp"
+            android:layout_height="68dp"
+            android:layout_marginHorizontal="16dp"
+            android:background="@drawable/bg_call_end_btn"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            app:tint="@color/white" />
+
+        <ImageButton
+            android:id="@+id/btnToggleSpeaker"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:layout_marginHorizontal="16dp"
+            android:background="@drawable/bg_input_box"
+            android:src="@android:drawable/ic_lock_silent_mode_off"
+            app:tint="@color/text_primary" />
+    </LinearLayout>
+
+</RelativeLayout>

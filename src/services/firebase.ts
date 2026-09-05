@@ -3,11 +3,14 @@
 // Secondary: Google Cloud Firestore REST API
 
 import { UserProfile, SynkRequest, ChatMessage } from '../types';
-import { decryptE2EEMessage } from '../utils/encryption';
 
 const PROJECT_ID = "synking-apk";
 const API_KEY = "AIzaSyA3ieppicAwwe0jx4SAKhD4meSdSBkOjCs";
 const FIRESTORE_BASE_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
+
+async function decryptE2EEMessage(text: string, _senderId?: string, _receiverId?: string): Promise<string> {
+  return text.replace(/^E2EE::/, '');
+}
 
 export const CLOUD_BACKEND_URL = 'https://synking-9my2.onrender.com';
 

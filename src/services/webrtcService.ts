@@ -1,4 +1,4 @@
-// Native WebRTC & Targeted Real-Time Streaming Engine for Synking
+// Native WebRTC & Targeted Real-Time Streaming Engine for Sunao
 // STUN + OpenRelay TURN Pool • 1-on-1 Targeted Signaling • Real Hardware Camera Capture
 
 import { RealtimeBridge } from './realtimeBridge';
@@ -123,9 +123,9 @@ class WebRTCManager {
   private getPeerUserId(): string {
     if (!this.currentSession) return '';
     if (this.currentSession.receiverId === 'my_user_id' || this.currentSession.status === 'ringing') {
-      return this.currentSession.callerId;
+      return this.currentSession.callerId || '';
     }
-    return this.currentSession.receiverId;
+    return this.currentSession.receiverId || '';
   }
 
   public onLog(listener: (msg: string) => void): () => void {
@@ -298,7 +298,7 @@ class WebRTCManager {
   public endCall(): { session: CallSession; durationFormatted: string } | null {
     if (!this.currentSession) return null;
     const sessionCopy = { ...this.currentSession };
-    const durationFormatted = this.formatDuration(sessionCopy.durationSeconds);
+    const durationFormatted = this.formatDuration(sessionCopy.durationSeconds || 0);
     const callId = sessionCopy.id;
     const peerId = this.getPeerUserId();
     this.log(`🛑 Ending ongoing call (${durationFormatted}).`);
@@ -674,7 +674,7 @@ class WebRTCManager {
     this.cleanupTimers();
     this.durationTimer = setInterval(() => {
       if (this.currentSession && this.currentSession.status === 'connected') {
-        this.currentSession.durationSeconds += 1;
+        this.currentSession.durationSeconds = (this.currentSession.durationSeconds || 0) + 1;
         this.notify();
       }
     }, 1000);

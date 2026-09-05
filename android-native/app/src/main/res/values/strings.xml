@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Sunao</string>
+    <string name="chats">Chats</string>
+    <string name="updates">Updates</string>
+    <string name="calls">Calls</string>
+    <string name="type_a_message">Type a message...</string>
+</resources>

@@ -4,7 +4,6 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { UserProfile } from '../types';
-import { Colors } from '../constants/theme';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const CARD_WIDTH = Math.min(SCREEN_WIDTH - 8, 440);
@@ -187,7 +186,7 @@ export const SwipeCard: React.FC<Props> = ({ profile, isFirst = true, onSwipe })
         {/* 3 Clean Subtle Glass Tag Chips */}
         {profile.interests && profile.interests.length > 0 && (
           <View style={styles.interestsGrid}>
-            {profile.interests.slice(0, 3).map((item, idx) => (
+            {profile.interests.slice(0, 3).map((item: any, idx: number) => (
               <View key={idx} style={styles.chip}>
                 <Text style={styles.chipText}>{item}</Text>
               </View>

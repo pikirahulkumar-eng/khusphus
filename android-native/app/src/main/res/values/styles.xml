@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Sunao" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="colorPrimary">@color/primary_emerald</item>
+        <item name="colorPrimaryDark">@color/primary_emerald_dark</item>
+        <item name="colorAccent">@color/primary_emerald</item>
+        <item name="android:windowBackground">@color/slate_bg</item>
+        <item name="android:statusBarColor">@color/primary_emerald_dark</item>
+    </style>
+</resources>

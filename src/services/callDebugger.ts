@@ -12,7 +12,7 @@ export interface DebugStageLog {
 class CallDebuggerClass {
   private logs: DebugStageLog[] = [];
   private readonly MAX_LOGS = 100;
-  private readonly STORAGE_KEY = 'synking_call_debugger_logs';
+  private readonly STORAGE_KEY = 'sunao_call_debugger_logs';
 
   constructor() {
     this.loadPersistedLogs();
@@ -59,15 +59,15 @@ class CallDebuggerClass {
     const icon = status === 'OK' ? '✅' : status === 'FAIL' ? '❌' : status === 'PENDING' ? '⏳' : 'ℹ️';
     const detailStr = details ? ` | ${typeof details === 'object' ? JSON.stringify(details) : details}` : '';
 
-    // Formatted for ADB logcat: filterable via "SYNKING_CALL_DEBUG" or "synking"
-    console.log(`[SYNKING_CALL_DEBUG] [${time}] ${icon} ${stage.padEnd(24)} [${appState.toUpperCase()}]${detailStr}`);
+    // Formatted for ADB logcat: filterable via "SUNAO_CALL_DEBUG" or "sunao"
+    console.log(`[SUNAO_CALL_DEBUG] [${time}] ${icon} ${stage.padEnd(24)} [${appState.toUpperCase()}]${detailStr}`);
   }
 
   public printCallSummary(callId: string, caller: string, type: string) {
     const time = new Date().toISOString().substring(11, 19);
     console.log(`
 ======================================================
-📱 [SYNKING CALL DEBUGGER SUMMARY] [${time}]
+📱 [SUNAO CALL DEBUGGER SUMMARY] [${time}]
 ======================================================
 Call ID:     ${callId}
 Caller:      ${caller}

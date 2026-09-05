@@ -3,17 +3,21 @@ const http = require('http');
 const { Server } = require('socket.io');
 const { createClient } = require('@libsql/client');
 const cors = require('cors');
-const admin = require('firebase-admin');
 const fs = require('fs');
-
-if (fs.existsSync('./firebase-service-account.json')) {
-  const serviceAccount = require('./firebase-service-account.json');
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
-  });
-  console.log('Firebase Admin Initialized for FCM');
-} else {
-  console.warn('FCM disabled: firebase-service-account.json not found');
+let admin = null;
+try {
+  admin = require('firebase-admin');
+  if (fs.existsSync('./firebase-service-account.json')) {
+    const serviceAccount = require('./firebase-service-account.json');
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
+    console.log('Firebase Admin Initialized for FCM');
+  } else {
+    console.warn('FCM disabled: firebase-service-account.json not found');
+  }
+} catch (e) {
+  console.warn('firebase-admin module not available locally, running signaling server in dev mode');
 }
 const app = express();
 app.use(cors());
@@ -51,7 +55,7 @@ app.get('/api/search', async (req, res) => {
   }
 });
 
-const connectedUsers = new Map();
+const connectedUsers = new Map(); // userId -> Set of socket IDs
 
 io.on('connection', (socket) => {
   console.log('A user connected:', socket.id);
@@ -61,8 +65,12 @@ io.on('connection', (socket) => {
     const userId = typeof data === 'string' ? data : data.userId;
     const fcmToken = typeof data === 'string' ? null : data.fcmToken;
     
-    connectedUsers.set(userId, socket.id);
-    console.log(`User ${userId} registered with socket ${socket.id}`);
+    socket.userId = userId;
+    if (!connectedUsers.has(userId)) {
+      connectedUsers.set(userId, new Set());
+    }
+    connectedUsers.get(userId).add(socket.id);
+    console.log(`User ${userId} registered socket ${socket.id} (Active devices: ${connectedUsers.get(userId).size})`);
     
     try {
        // Ensure fcm_token column exists (lazy migration)
@@ -80,18 +88,20 @@ io.on('connection', (socket) => {
   });
 
   socket.on('call-user', async (data) => {
-    const receiverSocketId = connectedUsers.get(data.to);
-    if (receiverSocketId) {
-      io.to(receiverSocketId).emit('incoming-call', {
-        from: data.from,
-        offer: data.offer,
-        isVideo: data.isVideo
+    const receiverSockets = connectedUsers.get(data.to);
+    if (receiverSockets && receiverSockets.size > 0) {
+      receiverSockets.forEach((sId) => {
+        io.to(sId).emit('incoming-call', {
+          from: data.from,
+          offer: data.offer,
+          isVideo: data.isVideo
+        });
       });
     }
 
     // Always attempt to send an FCM push to wake up the device (or if offline)
     try {
-      if (admin.apps.length > 0) {
+      if (admin && admin.apps && admin.apps.length > 0) {
         const result = await turso.execute({
           sql: 'SELECT fcm_token FROM users WHERE phone = ?',
           args: [data.to]
@@ -121,40 +131,68 @@ io.on('connection', (socket) => {
   });
 
   socket.on('answer-call', (data) => {
-    const callerSocketId = connectedUsers.get(data.to);
-    if (callerSocketId) {
-      io.to(callerSocketId).emit('call-answered', {
-        answer: data.answer
+    const callerSockets = connectedUsers.get(data.to);
+    if (callerSockets && callerSockets.size > 0) {
+      callerSockets.forEach((sId) => {
+        io.to(sId).emit('call-answered', {
+          answer: data.answer
+        });
+      });
+    }
+    // Notify other devices of responder to stop ringing
+    if (socket.userId && connectedUsers.has(socket.userId)) {
+      connectedUsers.get(socket.userId).forEach((sId) => {
+        if (sId !== socket.id) {
+          io.to(sId).emit('call-handled', { by: socket.id });
+        }
       });
     }
   });
 
   socket.on('ice-candidate', (data) => {
-    const targetSocketId = connectedUsers.get(data.to);
-    if (targetSocketId) {
-      io.to(targetSocketId).emit('ice-candidate', data.candidate);
+    const targetSockets = connectedUsers.get(data.to);
+    if (targetSockets && targetSockets.size > 0) {
+      targetSockets.forEach((sId) => {
+        io.to(sId).emit('ice-candidate', data.candidate);
+      });
     }
   });
 
   socket.on('message', (data) => {
-    const targetSocketId = connectedUsers.get(data.targetUserId);
-    if (targetSocketId) {
-      io.to(targetSocketId).emit('message', data);
+    // 1. Deliver to all active devices of target recipient
+    const targetSockets = connectedUsers.get(data.targetUserId);
+    if (targetSockets && targetSockets.size > 0) {
+      targetSockets.forEach((sId) => {
+        io.to(sId).emit('message', data);
+      });
+    }
+
+    // 2. Multi-Device Companion Sync: mirror message to sender's OTHER devices (Mobile <-> Web <-> Desktop)
+    const senderId = data.payload?.senderId || socket.userId;
+    if (senderId && connectedUsers.has(senderId)) {
+      connectedUsers.get(senderId).forEach((sId) => {
+        if (sId !== socket.id) {
+          io.to(sId).emit('message', data);
+        }
+      });
     }
   });
 
   socket.on('disconnect', () => {
-    for (let [userId, socketId] of connectedUsers.entries()) {
-      if (socketId === socket.id) {
-        connectedUsers.delete(userId);
-        break;
+    if (socket.userId && connectedUsers.has(socket.userId)) {
+      const userSockets = connectedUsers.get(socket.userId);
+      userSockets.delete(socket.id);
+      if (userSockets.size === 0) {
+        connectedUsers.delete(socket.userId);
       }
+      console.log(`Socket ${socket.id} disconnected for user ${socket.userId}. Remaining devices: ${userSockets.size}`);
+    } else {
+      console.log('Unregistered socket disconnected:', socket.id);
     }
-    console.log('User disconnected:', socket.id);
   });
 });
 
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => {
-  console.log(`KhusPhus Signaling Server running on port ${PORT}`);
+  console.log(`Sunao Signaling Server running on port ${PORT}`);
 });

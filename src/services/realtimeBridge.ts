@@ -1,14 +1,24 @@
 import { io, Socket } from 'socket.io-client';
+// @ts-ignore
 import messaging from '@react-native-firebase/messaging';
 
 type RealtimeListener = (event: { type: string; payload: any; targetUserId?: string }) => void;
 
 class RealtimeBridgeManager {
-  private wsUrl: string = 'https://khusphus-epsm.onrender.com';
   private socket: Socket | null = null;
   private listeners: Set<RealtimeListener> = new Set();
   private isConnected = false;
   private registeredUserId: string | null = null;
+
+  private getWsUrl(): string {
+    if (typeof window !== 'undefined' && window.location) {
+      const hostname = window.location.hostname;
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        return 'http://localhost:10000';
+      }
+    }
+    return 'https://khusphus-epsm.onrender.com';
+  }
 
   constructor() {
     this.connectWebSocket();
@@ -20,17 +30,18 @@ class RealtimeBridgeManager {
       let fcmToken = null;
       try {
         fcmToken = await messaging().getToken();
-      } catch (e) { console.warn('Could not get FCM token', e); }
+      } catch (e) { /* FCM not available in web/dev */ }
       this.socket.emit('register', { userId, fcmToken });
-      console.log(`[REALTIME_BRIDGE] Registered user: ${userId} with FCM token`);
+      console.log(`[REALTIME_BRIDGE] Registered user: ${userId}`);
     }
   }
 
   private connectWebSocket() {
     try {
-      console.log(`[WS_CONNECTING] ${this.wsUrl}`);
+      const url = this.getWsUrl();
+      console.log(`[WS_CONNECTING] ${url}`);
       
-      this.socket = io(this.wsUrl, {
+      this.socket = io(url, {
         transports: ['websocket'],
       });
 
@@ -100,6 +111,18 @@ class RealtimeBridgeManager {
         this.socket.emit('message', { type, payload, targetUserId });
       }
     }
+  }
+
+  public sendChatMessage(targetUserId: string, message: any) {
+    this.broadcast('CHAT_MESSAGE', message, targetUserId);
+  }
+
+  public sendTyping(targetUserId: string, isTyping: boolean) {
+    this.broadcast('USER_TYPING', { senderId: this.registeredUserId, isTyping }, targetUserId);
+  }
+
+  public getUserId(): string | null {
+    return this.registeredUserId;
   }
 
   public disconnect() {

@@ -215,7 +215,7 @@ export const CallModal: React.FC<Props> = ({ session, onEndCall, onAcceptCall })
   const [isLocalExpanded, setIsLocalExpanded] = useState(false);
   const isIncomingRinging = session.status === 'ringing' && (session.receiverId === 'my_user_id' || !session.callerId);
   const isConnected = session.status === 'connected';
-  const durationText = WebRTCService.formatDuration(session.durationSeconds);
+  const durationText = WebRTCService.formatDuration(session.durationSeconds || 0);
   const localStream = WebRTCService.getLocalStream();
 
   const [remoteStream, setRemoteStream] = useState<any>(() => WebRTCService.getRemoteStream());
@@ -234,7 +234,7 @@ export const CallModal: React.FC<Props> = ({ session, onEndCall, onAcceptCall })
   }, []);
 
   const [actionLogs, setActionLogs] = useState<string[]>([
-    `[${new Date().toLocaleTimeString()}] 🚀 Call session initialized: ${session.type.toUpperCase()} call.`
+    `[${new Date().toLocaleTimeString()}] 🚀 Call session initialized: ${(session.type || 'audio').toUpperCase()} call.`
   ]);
 
   useEffect(() => {
@@ -405,7 +405,7 @@ export const CallModal: React.FC<Props> = ({ session, onEndCall, onAcceptCall })
     const remoteAudio = remoteStream?.getAudioTracks().map((t: any) => ({ label: t.label, enabled: t.enabled, readyState: t.readyState })) || [];
     const remoteVideo = remoteStream?.getVideoTracks().map((t: any) => ({ label: t.label, enabled: t.enabled, readyState: t.readyState })) || [];
 
-    return `=== SYNKING WEBRTC CALL DIAGNOSTICS ===
+    return `=== SUNAO WEBRTC CALL DIAGNOSTICS ===
 Timestamp: ${new Date().toISOString()}
 Session ID: ${session.id}
 Call Type: ${session.type}
@@ -461,7 +461,7 @@ Remote Video Tracks (${remoteVideo.length}): ${JSON.stringify(remoteVideo)}
       try {
         await Share.share({
           message: report,
-          title: 'SYNKING WebRTC Debug Report',
+          title: 'Sunao WebRTC Debug Report',
         });
         success = true;
       } catch (e) {}
@@ -583,7 +583,7 @@ Remote Video Tracks (${remoteVideo.length}): ${JSON.stringify(remoteVideo)}
           <View style={[styles.topHeader, (session.type === 'video' || session.isVideoEnabled) && styles.topHeaderFloating]}>
             <View style={styles.e2eeBadge}>
               <Ionicons name="shield-checkmark" size={12} color="#22C55E" />
-              <Text style={styles.e2eeText}>P2P WebRTC Direct</Text>
+              <Text style={styles.e2eeText}>End-to-End Encrypted</Text>
             </View>
 
             <Text style={styles.callTypeTitle}>
@@ -594,7 +594,7 @@ Remote Video Tracks (${remoteVideo.length}): ${JSON.stringify(remoteVideo)}
 
             <Text style={[styles.callStatus, isConnected && styles.callStatusConnected]}>
               {isIncomingRinging && 'Incoming Call... 📲'}
-              {!isIncomingRinging && session.status === 'calling' && 'Connecting to peer...'}
+              {!isIncomingRinging && session.status === 'calling' && 'Connecting...'}
               {!isIncomingRinging && session.status === 'ringing' && 'Ringing... 📲'}
               {session.status === 'connected' && `Connected • ${durationText}`}
               {session.status === 'ended' && 'Call Ended'}
@@ -621,8 +621,8 @@ Remote Video Tracks (${remoteVideo.length}): ${JSON.stringify(remoteVideo)}
                 {isIncomingRinging
                   ? `Incoming ${session.type === 'video' ? 'Video 📹' : 'Voice 📞'} Call • Tap Accept`
                   : isConnected
-                  ? '🔒 Direct Peer-to-Peer Encrypted'
-                  : 'Connecting safely on SYNKING'}
+                  ? '🔒 End-to-End Encrypted'
+                  : 'Connecting safely on Sunao'}
               </Text>
             </View>
           ) : (
@@ -817,7 +817,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   callStatusConnected: {
-    color: '#22C55E',
+    color: '#10B981',
   },
   centerSection: {
     flex: 1,
@@ -840,7 +840,7 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 60,
     borderWidth: 3,
-    borderColor: '#FD3A73',
+    borderColor: '#10B981',
   },
   pulseRing: {
     position: 'absolute',
@@ -850,10 +850,10 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   pulseRingIncoming: {
-    borderColor: 'rgba(253, 58, 115, 0.6)',
+    borderColor: 'rgba(0, 242, 254, 0.6)',
   },
   pulseRingActive: {
-    borderColor: 'rgba(34, 197, 94, 0.6)',
+    borderColor: 'rgba(0, 255, 157, 0.6)',
   },
   pulseRingOuter: {
     position: 'absolute',
@@ -863,22 +863,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   pulseRingOuterIncoming: {
-    borderColor: 'rgba(253, 58, 115, 0.25)',
+    borderColor: 'rgba(0, 242, 254, 0.25)',
   },
   pulseRingOuterActive: {
-    borderColor: 'rgba(34, 197, 94, 0.25)',
+    borderColor: 'rgba(0, 255, 157, 0.25)',
   },
   topHeaderFloating: {
     position: 'absolute',
     top: Platform.OS === 'web' ? 18 : 48,
     alignSelf: 'center',
     minWidth: 210,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    backgroundColor: 'rgba(8, 9, 15, 0.85)',
     paddingHorizontal: 18,
     paddingVertical: 8,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.18)',
+    borderColor: 'rgba(255, 255, 255, 0.12)',
     zIndex: 20,
     alignItems: 'center',
     gap: 4,
@@ -910,7 +910,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     overflow: 'hidden',
     borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.45)',
+    borderColor: 'rgba(0, 255, 157, 0.5)',
     backgroundColor: '#000000',
     zIndex: 25,
     elevation: 10,
@@ -960,7 +960,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#EF4444',
   },
   acceptCallBtn: {
-    backgroundColor: '#22C55E',
+    backgroundColor: '#10B981',
   },
   actionBtnLabel: {
     color: '#FFFFFF',
@@ -975,12 +975,12 @@ const styles = StyleSheet.create({
     gap: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#13141F',
+    backgroundColor: '#1E293B',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 28,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderColor: '#334155',
     zIndex: 9999,
     elevation: 9999,
   },
@@ -993,7 +993,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   controlBtnActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
   },
   controlLabel: {
     color: '#94A3B8',
@@ -1013,13 +1013,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#FD3A73',
+    backgroundColor: '#10B981',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
-    shadowColor: '#FD3A73',
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
     elevation: 8,
   },
   unmuteFloatingText: {
@@ -1028,12 +1025,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   terminalBox: {
-    backgroundColor: '#020617',
+    backgroundColor: '#0F172A',
     borderRadius: 8,
     padding: 8,
     marginTop: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: '#1E293B',
   },
   terminalTitle: {
     color: '#38BDF8',
@@ -1043,21 +1040,21 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   terminalLine: {
-    color: '#A7F3D0',
+    color: '#10B981',
     fontSize: 9,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     lineHeight: 13,
   },
   micLevelBox: {
-    backgroundColor: '#020617',
+    backgroundColor: '#0F172A',
     borderRadius: 8,
     padding: 8,
     marginTop: 6,
     borderWidth: 1,
-    borderColor: 'rgba(0, 229, 255, 0.2)',
+    borderColor: '#1E293B',
   },
   micLevelLabel: {
-    color: '#00E5FF',
+    color: '#38BDF8',
     fontSize: 9.5,
     fontWeight: '900',
     marginBottom: 4,
@@ -1071,8 +1068,10 @@ const styles = StyleSheet.create({
   },
   micLevelFill: {
     height: '100%',
-    backgroundColor: '#22C55E',
+    backgroundColor: '#10B981',
     borderRadius: 4,
   },
 });
+
+export default CallModal;
 

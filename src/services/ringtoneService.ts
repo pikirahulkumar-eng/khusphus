@@ -1,7 +1,7 @@
 import { Platform, Vibration } from 'react-native';
 import { CallDebugger } from './callDebugger';
 
-// Professional Ringtone Engine for SYNKING
+// Professional Ringtone Engine for Sunao
 // Uses expo-audio on native Android/iOS & Web Audio API for Web browsers
 // Completely isolated from WebRTC call audio to prevent interference
 

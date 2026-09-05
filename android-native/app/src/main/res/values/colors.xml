@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="primary_emerald">#059669</color>
+    <color name="primary_emerald_dark">#047857</color>
+    <color name="emerald_light">#ECFDF5</color>
+    <color name="emerald_border">#A7F3D0</color>
+    <color name="slate_bg">#F8FAFC</color>
+    <color name="card_white">#FFFFFF</color>
+    <color name="text_primary">#0F172A</color>
+    <color name="text_secondary">#64748B</color>
+    <color name="border_light">#E2E8F0</color>
+    <color name="call_green">#10B981</color>
+    <color name="call_red">#EF4444</color>
+    <color name="white">#FFFFFF</color>
+</resources>

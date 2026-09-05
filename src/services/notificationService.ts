@@ -41,7 +41,7 @@ class NotificationServiceClass {
 
       if (Platform.OS === 'android') {
         await Notifications.setNotificationChannelAsync('incoming_calls', {
-          name: 'SYNKING Incoming Calls',
+          name: 'Sunao Incoming Calls',
           importance: Notifications.AndroidImportance.MAX,
           vibrationPattern: [0, 800, 1000],
           lightColor: '#FD3A73',
@@ -128,7 +128,7 @@ class NotificationServiceClass {
         identifier: `call_${callId}`,
         content: {
           title: `📞 Incoming ${callType === 'video' ? 'Video' : 'Voice'} Call`,
-          body: `${callerName} is calling you on SYNKING`,
+          body: `${callerName} is calling you on Sunao`,
           data: { callId, callerName, callType },
           sound: 'default',
           priority: Notifications.AndroidNotificationPriority.MAX,
@@ -169,8 +169,9 @@ class NotificationServiceClass {
     // 1. Get native Android FCM token FIRST (most reliable for dead-state wakeup)
     if (Platform.OS === 'android') {
       try {
-        // Try firebase/messaging first (most reliable native FCM token)
-        const { getMessaging, getToken } = await import('@react-native-firebase/messaging').catch(() => ({ getMessaging: null, getToken: null }));
+        // @ts-ignore
+        const fbMessaging: any = await import('@react-native-firebase/messaging').catch(() => ({ getMessaging: null, getToken: null }));
+        const { getMessaging, getToken } = fbMessaging || {};
         if (getMessaging && getToken) {
           const nativeToken = await getToken(getMessaging()).catch(() => null);
           if (nativeToken) {

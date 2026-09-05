@@ -1,278 +1,155 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, StatusBar, SafeAreaView, TextInput, Modal, Alert } from 'react-native';
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
+import React, { useState, useEffect } from 'react';
+import { View, Platform, ActivityIndicator } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import LoginScreen from './src/screens/LoginScreen';
+import MainScreen from './src/screens/MainScreen';
+import ChatScreen from './src/screens/ChatScreen';
+import CallModal from './src/components/CallModal';
+import { WebRTCService } from './src/services/webrtcService';
+import { RealtimeBridge } from './src/services/realtimeBridge';
+
+const RootWrapper = ({ children }: any) => (
+  <View
+    style={[
+      { flex: 1 },
+      Platform.OS === 'web' && {
+        marginHorizontal: 'auto',
+        width: '100%',
+        maxWidth: 440,
+        height: '100%' as any,
+        overflow: 'hidden',
+        borderLeftWidth: 1,
+        borderRightWidth: 1,
+        borderColor: '#E2E8F0',
+        backgroundColor: '#F8FAFC',
+        shadowColor: '#0F172A',
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+      },
+    ]}
+  >
+    {children}
+  </View>
+);
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [activeTab, setActiveTab] = useState('Calls');
-  
-  // States for the 3 Icons
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showMenu, setShowMenu] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(true);
+  const [currentUserPhone, setCurrentUserPhone] = useState('9876543210');
 
-  const dummyCalls = [
-    { id: '1', name: 'Rahul Bhai', time: '10:45 AM', type: 'incoming', isVideo: false, missed: false },
-    { id: '2', name: 'Papa', time: 'Yesterday, 8:30 PM', type: 'outgoing', isVideo: true, missed: false },
-    { id: '3', name: 'Neha', time: 'Yesterday, 4:15 PM', type: 'incoming', isVideo: false, missed: true },
-  ];
+  const [activeChatUser, setActiveChatUser] = useState<any>(null);
 
-  // 1. Camera Logic
-  const handleCamera = async () => {
-    const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
-    if (permissionResult.granted === false) {
-      Alert.alert('Permission Denied', 'Camera access is required!');
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync();
-    if (!result.canceled) {
-      Alert.alert('Photo Captured', 'Your photo is ready to be sent or set as status!');
+  // WebRTC Call Session
+  const [callSession, setCallSession] = useState<any>(null);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const phone = await AsyncStorage.getItem('user_phone');
+        const activePhone = phone || '9876543210';
+        setCurrentUserPhone(activePhone);
+        setIsAuthenticated(true);
+        RealtimeBridge.registerUser(activePhone);
+      } catch (e) {
+        console.warn('Auth check error:', e);
+      } finally {
+        setIsCheckingAuth(false);
+      }
+    };
+    checkAuth();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = WebRTCService.subscribe((session) => {
+      setCallSession(session);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleLoginSuccess = async (phone: string) => {
+    try {
+      await AsyncStorage.setItem('user_phone', phone);
+      setCurrentUserPhone(phone);
+      setIsAuthenticated(true);
+      RealtimeBridge.registerUser(phone);
+    } catch (e) {
+      console.error('Failed to persist session:', e);
     }
   };
 
-  const renderCall = ({ item }: any) => {
-    if (isSearching && !item.name.toLowerCase().includes(searchQuery.toLowerCase())) {
-      return null;
+  const handleLogout = async () => {
+    try {
+      await AsyncStorage.removeItem('user_phone');
+      setIsAuthenticated(false);
+      setCurrentUserPhone('');
+      setActiveChatUser(null);
+    } catch (e) {
+      console.error('Logout error:', e);
     }
+  };
+
+  const startCall = (userId: string, userName: string, isVideo: boolean) => {
+    WebRTCService.startCall({
+      callerUser: { id: currentUserPhone || 'my_id', name: 'You', phone: currentUserPhone },
+      targetUser: { id: userId, name: userName, phone: userId },
+      type: isVideo ? 'video' : 'audio',
+    });
+  };
+
+  if (isCheckingAuth) {
     return (
-      <View style={styles.callItem}>
-        <View style={styles.avatar}>
-          <Ionicons name="person" size={24} color="#FFF" />
-        </View>
-        <View style={styles.callDetails}>
-          <Text style={[styles.name, item.missed && { color: '#FF3B30' }]}>{item.name}</Text>
-          <View style={styles.subTitleRow}>
-            <MaterialIcons
-              name={item.type === 'incoming' ? 'call-received' : 'call-made'}
-              size={14}
-              color={item.missed ? '#FF3B30' : '#25D366'}
-              style={{ marginRight: 4 }}
-            />
-            <Text style={styles.time}>{item.time}</Text>
-          </View>
-        </View>
-        <TouchableOpacity style={styles.callActionBtn}>
-          <Ionicons name={item.isVideo ? 'videocam' : 'call'} size={22} color="#128C7E" />
-        </TouchableOpacity>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF' }}>
+        <ActivityIndicator size="large" color="#008069" />
       </View>
     );
-  };
+  }
 
   if (!isAuthenticated) {
-    return <LoginScreen onLoginSuccess={() => setIsAuthenticated(true)} />;
+    return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
+  }
+
+  if (activeChatUser) {
+    return (
+      <RootWrapper>
+        <ChatScreen
+          chatUser={activeChatUser}
+          user={activeChatUser}
+          onBack={() => setActiveChatUser(null)}
+          onStartCall={(isVideo: boolean) => startCall(activeChatUser.phone, activeChatUser.name, isVideo)}
+          onCall={(isVideo: boolean) => startCall(activeChatUser.phone, activeChatUser.name, isVideo)}
+        />
+        {callSession && (
+          <CallModal
+            session={callSession}
+            onAcceptCall={() => WebRTCService.acceptCall()}
+            onEndCall={() => WebRTCService.endCall()}
+            onToggleMute={() => WebRTCService.toggleMute()}
+            onToggleVideo={() => WebRTCService.toggleVideo()}
+            onToggleSpeaker={() => WebRTCService.toggleSpeaker()}
+          />
+        )}
+      </RootWrapper>
+    );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar backgroundColor="#128C7E" barStyle="light-content" />
-      
-      {/* WhatsApp Style Header */}
-      {isSearching ? (
-        <View style={styles.searchHeader}>
-          <TouchableOpacity onPress={() => { setIsSearching(false); setSearchQuery(''); }}>
-            <Ionicons name="arrow-back" size={24} color="#FFF" />
-          </TouchableOpacity>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search..."
-            placeholderTextColor="rgba(255,255,255,0.7)"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            autoFocus
-          />
-        </View>
-      ) : (
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>KhusPhus</Text>
-          <View style={styles.headerIcons}>
-            <TouchableOpacity onPress={handleCamera}>
-              <Ionicons name="camera-outline" size={24} color="#FFF" style={styles.icon} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setIsSearching(true)}>
-              <Ionicons name="search" size={24} color="#FFF" style={styles.icon} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setShowMenu(true)}>
-              <Ionicons name="ellipsis-vertical" size={24} color="#FFF" />
-            </TouchableOpacity>
-          </View>
-        </View>
+    <RootWrapper>
+      <MainScreen
+        currentUserPhone={currentUserPhone}
+        onOpenChat={(user) => setActiveChatUser(user)}
+        onStartCall={(phone, name, isVideo) => startCall(phone, name, isVideo)}
+        onLogout={handleLogout}
+      />
+      {callSession && (
+        <CallModal
+          session={callSession}
+          onAcceptCall={() => WebRTCService.acceptCall()}
+          onEndCall={() => WebRTCService.endCall()}
+          onToggleMute={() => WebRTCService.toggleMute()}
+          onToggleVideo={() => WebRTCService.toggleVideo()}
+          onToggleSpeaker={() => WebRTCService.toggleSpeaker()}
+        />
       )}
-
-      {/* Dropdown Menu Modal */}
-      {showMenu && (
-        <TouchableOpacity style={styles.menuOverlay} onPress={() => setShowMenu(false)} activeOpacity={1}>
-          <View style={styles.dropdownMenu}>
-            <TouchableOpacity style={styles.menuItem} onPress={() => { setShowMenu(false); Alert.alert('Settings', 'Opening Settings...'); }}>
-              <Text style={styles.menuText}>Settings</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.menuItem} onPress={() => { setShowMenu(false); Alert.alert('Clear call log', 'Are you sure?'); }}>
-              <Text style={styles.menuText}>Clear call log</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      )}
-
-      {/* Tabs */}
-      <View style={styles.tabsRow}>
-        <TouchableOpacity style={styles.tab} onPress={() => setActiveTab('Chats')}>
-          <Text style={[styles.tabText, activeTab === 'Chats' && styles.activeTabText]}>Chats</Text>
-          {activeTab === 'Chats' && <View style={styles.activeTabIndicator} />}
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tab} onPress={() => setActiveTab('Updates')}>
-          <Text style={[styles.tabText, activeTab === 'Updates' && styles.activeTabText]}>Updates</Text>
-          {activeTab === 'Updates' && <View style={styles.activeTabIndicator} />}
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tab} onPress={() => setActiveTab('Calls')}>
-          <Text style={[styles.tabText, activeTab === 'Calls' && styles.activeTabText]}>Calls</Text>
-          {activeTab === 'Calls' && <View style={styles.activeTabIndicator} />}
-        </TouchableOpacity>
-      </View>
-
-      {/* Body */}
-      {activeTab === 'Calls' ? (
-        <View style={{ flex: 1 }}>
-          <View style={styles.createLinkRow}>
-            <View style={styles.linkIconBg}>
-              <Ionicons name="link" size={20} color="#FFF" />
-            </View>
-            <View>
-              <Text style={styles.createLinkText}>Create call link</Text>
-              <Text style={styles.createLinkSub}>Share a link for your KhusPhus call</Text>
-            </View>
-          </View>
-          <Text style={styles.recentText}>Recent</Text>
-          <FlatList
-            data={dummyCalls}
-            keyExtractor={(item) => item.id}
-            renderItem={renderCall}
-          />
-          <TouchableOpacity style={styles.fab}>
-            <MaterialIcons name="add-call" size={24} color="#FFF" />
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyStateText}>{activeTab} coming soon...</Text>
-        </View>
-      )}
-    </SafeAreaView>
+    </RootWrapper>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFF' },
-  header: {
-    backgroundColor: '#128C7E',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  headerTitle: { color: '#FFF', fontSize: 20, fontWeight: '600' },
-  headerIcons: { flexDirection: 'row', alignItems: 'center' },
-  icon: { marginRight: 20 },
-  searchHeader: {
-    backgroundColor: '#128C7E',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: 16,
-    color: '#FFF',
-    fontSize: 18,
-  },
-  menuOverlay: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'transparent',
-    zIndex: 10,
-  },
-  dropdownMenu: {
-    position: 'absolute',
-    top: 50,
-    right: 10,
-    backgroundColor: '#FFF',
-    borderRadius: 4,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    paddingVertical: 8,
-    minWidth: 150,
-    zIndex: 11,
-  },
-  menuItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-  },
-  menuText: {
-    fontSize: 16,
-    color: '#000',
-  },
-  tabsRow: {
-    flexDirection: 'row',
-    backgroundColor: '#128C7E',
-  },
-  tab: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  tabText: { color: 'rgba(255,255,255,0.7)', fontSize: 15, fontWeight: 'bold' },
-  activeTabText: { color: '#FFF' },
-  activeTabIndicator: {
-    position: 'absolute',
-    bottom: 0,
-    width: '100%',
-    height: 3,
-    backgroundColor: '#FFF',
-  },
-  createLinkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-  },
-  linkIconBg: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#128C7E',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  createLinkText: { fontSize: 16, fontWeight: '500', color: '#000' },
-  createLinkSub: { fontSize: 14, color: '#667781', marginTop: 2 },
-  recentText: { fontSize: 14, fontWeight: '600', color: '#667781', paddingHorizontal: 16, paddingVertical: 8 },
-  callItem: { flexDirection: 'row', alignItems: 'center', padding: 16 },
-  avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#E1E4E8', justifyContent: 'center', alignItems: 'center', marginRight: 16 },
-  callDetails: { flex: 1 },
-  name: { fontSize: 16, fontWeight: '500', color: '#000' },
-  subTitleRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
-  time: { fontSize: 14, color: '#667781' },
-  callActionBtn: { padding: 8 },
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#128C7E',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 4,
-  },
-  emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  emptyStateText: { fontSize: 16, color: '#667781' },
-});

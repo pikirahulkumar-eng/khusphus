@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "khusphus",
-    "slug": "khusphus",
+    "name": "Sunao",
+    "slug": "sunao",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -10,7 +10,7 @@
       "supportsTablet": true
     },
     "android": {
-      "package": "com.khusphus.apk",
+      "package": "com.sunao.app",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
