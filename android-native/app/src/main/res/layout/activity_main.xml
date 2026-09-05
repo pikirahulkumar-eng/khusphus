@@ -68,9 +68,9 @@
         app:tabSelectedTextColor="@color/primary_emerald"
         app:tabTextColor="@color/text_secondary" />
 
-    <!-- 120fps ViewPager2 -->
-    <androidx.viewpager2.widget.ViewPager2
-        android:id="@+id/viewPager"
+    <!-- 120fps RecyclerView -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvChats"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 

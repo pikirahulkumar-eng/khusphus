@@ -29,7 +29,7 @@ public class MainActivity extends AppCompatActivity {
         tabLayout.addTab(tabLayout.newTab().setText(R.string.updates));
         tabLayout.addTab(tabLayout.newTab().setText(R.string.calls));
 
-        rvChats = findViewById(R.id.viewPager); // Using RecyclerView for instant zero-lag chats view
+        rvChats = findViewById(R.id.rvChats); // 120fps instant zero-lag chats view
         rvChats.setLayoutManager(new LinearLayoutManager(this));
 
         loadChats();
