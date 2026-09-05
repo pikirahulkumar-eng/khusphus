@@ -70,6 +70,6 @@ dependencies {
     // Realtime Networking
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
-    // Google WebRTC Native Android Engine
-    implementation("org.webrtc:google-webrtc:1.0.32006")
+    // Google WebRTC Native Android Engine (Maintained on Maven Central)
+    implementation("io.getstream:stream-webrtc-android:1.3.10")
 }
