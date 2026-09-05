@@ -11,6 +11,7 @@
     <color name="primary_emerald">#059669</color>
     <color name="primary_emerald_dark">#047857</color>
     <color name="primary_emerald_light">#ECFDF5</color>
+    <color name="emerald_light">#ECFDF5</color>
     <color name="emerald_border">#A7F3D0</color>
     <color name="accent_mint">#10B981</color>
     
@@ -18,6 +19,7 @@
     <color name="slate_bg">#F8FAFC</color>
     <color name="card_white">#FFFFFF</color>
     <color name="card_border">#E2E8F0</color>
+    <color name="border_light">#E2E8F0</color>
     <color name="divider">#F1F5F9</color>
     <color name="surface_light">#F1F5F9</color>
     <color name="white">#FFFFFF</color>
@@ -35,6 +37,10 @@
     <color name="tick_blue">#38BDF8</color>
     
     <!-- Action Button Colors -->
+    <color name="call_red">#EF4444</color>
+    <color name="call_green">#10B981</color>
+    <color name="blue_video">#2563EB</color>
+    <color name="blue_video_light">#EFF6FF</color>
     <color name="call_audio_bg">#ECFDF5</color>
     <color name="call_audio_border">#A7F3D0</color>
     <color name="call_audio_icon">#059669</color>
