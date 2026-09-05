@@ -1,9 +1,15 @@
-name: Build Sunao Native Debug APK
+﻿name: Build Sunao Native Debug APK
 
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: 'true'
 
 jobs:
   build:
@@ -33,8 +39,25 @@ jobs:
           cd android-native
           ./gradlew assembleDebug --stacktrace
 
-      - name: Upload Debug APK Artifact
-        uses: actions/upload-artifact@v4
+      - name: Generate Direct Download Link via BashUpload
+        run: |
+          APK_FILE=$(find android-native/app/build/outputs/apk/debug -name "*.apk" | head -n 1)
+          echo "Found APK at: $APK_FILE"
+          echo "Uploading to bashupload.com for instant direct link..."
+          UPLOAD_URL=$(curl -s --upload-file "$APK_FILE" https://bashupload.com | grep -o 'https://bashupload.com/[^ ]*' | head -n 1)
+          echo "=========================================================="
+          echo "DIRECT DOWNLOAD LINK: $UPLOAD_URL"
+          echo "=========================================================="
+          echo "## 📱 Direct APK Download Link" >> $GITHUB_STEP_SUMMARY
+          echo "[Click here to download app-debug.apk]($UPLOAD_URL)" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        if: always()
         with:
-          name: sunao-native-debug-apk
-          path: android-native/app/build/outputs/apk/debug/*.apk
+          tag_name: latest-apk
+          name: "Sunao Pure Native Android Debug APK"
+          body: "Compiled from main branch (Java + C++ NDK Engine). Click app-debug.apk below to download."
+          files: android-native/app/build/outputs/apk/debug/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

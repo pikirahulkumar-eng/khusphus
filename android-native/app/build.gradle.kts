@@ -72,4 +72,5 @@ dependencies {
 
     // Google WebRTC Native Android Engine (Maintained on Maven Central)
     implementation("io.getstream:stream-webrtc-android:1.3.10")
+    implementation("io.getstream:stream-webrtc-android-ui:1.3.10")
 }
