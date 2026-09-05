@@ -67,9 +67,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     public List<Moment> getMoments() {
         List<Moment> list = new ArrayList<>();
-        list.add(new Moment("m1", "Rahul Bhai", "18m ago", "🎤 "Voice update live!""));
+        list.add(new Moment("m1", "Rahul Bhai", "18m ago", "🎤 Voice update live!"));
         list.add(new Moment("m2", "Neha Sharma", "45m ago", "📸 Weekend mood"));
-        list.add(new Moment("m3", "Amit Patel", "2h ago", "🎤 "New photo posted""));
+        list.add(new Moment("m3", "Amit Patel", "2h ago", "🎤 New photo posted"));
         list.add(new Moment("m4", "Priya Verma", "5h ago", "📸 At cafe"));
         return list;
     }
