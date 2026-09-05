@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="center_horizontal"
+    android:paddingHorizontal="8dp"
+    android:paddingVertical="4dp">
+
+    <RelativeLayout
+        android:layout_width="54dp"
+        android:layout_height="54dp">
+
+        <View
+            android:id="@+id/presenceAvatarRing"
+            android:layout_width="54dp"
+            android:layout_height="54dp"
+            android:background="@drawable/bg_presence_ring" />
+
+        <TextView
+            android:id="@+id/tvPresenceInitial"
+            android:layout_width="46dp"
+            android:layout_height="46dp"
+            android:layout_centerInParent="true"
+            android:gravity="center"
+            android:textColor="@color/primary_emerald"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:text="R" />
+
+        <View
+            android:id="@+id/presenceLiveDot"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:layout_alignParentBottom="true"
+            android:layout_alignParentEnd="true"
+            android:background="@drawable/bg_online_dot" />
+    </RelativeLayout>
+
+    <TextView
+        android:id="@+id/tvPresenceName"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:text="Rahul"
+        android:textColor="@color/text_primary"
+        android:textSize="11sp"
+        android:textStyle="bold" />
+
+</LinearLayout>

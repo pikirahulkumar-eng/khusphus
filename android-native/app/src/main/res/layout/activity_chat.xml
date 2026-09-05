@@ -5,13 +5,13 @@
     android:layout_height="match_parent"
     android:background="@color/slate_bg">
 
-    <!-- Chat Header -->
+    <!-- Header Toolbar matching ChatScreen.tsx -->
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/chatToolbar"
         android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
+        android:layout_height="58dp"
         android:background="@color/card_white"
-        android:elevation="2dp">
+        android:elevation="3dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -27,18 +27,41 @@
                 android:src="@android:drawable/ic_menu_revert"
                 app:tint="@color/text_primary" />
 
+            <!-- Squircle Contact Avatar -->
+            <RelativeLayout
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginStart="4dp">
+
+                <View
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="@drawable/bg_avatar_squircle" />
+
+                <TextView
+                    android:id="@+id/tvChatAvatarInitial"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:textColor="@color/primary_emerald"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:text="R" />
+            </RelativeLayout>
+
+            <!-- Name and Realtime Status -->
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:layout_marginStart="8dp"
+                android:layout_marginStart="10dp"
                 android:orientation="vertical">
 
                 <TextView
                     android:id="@+id/tvPeerName"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Peer User"
+                    android:text="Rahul Kumar"
                     android:textColor="@color/text_primary"
                     android:textSize="16sp"
                     android:textStyle="bold" />
@@ -49,31 +72,32 @@
                     android:layout_height="wrap_content"
                     android:text="online"
                     android:textColor="@color/primary_emerald"
-                    android:textSize="12sp" />
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
             </LinearLayout>
 
-            <!-- Call Triggers -->
+            <!-- One-tap Calling Triggers -->
             <ImageButton
                 android:id="@+id/btnAudioCall"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_marginEnd="4dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/bg_quick_action_audio"
                 android:src="@android:drawable/ic_menu_call"
                 app:tint="@color/primary_emerald" />
 
             <ImageButton
                 android:id="@+id/btnVideoCall"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_marginEnd="8dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/bg_quick_action_video"
                 android:src="@android:drawable/presence_video_online"
-                app:tint="@color/primary_emerald" />
+                app:tint="@color/blue_video" />
         </LinearLayout>
     </androidx.appcompat.widget.Toolbar>
 
-    <!-- Message RecyclerView -->
+    <!-- Message Stream RecyclerView -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rvMessages"
         android:layout_width="match_parent"
@@ -83,7 +107,7 @@
         android:clipToPadding="false"
         android:padding="12dp" />
 
-    <!-- Message Input Bar -->
+    <!-- Message Composer Bar matching ChatScreen.tsx -->
     <LinearLayout
         android:id="@+id/layoutInput"
         android:layout_width="match_parent"
@@ -95,29 +119,46 @@
 
         <LinearLayout
             android:layout_width="0dp"
-            android:layout_height="44dp"
+            android:layout_height="48dp"
             android:layout_weight="1"
             android:background="@drawable/bg_input_box"
             android:gravity="center_vertical"
             android:paddingHorizontal="14dp">
 
+            <ImageButton
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@android:drawable/ic_menu_share"
+                app:tint="@color/text_muted" />
+
             <EditText
                 android:id="@+id/etMessage"
-                android:layout_width="match_parent"
+                android:layout_width="0dp"
                 android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
                 android:background="@null"
                 android:hint="@string/type_a_message"
                 android:textColor="@color/text_primary"
-                android:textColorHint="@color/text_secondary"
+                android:textColorHint="@color/text_muted"
                 android:textSize="15sp" />
+
+            <ImageButton
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@android:drawable/ic_menu_camera"
+                app:tint="@color/text_muted" />
         </LinearLayout>
 
         <ImageButton
             android:id="@+id/btnSend"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
             android:layout_marginStart="8dp"
             android:background="@drawable/bg_send_btn"
+            android:elevation="2dp"
             android:src="@android:drawable/ic_menu_send"
             app:tint="@color/white" />
     </LinearLayout>
