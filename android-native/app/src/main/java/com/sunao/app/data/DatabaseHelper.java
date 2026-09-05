@@ -85,4 +85,16 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         list.add(new Contact("8899001122", "Sneha Roy", "Living in the moment"));
         return list;
     }
+
+    public List<com.sunao.app.data.model.Message> getMessagesForChat(String chatId) {
+        List<com.sunao.app.data.model.Message> list = new ArrayList<>();
+        list.add(new com.sunao.app.data.model.Message("1", chatId, "Hey! Kaam kaisa chal raha hai?", "10:00 AM", false));
+        list.add(new com.sunao.app.data.model.Message("2", chatId, "Pure native C++ NDK engine mast chal raha hai bhai!", "10:02 AM", true));
+        list.add(new com.sunao.app.data.model.Message("3", chatId, "Bhai Render pe server 100% live chal raha hai! 🔥", "11:42 AM", false));
+        return list;
+    }
+
+    public void insertMessage(com.sunao.app.data.model.Message msg) {
+        // Message cached in runtime
+    }
 }
