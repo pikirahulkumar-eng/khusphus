@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { View, StyleSheet, SafeAreaView, StatusBar, Platform, Modal, TouchableOpacity, Text } from 'react-native';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { View, StyleSheet, SafeAreaView, StatusBar, Platform, Modal, TouchableOpacity, Text, BackHandler, ToastAndroid } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import SunaoHeader from '../components/main/SunaoHeader';
 import FilterChips, { FilterType } from '../components/main/FilterChips';
@@ -196,7 +196,7 @@ export default function MainScreen({
     return () => {
       isMounted = false;
     };
-  }, [currentUserPhone]);
+  }, [currentUserPhone, activeChatPhone]);
 
   // 2. Real-Time Socket Event Listener (Incoming & Multi-Device Outgoing Sync)
   useEffect(() => {
@@ -325,6 +325,58 @@ export default function MainScreen({
       markUpdatesSeen();
     }
   }, [activeNavTab]);
+
+  const lastBackPressRef = useRef<number>(0);
+
+  // Android Hardware Back Handling:
+  // 1. Close open modals (Camera, Settings, NewChat)
+  // 2. Close Search mode if active
+  // 3. Return to 'Chats' tab if on Calls / Updates / Profile
+  // 4. Double tap back to exit if on 'Chats' tab (with Toast notification)
+  useEffect(() => {
+    const handleHardwareBack = () => {
+      if (showCameraModal) {
+        setShowCameraModal(false);
+        return true;
+      }
+      if (showSettingsModal) {
+        setShowSettingsModal(false);
+        return true;
+      }
+      if (showNewChatModal) {
+        setShowNewChatModal(false);
+        return true;
+      }
+
+      if (isSearching) {
+        setIsSearching(false);
+        setSearchQuery('');
+        setRemoteSearchResults([]);
+        return true;
+      }
+
+      if (activeNavTab !== 'Chats') {
+        setActiveNavTab('Chats');
+        return true;
+      }
+
+      if (Platform.OS === 'android') {
+        const now = Date.now();
+        if (now - lastBackPressRef.current < 2000) {
+          BackHandler.exitApp();
+          return true;
+        }
+        lastBackPressRef.current = now;
+        ToastAndroid.show('Press back again to exit Sunao', ToastAndroid.SHORT);
+        return true;
+      }
+
+      return false;
+    };
+
+    const backSub = BackHandler.addEventListener('hardwareBackPress', handleHardwareBack);
+    return () => backSub.remove();
+  }, [showCameraModal, showSettingsModal, showNewChatModal, isSearching, activeNavTab]);
 
   const missedCallsCount = useMemo(() => {
     if (hasSeenCalls || activeNavTab === 'Calls') return 0;

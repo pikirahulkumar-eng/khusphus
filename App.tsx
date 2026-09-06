@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Platform, ActivityIndicator, useWindowDimensions, StyleSheet } from 'react-native';
+import { View, Text, Platform, ActivityIndicator, useWindowDimensions, StyleSheet, BackHandler } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import LoginScreen from './src/screens/LoginScreen';
@@ -108,6 +108,19 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  // Android Hardware Back Handler: Return from active chat to chat list
+  useEffect(() => {
+    const handleBack = () => {
+      if (activeChatUser) {
+        setActiveChatUser(null);
+        return true;
+      }
+      return false;
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', handleBack);
+    return () => sub.remove();
+  }, [activeChatUser]);
 
   const handleLoginSuccess = async (phone: string) => {
     try {

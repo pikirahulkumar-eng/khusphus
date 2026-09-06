@@ -13,6 +13,7 @@ import {
   Pressable,
   ScrollView,
   StatusBar,
+  BackHandler,
 } from 'react-native';
 import { Ionicons, MaterialIcons, Feather } from '@expo/vector-icons';
 import { KhusPhusTheme } from '../constants/theme';
@@ -58,6 +59,29 @@ export default function ChatScreen({
   const [recordSeconds, setRecordSeconds] = useState(0);
   const timerIntervalRef = useRef<any>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  // Hardware Back Handler (Android): Navigate back to chat list instead of exiting app
+  useEffect(() => {
+    const onHardwareBack = () => {
+      if (showOptionsMenu) {
+        setShowOptionsMenu(false);
+        return true;
+      }
+      if (showAttachmentMenu) {
+        setShowAttachmentMenu(false);
+        return true;
+      }
+      if (showEmojiBar) {
+        setShowEmojiBar(false);
+        return true;
+      }
+      onBack();
+      return true;
+    };
+
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', onHardwareBack);
+    return () => backHandler.remove();
+  }, [showOptionsMenu, showAttachmentMenu, showEmojiBar, onBack]);
 
   // 1. Load Local Messages from Offline Storage on Mount
   useEffect(() => {

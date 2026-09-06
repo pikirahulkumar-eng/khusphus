@@ -42,7 +42,12 @@ class RealtimeBridgeManager {
       console.log(`[WS_CONNECTING] ${url}`);
       
       this.socket = io(url, {
-        transports: ['websocket'],
+        transports: ['polling', 'websocket'],
+        reconnection: true,
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        timeout: 20000,
       });
 
       this.socket.on('connect', () => {

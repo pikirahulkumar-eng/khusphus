@@ -279,12 +279,48 @@ io.on('connection', (socket) => {
   });
 });
 
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    service: 'Sunao Realtime Signaling & Push Gateway',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
 if (fs.existsSync(distPath)) {
   app.use((req, res, next) => {
     if (req.path.startsWith('/api') || req.path.startsWith('/socket.io')) {
       return next();
     }
     res.sendFile(path.join(distPath, 'index.html'));
+  });
+} else {
+  app.get('/', (req, res) => {
+    res.status(200).send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Sunao Cloud Server</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          body { font-family: system-ui, -apple-system, sans-serif; background: #0F172A; color: #F8FAFC; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+          .card { background: #1E293B; border-radius: 20px; padding: 32px; max-width: 480px; text-align: center; border: 1px solid #334155; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); }
+          h1 { color: #10B981; margin-bottom: 8px; font-size: 26px; }
+          p { color: #94A3B8; font-size: 15px; line-height: 1.5; }
+          .badge { display: inline-flex; align-items: center; background: rgba(16,185,129,0.15); color: #34D399; padding: 6px 14px; border-radius: 9999px; font-weight: 600; font-size: 13px; margin-top: 12px; }
+          .dot { width: 8px; height: 8px; border-radius: 50%; background: #10B981; margin-right: 8px; box-shadow: 0 0 10px #10B981; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h1>Sunao Realtime Server</h1>
+          <p>WebRTC P2P Signaling Engine, Turso DB Sync & FCM Push Notification Gateway are live and running smoothly.</p>
+          <div class="badge"><div class="dot"></div>Cloud Backend 100% Operational</div>
+        </div>
+      </body>
+      </html>
+    `);
   });
 }
 
