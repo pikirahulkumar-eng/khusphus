@@ -1,0 +1,53 @@
+name: Build Sunao Windows Desktop (.exe)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-desktop:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Install Electron & Electron Builder
+        run: npm install --save-dev electron@33.2.1 electron-builder@25.1.8
+
+      - name: Build React Native Web Dist Bundle
+        run: npx expo export -p web
+
+      - name: Build Windows Desktop Executable (.exe)
+        run: npx electron-builder --win --x64
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Desktop Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sunao-Windows-Desktop-EXE
+          path: release-builds/*.exe
+
+      - name: Upload to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        if: always()
+        with:
+          tag_name: latest-desktop
+          name: "Sunao Windows Desktop (.exe)"
+          body: "Official Sunao Windows Desktop Executable. Includes NSIS Installer (Sunao Setup.exe) and Portable standalone (Sunao.exe) with WebRTC audio and video call support."
+          files: release-builds/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

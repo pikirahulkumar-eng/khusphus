@@ -48,7 +48,38 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
+    "build:web": "expo export -p web",
+    "web:serve": "node realtime-server.js",
+    "desktop:build": "electron-builder --win --x64",
     "server": "node realtime-server.js"
+  },
+  "build": {
+    "appId": "com.sunao.desktop",
+    "productName": "Sunao",
+    "directories": {
+      "output": "release-builds"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "extraMetadata": {
+      "main": "electron/main.js"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Sunao"
+    }
   },
   "private": true
 }
