@@ -13,6 +13,7 @@ import SettingsModal from '../components/main/SettingsModal';
 import { SunaoTheme } from '../constants/theme';
 import { ChatStorageService } from '../services/chatStorageService';
 import { RealtimeBridge } from '../services/realtimeBridge';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface MainScreenProps {
   currentUserPhone: string;
@@ -295,9 +296,45 @@ export default function MainScreen({
     return chats.reduce((acc, c) => acc + (c.unreadCount || 0), 0);
   }, [chats]);
 
+  const [hasSeenCalls, setHasSeenCalls] = useState(false);
+  const [hasSeenUpdates, setHasSeenUpdates] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem('@sunao_seen_calls').then((val) => {
+      if (val === 'true') setHasSeenCalls(true);
+    });
+    AsyncStorage.getItem('@sunao_seen_updates').then((val) => {
+      if (val === 'true') setHasSeenUpdates(true);
+    });
+  }, []);
+
+  const markCallsSeen = () => {
+    setHasSeenCalls(true);
+    AsyncStorage.setItem('@sunao_seen_calls', 'true');
+  };
+
+  const markUpdatesSeen = () => {
+    setHasSeenUpdates(true);
+    AsyncStorage.setItem('@sunao_seen_updates', 'true');
+  };
+
+  useEffect(() => {
+    if (activeNavTab === 'Calls') {
+      markCallsSeen();
+    } else if (activeNavTab === 'Updates') {
+      markUpdatesSeen();
+    }
+  }, [activeNavTab]);
+
   const missedCallsCount = useMemo(() => {
+    if (hasSeenCalls || activeNavTab === 'Calls') return 0;
     return initialCalls.filter((c) => c.type === 'missed').length;
-  }, [initialCalls]);
+  }, [initialCalls, hasSeenCalls, activeNavTab]);
+
+  const hasUpdatesBadge = useMemo(() => {
+    if (hasSeenUpdates || activeNavTab === 'Updates') return false;
+    return true;
+  }, [hasSeenUpdates, activeNavTab]);
 
   return (
     <View style={styles.rootContainer}>
@@ -372,6 +409,8 @@ export default function MainScreen({
         activeTab={activeNavTab}
         onTabChange={(tab) => {
           setActiveNavTab(tab);
+          if (tab === 'Calls') markCallsSeen();
+          if (tab === 'Updates') markUpdatesSeen();
           if (isSearching) {
             setIsSearching(false);
             setSearchQuery('');
@@ -379,7 +418,7 @@ export default function MainScreen({
         }}
         unreadChatsCount={totalUnreadCount}
         missedCallsCount={missedCallsCount}
-        hasUpdatesBadge={true}
+        hasUpdatesBadge={hasUpdatesBadge}
       />
 
       <SafeAreaView style={styles.bottomBarSafe} />

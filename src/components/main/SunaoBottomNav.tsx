@@ -75,7 +75,7 @@ export default function SunaoBottomNav({
                 color={isActive ? '#059669' : '#64748B'}
               />
 
-              {Boolean(tab.badgeCount && tab.badgeCount > 0) && (
+              {Boolean(tab.badgeCount && tab.badgeCount > 0 && !isActive) && (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>
                     {tab.badgeCount! > 99 ? '99+' : tab.badgeCount}
@@ -83,7 +83,7 @@ export default function SunaoBottomNav({
                 </View>
               )}
 
-              {!tab.badgeCount && tab.showDot && (
+              {!tab.badgeCount && tab.showDot && !isActive && (
                 <View style={styles.dotBadge} />
               )}
             </View>
