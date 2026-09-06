@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, Platform, Switch } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform, Switch, Modal, Pressable } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { KhusPhusTheme } from '../../constants/theme';
@@ -13,6 +13,17 @@ export default function ProfileTab({ currentUserPhone, onLogout }: ProfileTabPro
   const [activeMood, setActiveMood] = useState('Available');
   const [isIncognito, setIsIncognito] = useState(false);
   const [isNoiseCancellation, setIsNoiseCancellation] = useState(true);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [activeBentoModal, setActiveBentoModal] = useState<string | null>(null);
+
+  const copyToClipboard = (text: string, label: string) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text).catch(() => {});
+    }
+    setToastMessage(`${label} copied to clipboard!`);
+    setTimeout(() => setToastMessage(''), 2500);
+  };
 
   const moods = [
     { label: 'Available', emoji: '🟢' },
@@ -39,7 +50,7 @@ export default function ProfileTab({ currentUserPhone, onLogout }: ProfileTabPro
 
             <TouchableOpacity
               style={styles.qrShareBtn}
-              onPress={() => Alert.alert('Sunao Card', 'Profile link copied!')}
+              onPress={() => copyToClipboard('https://sunao.chat/u/rahul_kp', 'Profile Link')}
             >
               <MaterialCommunityIcons name="share-variant" size={18} color="#FFFFFF" />
             </TouchableOpacity>
@@ -61,7 +72,7 @@ export default function ProfileTab({ currentUserPhone, onLogout }: ProfileTabPro
               <Text style={styles.userName}>Rahul Kumar</Text>
               <View style={styles.handleRow}>
                 <Text style={styles.userHandle}>@rahul_kp</Text>
-                <TouchableOpacity onPress={() => Alert.alert('Copied', 'ID copied to clipboard!')}>
+                <TouchableOpacity onPress={() => copyToClipboard('@rahul_kp', 'Sunao ID')}>
                   <Feather name="copy" size={13} color="#059669" style={{ marginLeft: 6 }} />
                 </TouchableOpacity>
               </View>
@@ -133,7 +144,7 @@ export default function ProfileTab({ currentUserPhone, onLogout }: ProfileTabPro
         {/* Bento 1: Privacy Vault */}
         <TouchableOpacity
           style={styles.bentoCard}
-          onPress={() => Alert.alert('Privacy Vault', 'Configuring App Lock & Auto-Clear Timers')}
+          onPress={() => setActiveBentoModal('vault')}
           activeOpacity={0.8}
         >
           <View style={[styles.bentoIconBadge, { backgroundColor: '#F5F3FF' }]}>
@@ -149,7 +160,7 @@ export default function ProfileTab({ currentUserPhone, onLogout }: ProfileTabPro
         {/* Bento 2: Call Studio (Noise & Audio) */}
         <TouchableOpacity
           style={styles.bentoCard}
-          onPress={() => Alert.alert('Call Studio', 'Microphone, camera filters & noise reduction')}
+          onPress={() => setActiveBentoModal('studio')}
           activeOpacity={0.8}
         >
           <View style={[styles.bentoIconBadge, { backgroundColor: '#ECFDF5' }]}>
@@ -165,7 +176,7 @@ export default function ProfileTab({ currentUserPhone, onLogout }: ProfileTabPro
         {/* Bento 3: Appearance & Bubbles */}
         <TouchableOpacity
           style={styles.bentoCard}
-          onPress={() => Alert.alert('Theme Studio', 'Themes, wallpapers & styling')}
+          onPress={() => setActiveBentoModal('theme')}
           activeOpacity={0.8}
         >
           <View style={[styles.bentoIconBadge, { backgroundColor: '#EFF6FF' }]}>
@@ -181,14 +192,14 @@ export default function ProfileTab({ currentUserPhone, onLogout }: ProfileTabPro
         {/* Bento 4: Linked Devices */}
         <TouchableOpacity
           style={styles.bentoCard}
-          onPress={() => Alert.alert('Linked Devices', 'Managing active device sessions')}
+          onPress={() => setActiveBentoModal('devices')}
           activeOpacity={0.8}
         >
           <View style={[styles.bentoIconBadge, { backgroundColor: '#FEF2F2' }]}>
             <MaterialCommunityIcons name="laptop" size={22} color="#EF4444" />
           </View>
           <Text style={styles.bentoCardTitle}>Devices</Text>
-          <Text style={styles.bentoCardSubtitle}>2 active sessions (Web + Mobile)</Text>
+          <Text style={styles.bentoCardSubtitle}>2 active sessions (Web + Desktop)</Text>
           <View style={[styles.bentoFooterPill, { backgroundColor: '#FEF2F2' }]}>
             <Text style={[styles.bentoFooterPillText, { color: '#EF4444' }]}>ONLINE</Text>
           </View>
@@ -235,12 +246,7 @@ export default function ProfileTab({ currentUserPhone, onLogout }: ProfileTabPro
       {/* 5. Modern Logout Button */}
       <TouchableOpacity
         style={styles.modernLogoutBtn}
-        onPress={() => {
-          Alert.alert('Sign Out', 'Sign out of Sunao?', [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Log Out', style: 'destructive', onPress: onLogout },
-          ]);
-        }}
+        onPress={() => setShowLogoutConfirm(true)}
         activeOpacity={0.8}
       >
         <Feather name="log-out" size={18} color="#EF4444" style={{ marginRight: 8 }} />
@@ -251,6 +257,71 @@ export default function ProfileTab({ currentUserPhone, onLogout }: ProfileTabPro
         <Text style={styles.footerTech}>ZERO TRACKERS • PRIVATE CALLS</Text>
         <Text style={styles.footerCopy}>Sunao App</Text>
       </View>
+
+      {/* Toast Notification Banner */}
+      {Boolean(toastMessage) && (
+        <View style={styles.toastBanner}>
+          <Ionicons name="checkmark-circle" size={18} color="#10B981" style={{ marginRight: 8 }} />
+          <Text style={styles.toastText}>{toastMessage}</Text>
+        </View>
+      )}
+
+      {/* Logout Confirmation Modal */}
+      <Modal visible={showLogoutConfirm} transparent animationType="fade" onRequestClose={() => setShowLogoutConfirm(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowLogoutConfirm(false)}>
+          <View style={styles.logoutCard}>
+            <View style={styles.logoutIconCircle}>
+              <Feather name="log-out" size={28} color="#EF4444" />
+            </View>
+            <Text style={styles.logoutTitle}>Sign Out</Text>
+            <Text style={styles.logoutSubtitle}>
+              Are you sure you want to sign out of this device? Your local chats remain encrypted.
+            </Text>
+            <View style={styles.logoutActions}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowLogoutConfirm(false)}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.confirmLogoutBtn}
+                onPress={() => {
+                  setShowLogoutConfirm(false);
+                  onLogout();
+                }}
+              >
+                <Text style={styles.confirmLogoutBtnText}>Sign Out</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Bento Detail Modal */}
+      <Modal visible={Boolean(activeBentoModal)} transparent animationType="fade" onRequestClose={() => setActiveBentoModal(null)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setActiveBentoModal(null)}>
+          <View style={styles.bentoDetailCard}>
+            <View style={styles.bentoDetailHeader}>
+              <Text style={styles.bentoDetailTitle}>
+                {activeBentoModal === 'vault' && 'Privacy Vault'}
+                {activeBentoModal === 'studio' && 'Call Studio'}
+                {activeBentoModal === 'theme' && 'Theme Studio'}
+                {activeBentoModal === 'devices' && 'Linked Devices'}
+              </Text>
+              <TouchableOpacity onPress={() => setActiveBentoModal(null)}>
+                <Ionicons name="close" size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.bentoDetailText}>
+              {activeBentoModal === 'vault' && 'Your chats and media are locked with AES-256 peer-to-peer cryptography. No unauthorized access is possible.'}
+              {activeBentoModal === 'studio' && 'Hardware AEC (Acoustic Echo Cancellation) and NS (Noise Suppression) are active on your microphone.'}
+              {activeBentoModal === 'theme' && 'Sunao Modern Light UI active with 60 FPS responsive layout.'}
+              {activeBentoModal === 'devices' && 'Current Device: Windows Desktop / Web App (Active Now). Synchronized with your phone.'}
+            </Text>
+            <TouchableOpacity style={styles.bentoDoneBtn} onPress={() => setActiveBentoModal(null)}>
+              <Text style={styles.bentoDoneBtnText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
     </ScrollView>
   );
 }
@@ -609,5 +680,133 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#64748B',
     marginTop: 4,
+  },
+  toastBanner: {
+    position: 'absolute',
+    top: 20,
+    alignSelf: 'center',
+    backgroundColor: '#0F172A',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 6,
+    zIndex: 999,
+  },
+  toastText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  logoutCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 28,
+    maxWidth: 400,
+    width: '100%',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  logoutIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#FEF2F2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#FECDD3',
+  },
+  logoutTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 8,
+  },
+  logoutSubtitle: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: '#64748B',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  logoutActions: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  cancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+  },
+  cancelBtnText: {
+    color: '#475569',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  confirmLogoutBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+  },
+  confirmLogoutBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  bentoDetailCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 24,
+    maxWidth: 400,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  bentoDetailHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  bentoDetailTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  bentoDetailText: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: '#475569',
+    marginBottom: 20,
+  },
+  bentoDoneBtn: {
+    backgroundColor: '#059669',
+    paddingVertical: 12,
+    borderRadius: 14,
+    alignItems: 'center',
+  },
+  bentoDoneBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

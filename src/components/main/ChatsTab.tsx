@@ -32,6 +32,7 @@ interface ChatsTabProps {
   onStartCall?: (phone: string, name: string, isVideo: boolean) => void;
   onArchivedPress?: () => void;
   archivedCount?: number;
+  activeChatPhone?: string;
 }
 
 export default function ChatsTab({
@@ -39,6 +40,7 @@ export default function ChatsTab({
   onSelectChat,
   onOpenNewChat,
   onStartCall,
+  activeChatPhone,
 }: ChatsTabProps) {
   // Top Active Contacts / Presence Rail
   const renderActivePresenceHeader = () => {
@@ -102,10 +104,15 @@ export default function ChatsTab({
 
   const renderChatItem = ({ item }: { item: ChatItemData }) => {
     const isUnread = (item.unreadCount ?? 0) > 0;
+    const isSelected = item.phone === activeChatPhone;
 
     return (
       <TouchableOpacity
-        style={[styles.chatCard, isUnread && styles.chatCardUnread]}
+        style={[
+          styles.chatCard,
+          isUnread && styles.chatCardUnread,
+          isSelected && styles.chatCardSelected,
+        ]}
         onPress={() => onSelectChat(item)}
         activeOpacity={0.75}
       >
@@ -317,6 +324,12 @@ const styles = StyleSheet.create({
   },
   chatCardUnread: {
     borderLeftWidth: 3,
+    borderLeftColor: '#059669',
+  },
+  chatCardSelected: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#059669',
+    borderLeftWidth: 4,
     borderLeftColor: '#059669',
   },
   avatarWrapper: {

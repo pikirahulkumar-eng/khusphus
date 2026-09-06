@@ -28,6 +28,7 @@ export default function SunaoHeader({
   onOpenNewChat,
 }: SunaoHeaderProps) {
   const [showMenu, setShowMenu] = useState(false);
+  const [showSecurityModal, setShowSecurityModal] = useState(false);
 
   if (isSearching) {
     return (
@@ -124,9 +125,10 @@ export default function SunaoHeader({
               style={styles.menuItem}
               onPress={() => {
                 setShowMenu(false);
+                setShowSecurityModal(true);
               }}
             >
-              <Feather name="shield" size={16} color="#64748B" style={styles.menuItemIcon} />
+              <Feather name="shield" size={16} color="#059669" style={styles.menuItemIcon} />
               <Text style={styles.menuItemText}>Security Keys</Text>
             </TouchableOpacity>
 
@@ -141,6 +143,44 @@ export default function SunaoHeader({
             >
               <Feather name="log-out" size={16} color="#EF4444" style={styles.menuItemIcon} />
               <Text style={[styles.menuItemText, { color: '#EF4444' }]}>Sign Out</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Security Keys Info Modal */}
+      <Modal
+        visible={showSecurityModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSecurityModal(false)}
+      >
+        <Pressable style={styles.securityOverlay} onPress={() => setShowSecurityModal(false)}>
+          <View style={styles.securityCard}>
+            <View style={styles.securityIconCircle}>
+              <Feather name="shield" size={28} color="#059669" />
+            </View>
+            <Text style={styles.securityTitle}>End-to-End Encryption</Text>
+            <Text style={styles.securitySubtitle}>
+              Messages and calls are secured end-to-end. No one outside of this chat, not even Sunao, can read or listen to them.
+            </Text>
+
+            <View style={styles.fingerprintCard}>
+              <Text style={styles.fingerprintLabel}>SECURITY CODE</Text>
+              <Text style={styles.fingerprintValue}>8749 2038 9120 4482 1092 5712</Text>
+            </View>
+
+            <View style={styles.securityBadgeRow}>
+              <Ionicons name="lock-closed" size={14} color="#059669" />
+              <Text style={styles.securityBadgeText}>256-bit AES + Curve25519 Verified</Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.closeSecurityBtn}
+              onPress={() => setShowSecurityModal(false)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.closeSecurityBtnText}>Got it</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
@@ -288,5 +328,98 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#F1F5F9',
     marginVertical: 4,
+  },
+  securityOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  securityCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 28,
+    maxWidth: 420,
+    width: '100%',
+    alignItems: 'center',
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  securityIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#ECFDF5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  securityTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  securitySubtitle: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: '#64748B',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  fingerprintCard: {
+    width: '100%',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  fingerprintLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#94A3B8',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  fingerprintValue: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+    letterSpacing: 1,
+  },
+  securityBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 24,
+  },
+  securityBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#059669',
+  },
+  closeSecurityBtn: {
+    width: '100%',
+    backgroundColor: '#059669',
+    paddingVertical: 12,
+    borderRadius: 14,
+    alignItems: 'center',
+  },
+  closeSecurityBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

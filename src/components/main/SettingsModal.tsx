@@ -30,6 +30,12 @@ export default function SettingsModal({
   const [e2eeEnabled, setE2eeEnabled] = useState(true);
   const [proximitySensor, setProximitySensor] = useState(true);
   const [highQualityAudio, setHighQualityAudio] = useState(true);
+  const [toastMessage, setToastMessage] = useState('');
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(''), 2500);
+  };
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -66,7 +72,7 @@ export default function SettingsModal({
 
             <TouchableOpacity
               style={styles.qrBtn}
-              onPress={() => Alert.alert('Sunao QR', 'Your Sunao profile QR code')}
+              onPress={() => showToast('Profile QR link copied to clipboard!')}
               activeOpacity={0.75}
             >
               <MaterialCommunityIcons name="qrcode-scan" size={22} color="#059669" />
@@ -152,7 +158,7 @@ export default function SettingsModal({
 
             <TouchableOpacity
               style={styles.settingItem}
-              onPress={() => Alert.alert('Disappearing Messages', 'Configured: Messages auto-clear from device in 24 hours')}
+              onPress={() => showToast('⏳ Disappearing messages enabled (24 hours)')}
               activeOpacity={0.7}
             >
               <View style={[styles.itemIconBg, { backgroundColor: '#FEF3C7' }]}>
@@ -169,7 +175,7 @@ export default function SettingsModal({
 
             <TouchableOpacity
               style={styles.settingItem}
-              onPress={() => Alert.alert('Blocked Users', '0 blocked contacts on this device')}
+              onPress={() => showToast('0 blocked contacts on this device')}
               activeOpacity={0.7}
             >
               <View style={[styles.itemIconBg, { backgroundColor: '#FEF2F2' }]}>
@@ -203,7 +209,7 @@ export default function SettingsModal({
 
             <TouchableOpacity
               style={styles.settingItem}
-              onPress={() => Alert.alert('Cache Cleared', 'Freed 14.2 MB of temporary audio files.')}
+              onPress={() => showToast('✨ Freed 14.2 MB of temporary audio cache')}
               activeOpacity={0.7}
             >
               <View style={[styles.itemIconBg, { backgroundColor: '#F1F5F9' }]}>
@@ -239,6 +245,14 @@ export default function SettingsModal({
             <Text style={styles.brandTagline}>Private, Fast & Secure • Zero Cloud Leak</Text>
           </View>
         </ScrollView>
+
+        {/* Floating Toast Notification */}
+        {Boolean(toastMessage) && (
+          <View style={styles.toastBanner}>
+            <Ionicons name="checkmark-circle" size={18} color="#10B981" style={{ marginRight: 8 }} />
+            <Text style={styles.toastText}>{toastMessage}</Text>
+          </View>
+        )}
       </View>
     </Modal>
   );
@@ -248,6 +262,35 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+    ...(Platform.OS === 'web' ? {
+      maxWidth: 480,
+      width: '100%',
+      marginHorizontal: 'auto',
+      borderLeftWidth: 1,
+      borderRightWidth: 1,
+      borderColor: '#E2E8F0',
+    } : {}),
+  },
+  toastBanner: {
+    position: 'absolute',
+    bottom: 24,
+    alignSelf: 'center',
+    backgroundColor: '#0F172A',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 6,
+    zIndex: 999,
+  },
+  toastText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
   },
   header: {
     backgroundColor: '#FFFFFF',

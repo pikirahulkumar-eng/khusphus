@@ -35,6 +35,12 @@ export default function NewChatModal({
   contacts,
 }: NewChatModalProps) {
   const [search, setSearch] = useState('');
+  const [toastMessage, setToastMessage] = useState('');
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(''), 2500);
+  };
 
   const filteredContacts = contacts.filter(
     (c) =>
@@ -59,7 +65,7 @@ export default function NewChatModal({
 
             <TouchableOpacity
               style={styles.qrScanBtn}
-              onPress={() => Alert.alert('Sunao QR', 'Opening camera scanner...')}
+              onPress={() => showToast('📷 QR Scanner Active')}
               activeOpacity={0.7}
             >
               <Ionicons name="qr-code-outline" size={20} color="#059669" />
@@ -96,7 +102,10 @@ export default function NewChatModal({
                 <View style={styles.actionTilesRow}>
                   <TouchableOpacity
                     style={styles.actionTile}
-                    onPress={() => Alert.alert('New Group', 'Create a new group with friends')}
+                    onPress={() => {
+                      onClose();
+                      onSelectUser({ phone: 'grp_sunao_new', name: 'New Project Group 🚀' });
+                    }}
                     activeOpacity={0.75}
                   >
                     <View style={[styles.actionIconBg, { backgroundColor: '#ECFDF5' }]}>
@@ -108,7 +117,10 @@ export default function NewChatModal({
 
                   <TouchableOpacity
                     style={styles.actionTile}
-                    onPress={() => Alert.alert('Audio Space', 'Start an open voice room')}
+                    onPress={() => {
+                      onClose();
+                      onSelectUser({ phone: 'space_live_room', name: 'Open Audio Lounge 🎙️' });
+                    }}
                     activeOpacity={0.75}
                   >
                     <View style={[styles.actionIconBg, { backgroundColor: '#EFF6FF' }]}>
@@ -168,6 +180,14 @@ export default function NewChatModal({
             </View>
           }
         />
+
+        {/* Floating Toast Notification */}
+        {Boolean(toastMessage) && (
+          <View style={styles.toastBanner}>
+            <Ionicons name="checkmark-circle" size={18} color="#10B981" style={{ marginRight: 8 }} />
+            <Text style={styles.toastText}>{toastMessage}</Text>
+          </View>
+        )}
       </View>
     </Modal>
   );
@@ -177,6 +197,35 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+    ...(Platform.OS === 'web' ? {
+      maxWidth: 480,
+      width: '100%',
+      marginHorizontal: 'auto',
+      borderLeftWidth: 1,
+      borderRightWidth: 1,
+      borderColor: '#E2E8F0',
+    } : {}),
+  },
+  toastBanner: {
+    position: 'absolute',
+    bottom: 24,
+    alignSelf: 'center',
+    backgroundColor: '#0F172A',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 6,
+    zIndex: 999,
+  },
+  toastText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
   },
   header: {
     backgroundColor: '#FFFFFF',

@@ -6,7 +6,10 @@ import {
   TouchableOpacity,
   Image,
   ScrollView,
-  Alert,
+  Platform,
+  Modal,
+  TextInput,
+  Pressable,
 } from 'react-native';
 import { Ionicons, MaterialIcons, Feather } from '@expo/vector-icons';
 import { SunaoTheme } from '../../constants/theme';
@@ -43,12 +46,17 @@ export interface ChannelData {
 }
 
 interface UpdatesTabProps {
-  onAddStatus: () => void;
-  onViewStatus: (status: StatusUpdateData) => void;
+  onAddStatus?: () => void;
+  onViewStatus?: (status: StatusUpdateData) => void;
 }
 
 export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProps) {
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
+  const [selectedMoment, setSelectedMoment] = useState<StatusUpdateData | null>(null);
+  const [showCreateMomentModal, setShowCreateMomentModal] = useState(false);
+  const [showCreateSpaceModal, setShowCreateSpaceModal] = useState(false);
+  const [newSpaceTitle, setNewSpaceTitle] = useState('');
+  const [newMomentText, setNewMomentText] = useState('');
 
   const moments: StatusUpdateData[] = [
     {
@@ -88,6 +96,8 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
       previewText: '📸 At cafe',
     },
   ];
+
+  const [momentsList, setMomentsList] = useState<StatusUpdateData[]>(moments);
 
   const [liveSpaces, setLiveSpaces] = useState<AudioSpaceData[]>([
     {
@@ -159,13 +169,41 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
   };
 
   const handleTuneIntoSpace = (space: AudioSpaceData) => {
-    if (activeSpaceId === space.id) {
-      setActiveSpaceId(null);
-      Alert.alert('Left Space', `You have disconnected from "${space.title}".`);
-    } else {
-      setActiveSpaceId(space.id);
-      Alert.alert('Listening Live 🎙️', `You are now listening to "${space.title}".`);
-    }
+    setActiveSpaceId((prev) => (prev === space.id ? null : space.id));
+  };
+
+  const handleCreateSpace = () => {
+    if (!newSpaceTitle.trim()) return;
+    const newSpace: AudioSpaceData = {
+      id: `sp_${Date.now()}`,
+      title: newSpaceTitle.trim(),
+      hostName: 'You',
+      hostAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+      listenersCount: 1,
+      speakers: ['You'],
+      isLive: true,
+      topicTag: 'General',
+    };
+    setLiveSpaces((prev) => [newSpace, ...prev]);
+    setActiveSpaceId(newSpace.id);
+    setNewSpaceTitle('');
+    setShowCreateSpaceModal(false);
+  };
+
+  const handleCreateMoment = () => {
+    if (!newMomentText.trim()) return;
+    const newM: StatusUpdateData = {
+      id: `m_${Date.now()}`,
+      name: 'You',
+      avatarUri: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+      time: 'Just now',
+      isViewed: false,
+      type: 'photo',
+      previewText: newMomentText.trim(),
+    };
+    setMomentsList((prev) => [newM, ...prev]);
+    setNewMomentText('');
+    setShowCreateMomentModal(false);
   };
 
   return (
@@ -179,7 +217,12 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
               <Text style={styles.newPillText}>24h Stories</Text>
             </View>
           </View>
-          <TouchableOpacity onPress={onAddStatus}>
+          <TouchableOpacity
+            onPress={() => {
+              if (onAddStatus) onAddStatus();
+              setShowCreateMomentModal(true);
+            }}
+          >
             <Text style={styles.actionText}>+ Share</Text>
           </TouchableOpacity>
         </View>
@@ -192,7 +235,10 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
           {/* Add Moment Card */}
           <TouchableOpacity
             style={styles.addMomentCard}
-            onPress={onAddStatus}
+            onPress={() => {
+              if (onAddStatus) onAddStatus();
+              setShowCreateMomentModal(true);
+            }}
             activeOpacity={0.8}
           >
             <View style={styles.addMomentAvatarWrapper}>
@@ -209,11 +255,14 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
           </TouchableOpacity>
 
           {/* Friends Moments Cards */}
-          {moments.map((item) => (
+          {momentsList.map((item) => (
             <TouchableOpacity
               key={item.id}
               style={styles.momentStoryCard}
-              onPress={() => onViewStatus(item)}
+              onPress={() => {
+                if (onViewStatus) onViewStatus(item);
+                setSelectedMoment(item);
+              }}
               activeOpacity={0.85}
             >
               <View style={[styles.momentRing, item.isViewed ? styles.ringViewed : styles.ringUnread]}>
@@ -238,9 +287,7 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
             <View style={styles.liveRedDot} />
             <Text style={styles.sectionTitle}>Live Audio Spaces</Text>
           </View>
-          <TouchableOpacity
-            onPress={() => Alert.alert('Create Space', 'Start your own live audio room on Sunao.')}
-          >
+          <TouchableOpacity onPress={() => setShowCreateSpaceModal(true)}>
             <Text style={styles.actionText}>+ Start Space</Text>
           </TouchableOpacity>
         </View>
@@ -298,8 +345,8 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
           <View style={styles.sectionTitleRow}>
             <Text style={styles.sectionTitle}>Broadcast Channels</Text>
           </View>
-          <TouchableOpacity onPress={() => Alert.alert('Explore Channels', 'Browse all community and public news channels')}>
-            <Text style={styles.actionText}>Explore All</Text>
+          <TouchableOpacity onPress={() => toggleFollow('c2')}>
+            <Text style={styles.actionText}>Channels</Text>
           </TouchableOpacity>
         </View>
 
@@ -333,6 +380,110 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
           ))}
         </View>
       </ScrollView>
+
+      {/* 1. Fullscreen Moment/Story Viewer Modal */}
+      <Modal visible={Boolean(selectedMoment)} transparent animationType="fade" onRequestClose={() => setSelectedMoment(null)}>
+        <View style={styles.storyBackdrop}>
+          <View style={styles.storyCard}>
+            <View style={styles.storyProgressBar}>
+              <View style={styles.storyProgressFill} />
+            </View>
+
+            <View style={styles.storyHeader}>
+              <Image source={{ uri: selectedMoment?.avatarUri }} style={styles.storyAvatar} />
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={styles.storyAuthor}>{selectedMoment?.name}</Text>
+                <Text style={styles.storyTime}>{selectedMoment?.time}</Text>
+              </View>
+              <TouchableOpacity onPress={() => setSelectedMoment(null)} style={styles.closeStoryBtn}>
+                <Ionicons name="close" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.storyContent}>
+              <View style={styles.storyPreviewBox}>
+                <Ionicons
+                  name={selectedMoment?.type === 'voice' ? 'mic' : 'image'}
+                  size={48}
+                  color="#059669"
+                  style={{ marginBottom: 12 }}
+                />
+                <Text style={styles.storyText}>{selectedMoment?.previewText || 'Active 24h Moment'}</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity style={styles.storyReplyBtn} onPress={() => setSelectedMoment(null)}>
+              <Text style={styles.storyReplyText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 2. Create New Moment Modal */}
+      <Modal visible={showCreateMomentModal} transparent animationType="slide" onRequestClose={() => setShowCreateMomentModal(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowCreateMomentModal(false)}>
+          <View style={styles.createModalCard}>
+            <View style={styles.createModalHeader}>
+              <Text style={styles.createModalTitle}>Share a Moment</Text>
+              <TouchableOpacity onPress={() => setShowCreateMomentModal(false)}>
+                <Ionicons name="close" size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <TextInput
+              style={styles.createInput}
+              placeholder="What's happening right now?"
+              placeholderTextColor="#94A3B8"
+              value={newMomentText}
+              onChangeText={setNewMomentText}
+              multiline
+              autoFocus
+            />
+
+            <TouchableOpacity
+              style={[styles.createSubmitBtn, !newMomentText.trim() && styles.createSubmitBtnDisabled]}
+              onPress={handleCreateMoment}
+              disabled={!newMomentText.trim()}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.createSubmitBtnText}>Share to Moments</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* 3. Create Audio Space Modal */}
+      <Modal visible={showCreateSpaceModal} transparent animationType="slide" onRequestClose={() => setShowCreateSpaceModal(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowCreateSpaceModal(false)}>
+          <View style={styles.createModalCard}>
+            <View style={styles.createModalHeader}>
+              <Text style={styles.createModalTitle}>Start Live Audio Room</Text>
+              <TouchableOpacity onPress={() => setShowCreateSpaceModal(false)}>
+                <Ionicons name="close" size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <TextInput
+              style={styles.createInput}
+              placeholder="Room topic (e.g. Weekend Tech Talk)"
+              placeholderTextColor="#94A3B8"
+              value={newSpaceTitle}
+              onChangeText={setNewSpaceTitle}
+              autoFocus
+            />
+
+            <TouchableOpacity
+              style={[styles.createSubmitBtn, !newSpaceTitle.trim() && styles.createSubmitBtnDisabled]}
+              onPress={handleCreateSpace}
+              disabled={!newSpaceTitle.trim()}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="radio" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+              <Text style={styles.createSubmitBtnText}>Go Live Now</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -661,5 +812,138 @@ const styles = StyleSheet.create({
   },
   followingText: {
     color: '#64748B',
+  },
+  storyBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.92)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  storyCard: {
+    backgroundColor: '#1E293B',
+    borderRadius: 24,
+    width: 380,
+    maxWidth: '100%',
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  storyProgressBar: {
+    height: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 2,
+    marginBottom: 16,
+    overflow: 'hidden',
+  },
+  storyProgressFill: {
+    width: '75%',
+    height: '100%',
+    backgroundColor: '#10B981',
+  },
+  storyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  storyAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+  },
+  storyAuthor: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  storyTime: {
+    fontSize: 12,
+    color: '#94A3B8',
+  },
+  closeStoryBtn: {
+    padding: 4,
+  },
+  storyContent: {
+    minHeight: 180,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  storyPreviewBox: {
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  storyText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#F8FAFC',
+    textAlign: 'center',
+    lineHeight: 26,
+  },
+  storyReplyBtn: {
+    marginTop: 20,
+    backgroundColor: '#059669',
+    paddingVertical: 12,
+    borderRadius: 14,
+    alignItems: 'center',
+  },
+  storyReplyText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    justifyContent: Platform.OS === 'web' ? 'center' : 'flex-end',
+    alignItems: Platform.OS === 'web' ? 'center' : 'stretch',
+    padding: Platform.OS === 'web' ? 20 : 0,
+  },
+  createModalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: Platform.OS === 'web' ? 24 : 0,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    width: Platform.OS === 'web' ? 420 : '100%',
+    maxWidth: '100%',
+  },
+  createModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  createModalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  createInput: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    fontSize: 15,
+    color: '#0F172A',
+    minHeight: 80,
+    textAlignVertical: 'top',
+    marginBottom: 16,
+  },
+  createSubmitBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#059669',
+    paddingVertical: 12,
+    borderRadius: 14,
+  },
+  createSubmitBtnDisabled: {
+    backgroundColor: '#CBD5E1',
+  },
+  createSubmitBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

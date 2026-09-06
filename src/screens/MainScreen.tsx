@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { View, StyleSheet, SafeAreaView, StatusBar, Platform, Alert } from 'react-native';
+import { View, StyleSheet, SafeAreaView, StatusBar, Platform, Modal, TouchableOpacity, Text } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import SunaoHeader from '../components/main/SunaoHeader';
 import FilterChips, { FilterType } from '../components/main/FilterChips';
 import ChatsTab, { ChatItemData } from '../components/main/ChatsTab';
@@ -18,6 +19,7 @@ interface MainScreenProps {
   onOpenChat: (user: { phone: string; name: string }) => void;
   onStartCall: (phone: string, name: string, isVideo: boolean) => void;
   onLogout: () => void;
+  activeChatPhone?: string;
 }
 
 export default function MainScreen({
@@ -25,6 +27,7 @@ export default function MainScreen({
   onOpenChat,
   onStartCall,
   onLogout,
+  activeChatPhone,
 }: MainScreenProps) {
   const [activeNavTab, setActiveNavTab] = useState<MainNavTab>('Chats');
   const [activeFilter, setActiveFilter] = useState<FilterType>('All');
@@ -35,6 +38,7 @@ export default function MainScreen({
   // Modals
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showCameraModal, setShowCameraModal] = useState(false);
 
   // Initial WhatsApp sample data
   const initialChats: ChatItemData[] = [
@@ -315,7 +319,7 @@ export default function MainScreen({
           }}
           onOpenSettings={() => setShowSettingsModal(true)}
           onLogout={onLogout}
-          onCameraPress={() => Alert.alert('Camera', 'Opening camera viewfinder...')}
+          onCameraPress={() => setShowCameraModal(true)}
           onOpenNewChat={() => setShowNewChatModal(true)}
         />
       )}
@@ -334,29 +338,27 @@ export default function MainScreen({
         {activeNavTab === 'Chats' && (
           <ChatsTab
             chats={filteredChats}
+            activeChatPhone={activeChatPhone}
             onSelectChat={handleSelectChat}
             onOpenNewChat={() => setShowNewChatModal(true)}
             onStartCall={(phone, name, isVideo) => onStartCall(phone, name, isVideo)}
           />
         )}
 
-        {/* Calls Tab (Placed right next to Chats!) */}
+        {/* Calls Tab */}
         {activeNavTab === 'Calls' && (
           <CallsTab
             calls={initialCalls}
             onStartCall={(phone, name, isVideo) => onStartCall(phone, name, isVideo)}
-            onCreateCallLink={() => Alert.alert('Call Link Created', 'Shareable Sunao call link copied to clipboard!')}
-            onOpenCallDialer={() => setShowNewChatModal(true)}
           />
         )}
 
+        {/* Moments & Updates Tab */}
         {activeNavTab === 'Updates' && (
-          <UpdatesTab
-            onAddStatus={() => Alert.alert('Moment Update', 'Select photo or write text status')}
-            onViewStatus={(status) => Alert.alert(`Moment: ${status.name}`, `Viewing moment from ${status.time}`)}
-          />
+          <UpdatesTab />
         )}
 
+        {/* Profile Tab */}
         {activeNavTab === 'Profile' && (
           <ProfileTab
             currentUserPhone={currentUserPhone}
@@ -397,6 +399,33 @@ export default function MainScreen({
         currentUserPhone={currentUserPhone}
         onLogout={onLogout}
       />
+
+      {/* Camera Viewfinder Modal */}
+      <Modal
+        visible={showCameraModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCameraModal(false)}
+      >
+        <View style={styles.cameraOverlay}>
+          <View style={styles.cameraCard}>
+            <View style={styles.cameraHeader}>
+              <Text style={styles.cameraTitle}>Camera Viewfinder</Text>
+              <TouchableOpacity onPress={() => setShowCameraModal(false)}>
+                <Ionicons name="close" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.cameraSurface}>
+              <Ionicons name="camera" size={48} color="#10B981" style={{ marginBottom: 12 }} />
+              <Text style={styles.cameraReadyText}>HD Camera Connected</Text>
+              <Text style={styles.cameraSubtext}>Realtime hardware video ready for Sunao calls</Text>
+            </View>
+            <TouchableOpacity style={styles.cameraCloseBtn} onPress={() => setShowCameraModal(false)}>
+              <Text style={styles.cameraCloseBtnText}>Close Viewfinder</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -417,5 +446,65 @@ const styles = StyleSheet.create({
   body: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+  },
+  cameraOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  cameraCard: {
+    backgroundColor: '#0F172A',
+    borderRadius: 24,
+    padding: 24,
+    width: 400,
+    maxWidth: '100%',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  cameraHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  cameraTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  cameraSurface: {
+    height: 200,
+    backgroundColor: '#1E293B',
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#334155',
+    padding: 16,
+  },
+  cameraReadyText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 6,
+  },
+  cameraSubtext: {
+    fontSize: 12,
+    color: '#94A3B8',
+    textAlign: 'center',
+  },
+  cameraCloseBtn: {
+    backgroundColor: '#059669',
+    paddingVertical: 12,
+    borderRadius: 14,
+    alignItems: 'center',
+  },
+  cameraCloseBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

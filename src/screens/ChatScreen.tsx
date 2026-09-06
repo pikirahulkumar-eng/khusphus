@@ -9,8 +9,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   Animated,
+  Modal,
+  Pressable,
+  ScrollView,
 } from 'react-native';
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons, Feather } from '@expo/vector-icons';
 import { KhusPhusTheme } from '../constants/theme';
 import { ChatStorageService, LocalMessage } from '../services/chatStorageService';
 import { RealtimeBridge } from '../services/realtimeBridge';
@@ -25,6 +28,8 @@ interface ChatScreenProps {
   onStartCall?: (isVideo: boolean) => void;
   onCall?: (isVideo: boolean) => void;
 }
+
+const QUICK_EMOJIS = ['😀', '😂', '😍', '🔥', '👍', '🙏', '🎉', '❤️', '👏', '🚀', '💯', '✨'];
 
 export default function ChatScreen({
   chatUser,
@@ -41,6 +46,9 @@ export default function ChatScreen({
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<LocalMessage[]>([]);
   const [isPeerTyping, setIsPeerTyping] = useState(false);
+  const [showEmojiBar, setShowEmojiBar] = useState(false);
+  const [showOptionsMenu, setShowOptionsMenu] = useState(false);
+  const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const typingTimeoutRef = useRef<any>(null);
   const flatListRef = useRef<FlatList>(null);
 
@@ -150,8 +158,55 @@ export default function ChatScreen({
   };
 
   const triggerCall = (isVideo: boolean) => {
+    setShowOptionsMenu(false);
     if (onStartCall) onStartCall(isVideo);
     else if (onCall) onCall(isVideo);
+  };
+
+  const handleAddEmoji = (emoji: string) => {
+    setMessage((prev) => prev + emoji);
+  };
+
+  const handleClearChat = async () => {
+    setShowOptionsMenu(false);
+    setMessages([]);
+    await ChatStorageService.clearMessages(currentUserPhone, contactPhone);
+  };
+
+  const handlePickFile = (acceptType: string) => {
+    setShowAttachmentMenu(false);
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = acceptType;
+      input.onchange = (e: any) => {
+        const file = e.target?.files?.[0];
+        if (file) {
+          const fileMsgText = acceptType.includes('image')
+            ? `📷 Photo: ${file.name}`
+            : `📎 File: ${file.name}`;
+          const formattedTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          const newMsg: LocalMessage = {
+            id: `file_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            senderId: currentUserPhone,
+            receiverId: contactPhone,
+            text: fileMsgText,
+            time: formattedTime,
+            timestamp: Date.now(),
+            sender: 'me',
+            status: 'read',
+          };
+          setMessages((prev) => [...prev, newMsg]);
+          ChatStorageService.saveMessage(currentUserPhone, contactPhone, newMsg);
+          ChatStorageService.updateRecentChat(currentUserPhone, contactPhone, contactName, fileMsgText, formattedTime, false);
+          RealtimeBridge.sendChatMessage(contactPhone, newMsg);
+          setTimeout(() => {
+            flatListRef.current?.scrollToEnd({ animated: true });
+          }, 100);
+        }
+      };
+      input.click();
+    }
   };
 
   // 3. Send Message (Zero Server Database Cost - Local First + P2P Socket Emit)
@@ -309,7 +364,7 @@ export default function ChatScreen({
           <TouchableOpacity onPress={() => triggerCall(false)} style={[styles.icon, styles.iconAudio]}>
             <Ionicons name="call" size={18} color="#059669" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.icon}>
+          <TouchableOpacity style={styles.icon} onPress={() => setShowOptionsMenu(true)}>
             <Ionicons name="ellipsis-vertical" size={18} color="#64748B" />
           </TouchableOpacity>
         </View>
@@ -360,6 +415,24 @@ export default function ChatScreen({
         />
       </View>
 
+      {/* Quick Emoji Strip */}
+      {showEmojiBar && (
+        <View style={styles.emojiBar}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.emojiScroll}>
+            {QUICK_EMOJIS.map((em) => (
+              <TouchableOpacity
+                key={em}
+                style={styles.emojiBtn}
+                onPress={() => handleAddEmoji(em)}
+                activeOpacity={0.65}
+              >
+                <Text style={styles.emojiChar}>{em}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
       {/* Chat Input Footer */}
       <View style={styles.footer}>
         {isRecordingVoice ? (
@@ -385,8 +458,12 @@ export default function ChatScreen({
         ) : (
           <>
             <View style={styles.inputContainer}>
-              <TouchableOpacity style={styles.inputIcon}>
-                <MaterialIcons name="emoji-emotions" size={24} color="#64748B" />
+              <TouchableOpacity
+                style={styles.inputIcon}
+                onPress={() => setShowEmojiBar(!showEmojiBar)}
+                activeOpacity={0.7}
+              >
+                <MaterialIcons name="emoji-emotions" size={24} color={showEmojiBar ? '#059669' : '#64748B'} />
               </TouchableOpacity>
 
               <TextInput
@@ -396,14 +473,28 @@ export default function ChatScreen({
                 value={message}
                 onChangeText={handleTextChange}
                 multiline
+                onKeyPress={(e: any) => {
+                  if (Platform.OS === 'web' && e.nativeEvent?.key === 'Enter' && !e.nativeEvent?.shiftKey) {
+                    e.preventDefault?.();
+                    sendMessage();
+                  }
+                }}
               />
 
-              <TouchableOpacity style={styles.inputIcon}>
+              <TouchableOpacity
+                style={styles.inputIcon}
+                onPress={() => setShowAttachmentMenu(true)}
+                activeOpacity={0.7}
+              >
                 <Ionicons name="attach" size={24} color="#64748B" style={{ transform: [{ rotate: '-45deg' }] }} />
               </TouchableOpacity>
 
               {message.length === 0 && (
-                <TouchableOpacity style={styles.inputIcon}>
+                <TouchableOpacity
+                  style={styles.inputIcon}
+                  onPress={() => handlePickFile('image/*')}
+                  activeOpacity={0.7}
+                >
                   <Ionicons name="camera" size={22} color="#64748B" />
                 </TouchableOpacity>
               )}
@@ -412,6 +503,7 @@ export default function ChatScreen({
             <TouchableOpacity
               style={styles.sendButton}
               onPress={message.trim().length > 0 ? sendMessage : startVoiceRecording}
+              activeOpacity={0.8}
             >
               {message.trim().length > 0 ? (
                 <Ionicons name="send" size={17} color="#FFFFFF" style={{ marginLeft: 2 }} />
@@ -422,6 +514,73 @@ export default function ChatScreen({
           </>
         )}
       </View>
+
+      {/* Header Options Dropdown Menu */}
+      <Modal visible={showOptionsMenu} transparent animationType="fade" onRequestClose={() => setShowOptionsMenu(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowOptionsMenu(false)}>
+          <View style={styles.dropdownMenu}>
+            <TouchableOpacity style={styles.menuItem} onPress={() => triggerCall(false)}>
+              <Ionicons name="call" size={16} color="#059669" style={styles.menuItemIcon} />
+              <Text style={styles.menuItemText}>Voice Call</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.menuItem} onPress={() => triggerCall(true)}>
+              <Ionicons name="videocam" size={16} color="#0284C7" style={styles.menuItemIcon} />
+              <Text style={styles.menuItemText}>Video Call</Text>
+            </TouchableOpacity>
+
+            <View style={styles.menuDivider} />
+
+            <TouchableOpacity style={styles.menuItem} onPress={handleClearChat}>
+              <Ionicons name="trash-outline" size={16} color="#EF4444" style={styles.menuItemIcon} />
+              <Text style={[styles.menuItemText, { color: '#EF4444' }]}>Clear History</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Attachment Options Modal */}
+      <Modal visible={showAttachmentMenu} transparent animationType="fade" onRequestClose={() => setShowAttachmentMenu(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowAttachmentMenu(false)}>
+          <View style={styles.attachmentSheet}>
+            <Text style={styles.attachmentTitle}>Share Content</Text>
+            <View style={styles.attachmentGrid}>
+              <TouchableOpacity
+                style={styles.attachTile}
+                onPress={() => handlePickFile('image/*')}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.attachIconBg, { backgroundColor: '#ECFDF5' }]}>
+                  <Ionicons name="image" size={22} color="#059669" />
+                </View>
+                <Text style={styles.attachTileLabel}>Photo</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.attachTile}
+                onPress={() => handlePickFile('.pdf,.doc,.docx,.txt')}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.attachIconBg, { backgroundColor: '#EFF6FF' }]}>
+                  <Ionicons name="document-text" size={22} color="#0284C7" />
+                </View>
+                <Text style={styles.attachTileLabel}>Document</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.attachTile}
+                onPress={() => handlePickFile('audio/*')}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.attachIconBg, { backgroundColor: '#FAF5FF' }]}>
+                  <Ionicons name="musical-notes" size={22} color="#A855F7" />
+                </View>
+                <Text style={styles.attachTileLabel}>Audio</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -620,5 +779,101 @@ const styles = StyleSheet.create({
     backgroundColor: '#059669',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  emojiBar: {
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  emojiScroll: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  emojiBtn: {
+    padding: 6,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
+  },
+  emojiChar: {
+    fontSize: 22,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'flex-end',
+  },
+  dropdownMenu: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 84 : 54,
+    right: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    paddingVertical: 6,
+    minWidth: 170,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  menuItemIcon: {
+    marginRight: 10,
+  },
+  menuItemText: {
+    fontSize: 13,
+    color: '#0F172A',
+    fontWeight: '600',
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 4,
+  },
+  attachmentSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: Platform.OS === 'ios' ? 44 : 24,
+    maxWidth: 440,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  attachmentTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 16,
+  },
+  attachmentGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  attachTile: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  attachIconBg: {
+    width: 52,
+    height: 52,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  attachTileLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
   },
 });

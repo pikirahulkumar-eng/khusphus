@@ -9,6 +9,27 @@ import CallModal from './src/components/CallModal';
 import { WebRTCService } from './src/services/webrtcService';
 import { RealtimeBridge } from './src/services/realtimeBridge';
 
+// Inject global desktop CSS for cursor pointer and desktop feel
+if (Platform.OS === 'web' && typeof document !== 'undefined') {
+  const styleId = 'sunao-global-desktop-styles';
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.innerHTML = `
+      * {
+        user-select: auto;
+      }
+      button, [role="button"], [data-focusable="true"], a, [tabindex="0"] {
+        cursor: pointer !important;
+      }
+      input, textarea {
+        cursor: text !important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+}
+
 const DesktopWelcomePlaceholder = () => (
   <View style={styles.welcomeContainer}>
     <View style={styles.welcomeCard}>
@@ -138,6 +159,7 @@ export default function App() {
         <View style={styles.desktopSidebar}>
           <MainScreen
             currentUserPhone={currentUserPhone}
+            activeChatPhone={activeChatUser?.phone}
             onOpenChat={(user) => setActiveChatUser(user)}
             onStartCall={(phone, name, isVideo) => startCall(phone, name, isVideo)}
             onLogout={handleLogout}

@@ -40,6 +40,7 @@ export default function CallsTab({
   const [filter, setFilter] = useState<'all' | 'missed' | 'video'>('all');
   const [showDialer, setShowDialer] = useState(false);
   const [dialNumber, setDialNumber] = useState('');
+  const [dialError, setDialError] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
 
   // Filtered calls
@@ -50,32 +51,40 @@ export default function CallsTab({
   });
 
   const handleCopyCallLink = () => {
+    const roomCode = Math.random().toString(36).substring(2, 9);
+    const link = `https://sunao.chat/call/room_${roomCode}`;
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(link).catch(() => {});
+    }
     setCopiedLink(true);
     if (onCreateCallLink) {
       onCreateCallLink();
-    } else {
-      Alert.alert('Call Link', 'https://sunao.chat/call/room_' + Math.random().toString(36).substring(7));
     }
-    setTimeout(() => setCopiedLink(false), 2500);
+    setTimeout(() => setCopiedLink(false), 3000);
   };
 
   const handleDialPress = (char: string) => {
+    setDialError('');
     if (dialNumber.length < 15) {
       setDialNumber((prev) => prev + char);
     }
   };
 
   const handleBackspace = () => {
+    setDialError('');
     setDialNumber((prev) => prev.slice(0, -1));
   };
 
   const startDialCall = (isVideo: boolean) => {
-    if (!dialNumber || dialNumber.length < 3) {
-      Alert.alert('Invalid Number', 'Please enter a valid phone number to dial.');
+    const cleanNumber = dialNumber.trim().replace(/[^0-9+]/g, '');
+    if (!cleanNumber || cleanNumber.length < 3) {
+      setDialError('Please enter a valid phone number');
+      setTimeout(() => setDialError(''), 2500);
       return;
     }
+    setDialError('');
     setShowDialer(false);
-    onStartCall(dialNumber, dialNumber, isVideo);
+    onStartCall(cleanNumber, cleanNumber, isVideo);
     setDialNumber('');
   };
 
@@ -292,13 +301,18 @@ export default function CallsTab({
             </View>
 
             {/* Number Display */}
-            <View style={styles.displayContainer}>
+            <View style={[styles.displayContainer, Boolean(dialError) && styles.displayContainerError]}>
               <TextInput
                 style={styles.numberInput}
                 value={dialNumber}
-                placeholder="Enter 10-digit number"
+                onChangeText={(val) => {
+                  setDialError('');
+                  setDialNumber(val.replace(/[^0-9*#+]/g, ''));
+                }}
+                placeholder="Enter phone number..."
                 placeholderTextColor="#94A3B8"
-                editable={false}
+                keyboardType="phone-pad"
+                autoFocus
               />
               {dialNumber.length > 0 && (
                 <TouchableOpacity onPress={handleBackspace} style={styles.backspaceBtn}>
@@ -306,6 +320,10 @@ export default function CallsTab({
                 </TouchableOpacity>
               )}
             </View>
+
+            {Boolean(dialError) && (
+              <Text style={styles.dialErrorText}>{dialError}</Text>
+            )}
 
             {/* Keypad Grid */}
             <View style={styles.keypadGrid}>
@@ -642,14 +660,22 @@ const styles = StyleSheet.create({
   dialerModalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.4)',
-    justifyContent: 'flex-end',
+    justifyContent: Platform.OS === 'web' ? 'center' : 'flex-end',
+    alignItems: Platform.OS === 'web' ? 'center' : 'stretch',
   },
   dialerCard: {
     backgroundColor: '#FFFFFF',
+    borderRadius: Platform.OS === 'web' ? 24 : 0,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
     paddingBottom: Platform.OS === 'ios' ? 44 : 28,
+    width: Platform.OS === 'web' ? 380 : '100%',
+    maxWidth: '92%',
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 8,
   },
   dialerHeader: {
     flexDirection: 'row',
@@ -664,6 +690,17 @@ const styles = StyleSheet.create({
   },
   closeDialerBtn: {
     padding: 6,
+  },
+  displayContainerError: {
+    borderColor: '#EF4444',
+  },
+  dialErrorText: {
+    color: '#EF4444',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: -14,
+    marginBottom: 12,
+    textAlign: 'center',
   },
   displayContainer: {
     flexDirection: 'row',
