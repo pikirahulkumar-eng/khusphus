@@ -12,6 +12,7 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  StatusBar,
 } from 'react-native';
 import { Ionicons, MaterialIcons, Feather } from '@expo/vector-icons';
 import { KhusPhusTheme } from '../constants/theme';
@@ -341,6 +342,7 @@ export default function ChatScreen({
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <StatusBar backgroundColor="transparent" barStyle="dark-content" translucent />
       {/* Chat Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={onBack}>
@@ -591,7 +593,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 48 : 12,
+    paddingTop: Platform.OS === 'ios' ? 48 : ((StatusBar.currentHeight || 24) + 10),
     paddingBottom: 12,
     paddingHorizontal: 12,
     borderBottomWidth: 1,

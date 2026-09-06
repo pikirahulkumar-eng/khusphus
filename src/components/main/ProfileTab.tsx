@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform, Switch, Modal, Pressable, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform, Switch, Modal, Pressable, TextInput, StatusBar } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { KhusPhusTheme } from '../../constants/theme';
@@ -561,9 +561,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   coverGradient: {
-    height: 130,
+    height: 130 + (Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 0),
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 44 : 16,
+    paddingTop: Platform.OS === 'ios' ? 44 : ((StatusBar.currentHeight || 24) + 12),
   },
   coverTopBar: {
     flexDirection: 'row',

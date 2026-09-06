@@ -339,7 +339,7 @@ export default function MainScreen({
   return (
     <View style={styles.rootContainer}>
       <SafeAreaView style={styles.topBarSafe} />
-      <StatusBar backgroundColor="#F8FAFC" barStyle="dark-content" />
+      <StatusBar backgroundColor="transparent" barStyle="dark-content" translucent />
 
       {/* Modern Sunao Header (Chats, Calls, Updates) */}
       {activeNavTab !== 'Profile' && (
