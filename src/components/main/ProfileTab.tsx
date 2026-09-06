@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform, Switch, Modal, Pressable } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform, Switch, Modal, Pressable, TextInput } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { KhusPhusTheme } from '../../constants/theme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface ProfileTabProps {
   currentUserPhone: string;
@@ -11,11 +12,58 @@ interface ProfileTabProps {
 
 export default function ProfileTab({ currentUserPhone, onLogout }: ProfileTabProps) {
   const [activeMood, setActiveMood] = useState('Available');
+  const [customStatus, setCustomStatus] = useState('');
+  const [customEmoji, setCustomEmoji] = useState('💬');
+  const [showCustomStatusModal, setShowCustomStatusModal] = useState(false);
+  const [inputCustomText, setInputCustomText] = useState('');
+  const [selectedEmoji, setSelectedEmoji] = useState('💬');
   const [isIncognito, setIsIncognito] = useState(false);
   const [isNoiseCancellation, setIsNoiseCancellation] = useState(true);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [activeBentoModal, setActiveBentoModal] = useState<string | null>(null);
+
+  useEffect(() => {
+    AsyncStorage.getItem('@sunao_custom_status').then((val) => {
+      if (val) {
+        try {
+          const parsed = JSON.parse(val);
+          if (parsed.text) {
+            setCustomStatus(parsed.text);
+            setCustomEmoji(parsed.emoji || '💬');
+          }
+        } catch {
+          setCustomStatus(val);
+        }
+      }
+    });
+    AsyncStorage.getItem('@sunao_active_mood').then((val) => {
+      if (val) setActiveMood(val);
+    });
+  }, []);
+
+  const handleSaveCustomStatus = async () => {
+    if (!inputCustomText.trim()) return;
+    const trimmed = inputCustomText.trim();
+    setCustomStatus(trimmed);
+    setCustomEmoji(selectedEmoji);
+    setActiveMood(trimmed);
+    await AsyncStorage.setItem('@sunao_custom_status', JSON.stringify({ text: trimmed, emoji: selectedEmoji }));
+    await AsyncStorage.setItem('@sunao_active_mood', trimmed);
+    setShowCustomStatusModal(false);
+    setToastMessage('Status updated!');
+    setTimeout(() => setToastMessage(''), 2500);
+  };
+
+  const handleClearCustomStatus = async () => {
+    setCustomStatus('');
+    setActiveMood('Available');
+    await AsyncStorage.removeItem('@sunao_custom_status');
+    await AsyncStorage.setItem('@sunao_active_mood', 'Available');
+    setShowCustomStatusModal(false);
+    setToastMessage('Status cleared');
+    setTimeout(() => setToastMessage(''), 2500);
+  };
 
   const copyToClipboard = (text: string, label: string) => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -82,15 +130,55 @@ export default function ProfileTab({ currentUserPhone, onLogout }: ProfileTabPro
 
           {/* Quick Mood / Presence Selector */}
           <View style={styles.moodSelectorWrapper}>
-            <Text style={styles.sectionMiniLabel}>CURRENT STATUS</Text>
+            <View style={styles.statusHeaderRow}>
+              <Text style={styles.sectionMiniLabel}>CURRENT STATUS</Text>
+              <TouchableOpacity
+                style={styles.setCustomBtn}
+                onPress={() => {
+                  setInputCustomText(customStatus);
+                  setSelectedEmoji(customEmoji || '💬');
+                  setShowCustomStatusModal(true);
+                }}
+                activeOpacity={0.7}
+              >
+                <Feather name="edit-2" size={11} color="#059669" />
+                <Text style={styles.setCustomBtnText}>
+                  {customStatus ? 'Edit' : '+ Type Status'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.moodsScroll}>
+              {/* User's custom manual status chip if present */}
+              {Boolean(customStatus) && (
+                <TouchableOpacity
+                  style={[styles.moodChip, activeMood === customStatus && styles.moodChipActive]}
+                  onPress={() => {
+                    setActiveMood(customStatus);
+                    AsyncStorage.setItem('@sunao_active_mood', customStatus);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.moodEmoji}>{customEmoji}</Text>
+                  <Text
+                    style={[styles.moodText, activeMood === customStatus && styles.moodTextActive]}
+                    numberOfLines={1}
+                  >
+                    {customStatus}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
               {moods.map((m) => {
                 const isSelected = activeMood === m.label;
                 return (
                   <TouchableOpacity
                     key={m.label}
                     style={[styles.moodChip, isSelected && styles.moodChipActive]}
-                    onPress={() => setActiveMood(m.label)}
+                    onPress={() => {
+                      setActiveMood(m.label);
+                      AsyncStorage.setItem('@sunao_active_mood', m.label);
+                    }}
                     activeOpacity={0.7}
                   >
                     <Text style={styles.moodEmoji}>{m.emoji}</Text>
@@ -100,6 +188,20 @@ export default function ProfileTab({ currentUserPhone, onLogout }: ProfileTabPro
                   </TouchableOpacity>
                 );
               })}
+
+              {/* Add Custom Button Chip */}
+              <TouchableOpacity
+                style={[styles.moodChip, styles.addCustomChip]}
+                onPress={() => {
+                  setInputCustomText(customStatus);
+                  setSelectedEmoji(customEmoji || '💬');
+                  setShowCustomStatusModal(true);
+                }}
+                activeOpacity={0.7}
+              >
+                <Feather name="plus" size={13} color="#059669" />
+                <Text style={[styles.moodText, { color: '#059669' }]}>Custom...</Text>
+              </TouchableOpacity>
             </ScrollView>
           </View>
         </View>
@@ -320,6 +422,126 @@ export default function ProfileTab({ currentUserPhone, onLogout }: ProfileTabPro
               <Text style={styles.bentoDoneBtnText}>Done</Text>
             </TouchableOpacity>
           </View>
+        </Pressable>
+      </Modal>
+
+      {/* 4. Custom Status Modal (Manual Status Input) */}
+      <Modal
+        visible={showCustomStatusModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCustomStatusModal(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowCustomStatusModal(false)}>
+          <Pressable style={styles.customStatusCard} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.customStatusHeader}>
+              <View>
+                <Text style={styles.customStatusTitle}>Set Current Status</Text>
+                <Text style={styles.customStatusSubtitle}>Type a custom status or mood to share</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowCustomStatusModal(false)}
+                style={styles.modalCloseBtn}
+              >
+                <Ionicons name="close" size={20} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Choose Emoji */}
+            <Text style={styles.inputMiniLabel}>CHOOSE EMOJI</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.emojiScrollRow}>
+              {['💬', '💻', '☕', '🚀', '✈️', '🏖️', '📚', '🎵', '🏃', '💪', '🔥', '✨', '⚡', '😴'].map((em) => (
+                <TouchableOpacity
+                  key={em}
+                  style={[styles.emojiSelectBtn, selectedEmoji === em && styles.emojiSelectBtnActive]}
+                  onPress={() => setSelectedEmoji(em)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ fontSize: 18 }}>{em}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            {/* Text Input */}
+            <Text style={styles.inputMiniLabel}>STATUS MESSAGE</Text>
+            <View style={styles.statusInputWrapper}>
+              <Text style={styles.inputLeadingEmoji}>{selectedEmoji}</Text>
+              <TextInput
+                style={styles.statusTextInput}
+                placeholder="e.g. Coding on Sunao, In gym, On vacation..."
+                placeholderTextColor="#94A3B8"
+                value={inputCustomText}
+                onChangeText={setInputCustomText}
+                maxLength={60}
+                autoFocus
+              />
+              {Boolean(inputCustomText) && (
+                <TouchableOpacity onPress={() => setInputCustomText('')}>
+                  <Ionicons name="close-circle" size={18} color="#94A3B8" />
+                </TouchableOpacity>
+              )}
+            </View>
+            <Text style={styles.charCountText}>{inputCustomText.length}/60 characters</Text>
+
+            {/* Quick Suggestions */}
+            <Text style={styles.inputMiniLabel}>QUICK SUGGESTIONS</Text>
+            <View style={styles.suggestionChips}>
+              {[
+                { emoji: '💻', text: 'Working remotely' },
+                { emoji: '☕', text: 'Coffee break' },
+                { emoji: '🎧', text: 'Listening to music' },
+                { emoji: '🚗', text: 'On the road' },
+                { emoji: '💪', text: 'Workout mode' },
+                { emoji: '✨', text: 'Feeling good' },
+              ].map((sug) => (
+                <TouchableOpacity
+                  key={sug.text}
+                  style={styles.sugChip}
+                  onPress={() => {
+                    setSelectedEmoji(sug.emoji);
+                    setInputCustomText(sug.text);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ fontSize: 12 }}>{sug.emoji}</Text>
+                  <Text style={styles.sugChipText}>{sug.text}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Action Buttons */}
+            <View style={styles.customStatusActions}>
+              {Boolean(customStatus) && (
+                <TouchableOpacity
+                  style={styles.clearStatusBtn}
+                  onPress={handleClearCustomStatus}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.clearStatusBtnText}>Clear</Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                style={styles.cancelStatusBtn}
+                onPress={() => setShowCustomStatusModal(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.cancelStatusBtnText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.saveStatusBtn,
+                  !inputCustomText.trim() && { opacity: 0.5 },
+                ]}
+                disabled={!inputCustomText.trim()}
+                onPress={handleSaveCustomStatus}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.saveStatusBtnText}>Save Status</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
         </Pressable>
       </Modal>
     </ScrollView>
@@ -807,6 +1029,179 @@ const styles = StyleSheet.create({
   bentoDoneBtnText: {
     color: '#FFFFFF',
     fontSize: 14,
+    fontWeight: '700',
+  },
+  statusHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  setCustomBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    gap: 4,
+  },
+  setCustomBtnText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  addCustomChip: {
+    borderStyle: 'dashed',
+    borderColor: '#059669',
+    backgroundColor: '#F0FDF4',
+  },
+  customStatusCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 22,
+    maxWidth: 420,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  customStatusHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 14,
+  },
+  customStatusTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  customStatusSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  modalCloseBtn: {
+    padding: 4,
+  },
+  inputMiniLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.8,
+    marginBottom: 6,
+    marginTop: 12,
+  },
+  emojiScrollRow: {
+    flexDirection: 'row',
+    gap: 6,
+    paddingBottom: 4,
+  },
+  emojiSelectBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  emojiSelectBtnActive: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#059669',
+    borderWidth: 2,
+  },
+  statusInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    height: 46,
+  },
+  inputLeadingEmoji: {
+    fontSize: 18,
+    marginRight: 8,
+  },
+  statusTextInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#0F172A',
+    paddingVertical: 8,
+  },
+  charCountText: {
+    fontSize: 10,
+    color: '#94A3B8',
+    textAlign: 'right',
+    marginTop: 4,
+  },
+  suggestionChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  sugChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  sugChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  customStatusActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 20,
+    gap: 8,
+  },
+  clearStatusBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECDD3',
+  },
+  clearStatusBtnText: {
+    color: '#EF4444',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  cancelStatusBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+  },
+  cancelStatusBtnText: {
+    color: '#64748B',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  saveStatusBtn: {
+    flex: 1.5,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: '#059669',
+    alignItems: 'center',
+  },
+  saveStatusBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
     fontWeight: '700',
   },
 });

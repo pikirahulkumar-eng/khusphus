@@ -217,14 +217,29 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
               <Text style={styles.newPillText}>24h Stories</Text>
             </View>
           </View>
-          <TouchableOpacity
-            onPress={() => {
-              if (onAddStatus) onAddStatus();
-              setShowCreateMomentModal(true);
-            }}
-          >
-            <Text style={styles.actionText}>+ Share</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <TouchableOpacity
+              style={styles.textStatusPillBtn}
+              onPress={() => {
+                if (onAddStatus) onAddStatus();
+                setShowCreateMomentModal(true);
+              }}
+              activeOpacity={0.7}
+            >
+              <Feather name="edit-2" size={11} color="#059669" />
+              <Text style={styles.textStatusPillText}>Text Status</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => {
+                if (onAddStatus) onAddStatus();
+                setShowCreateMomentModal(true);
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.actionText}>+ Share</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <ScrollView
@@ -432,7 +447,7 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
 
             <TextInput
               style={styles.createInput}
-              placeholder="What's happening right now?"
+              placeholder="What's happening right now? Type status..."
               placeholderTextColor="#94A3B8"
               value={newMomentText}
               onChangeText={setNewMomentText}
@@ -440,13 +455,27 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
               autoFocus
             />
 
+            {/* Quick Emojis */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+              {['💬', '🔥', '☕', '🚀', '🏖️', '🎧', '✨', '💪', '🎉', '📸', '⚡', '💻'].map((em) => (
+                <TouchableOpacity
+                  key={em}
+                  style={styles.quickEmojiBubble}
+                  onPress={() => setNewMomentText((prev) => prev + (prev ? ' ' : '') + em)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ fontSize: 16 }}>{em}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
             <TouchableOpacity
               style={[styles.createSubmitBtn, !newMomentText.trim() && styles.createSubmitBtnDisabled]}
               onPress={handleCreateMoment}
               disabled={!newMomentText.trim()}
               activeOpacity={0.8}
             >
-              <Text style={styles.createSubmitBtnText}>Share to Moments</Text>
+              <Text style={styles.createSubmitBtnText}>Share Status / Moment</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
@@ -945,5 +974,32 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '700',
+  },
+  textStatusPillBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    gap: 4,
+  },
+  textStatusPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  quickEmojiBubble: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
 });
