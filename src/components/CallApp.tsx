@@ -70,7 +70,7 @@ export default function CallApp() {
   const handleAcceptCall = () => {
     WebRTCService.acceptCall();
     if (Platform.OS === 'android' && NativeModules.TelecomModule?.startOngoingCall) {
-      NativeModules.TelecomModule.startOngoingCall(session?.callerName || 'Synkin Call').catch(() => {});
+      NativeModules.TelecomModule.startOngoingCall(session?.callerName || 'Sunao Call').catch(() => {});
     }
   };
 

@@ -576,7 +576,7 @@ export const CallModal: React.FC<Props> = ({ session, onEndCall, onAcceptCall, o
                   ? 'Ringing...'
                   : session.status === 'calling'
                   ? 'Calling...'
-                  : 'Connecting safely on Synkin'}
+                  : 'Connecting safely on Sunao'}
               </Text>
             </View>
           ) : (

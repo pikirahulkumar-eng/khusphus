@@ -41,20 +41,20 @@ class NotificationServiceClass {
 
       if (Platform.OS === 'android') {
         await Notifications.setNotificationChannelAsync('incoming_calls', {
-          name: 'SYNKING Incoming Calls',
+          name: 'Sunao Incoming Calls',
           importance: Notifications.AndroidImportance.MAX,
           vibrationPattern: [0, 800, 1000],
-          lightColor: '#FD3A73',
+          lightColor: '#059669',
           lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
           bypassDnd: true,
           sound: 'default',
         });
 
-        await Notifications.setNotificationChannelAsync('synking_messages', {
-          name: 'SYNKING Messages',
+        await Notifications.setNotificationChannelAsync('sunao_messages', {
+          name: 'Sunao Messages',
           importance: Notifications.AndroidImportance.MAX,
           vibrationPattern: [0, 250, 250, 250],
-          lightColor: '#FD3A73',
+          lightColor: '#059669',
           lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
           sound: 'default',
         });
@@ -148,7 +148,7 @@ class NotificationServiceClass {
         identifier: `call_${callId}`,
         content: {
           title: `📞 Incoming ${callType === 'video' ? 'Video' : 'Voice'} Call`,
-          body: `${callerName} is calling you on SYNKING`,
+          body: `${callerName} is calling you on Sunao`,
           data: { callId, callerName, callType },
           sound: 'default',
           priority: Notifications.AndroidNotificationPriority.MAX,
@@ -175,7 +175,7 @@ class NotificationServiceClass {
           data: { senderId, type: 'NEW_MESSAGE' },
           sound: 'default',
           priority: Notifications.AndroidNotificationPriority.HIGH,
-          channelId: 'synking_messages',
+          channelId: 'sunao_messages',
         },
         trigger: null,
       });

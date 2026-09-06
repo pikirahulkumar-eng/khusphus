@@ -100,7 +100,7 @@ class WebRTCManager {
           this.startConnectionWatchdog();
           this.startTimer();
           if (Platform.OS === 'android' && NativeModules.TelecomModule?.startOngoingCall) {
-            NativeModules.TelecomModule.startOngoingCall(this.currentSession.callerName || 'Synkin Call').catch(() => {});
+            NativeModules.TelecomModule.startOngoingCall(this.currentSession.callerName || 'Sunao Call').catch(() => {});
           }
 
           // Create SDP Offer if I am caller
@@ -381,7 +381,7 @@ class WebRTCManager {
       this.startConnectionWatchdog();
       this.startTimer();
       if (Platform.OS === 'android' && NativeModules.TelecomModule?.startOngoingCall) {
-        NativeModules.TelecomModule.startOngoingCall(this.currentSession.callerName || 'Synkin Call').catch(() => {});
+        NativeModules.TelecomModule.startOngoingCall(this.currentSession.callerName || 'Sunao Call').catch(() => {});
       }
 
       const peerId = this.getPeerUserId();
