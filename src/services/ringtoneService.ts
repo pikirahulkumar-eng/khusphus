@@ -10,7 +10,7 @@ try {
   ExpoAudioModule = require('expo-audio');
 } catch (e) {}
 
-const INCOMING_RINGTONE_URL = 'https://raw.githubusercontent.com/pikirahulkumar-eng/synking/main/assets/sounds/synk_signature.mp3';
+const INCOMING_RINGTONE_URL = 'https://raw.githubusercontent.com/pikirahulkumar-eng/khusphus/main/assets/sounds/synk_signature.mp3';
 const OUTGOING_RINGTONE_URL = 'https://assets.mixkit.co/active_storage/sfx/1360/1360-preview.mp3';
 
 class RingtoneServiceClass {

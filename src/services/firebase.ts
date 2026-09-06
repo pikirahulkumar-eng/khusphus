@@ -12,7 +12,7 @@ async function decryptE2EEMessage(text: string, _senderId?: string, _receiverId?
   return text.replace(/^E2EE::/, '');
 }
 
-export const CLOUD_BACKEND_URL = 'https://synking-9my2.onrender.com';
+export const CLOUD_BACKEND_URL = 'https://khusphus-epsm.onrender.com';
 
 export function getLocalBackendUrl(): string {
   // Unify Web & Native Mobile to the Central Live Render Cloud Backend

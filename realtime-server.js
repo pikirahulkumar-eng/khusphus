@@ -123,6 +123,25 @@ app.post('/api/call-signal', async (req, res) => {
   }
 });
 
+// Push Token Sync Endpoint (Native Android -> Turso Database)
+app.post('/api/profiles/push-token', async (req, res) => {
+  try {
+    const { userId, fcmPushToken } = req.body;
+    if (userId && fcmPushToken) {
+      try { await turso.execute('ALTER TABLE users ADD COLUMN fcm_token TEXT'); } catch(e) {}
+      await turso.execute({
+        sql: 'UPDATE users SET fcm_token = ? WHERE phone = ?',
+        args: [fcmPushToken, userId]
+      });
+      console.log(`[FCM_SYNC] Token updated for user: ${userId}`);
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[FCM_SYNC_ERR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 const connectedUsers = new Map(); // userId -> Set of socket IDs
 
 io.on('connection', (socket) => {

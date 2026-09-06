@@ -32,19 +32,19 @@ class VoiceRecordingService {
         console.log('[VOICE] Web MediaRecorder started');
         return true;
       } else {
-        // Native (Android/iOS) via expo-av
+        // Native (Android/iOS) via expo-audio (Expo SDK 57)
         try {
-          const { Audio } = require('expo-av');
-          await Audio.requestPermissionsAsync();
-          await Audio.setAudioModeAsync({
-            allowsRecordingIOS: true,
-            playsInSilentModeIOS: true,
-          });
-          const { recording } = await Audio.Recording.createAsync(
-            Audio.RecordingOptionsPresets.HIGH_QUALITY
-          );
-          this.nativeRecording = recording;
-          console.log('[VOICE] Native Audio.Recording started');
+          const { AudioModule, RecordingPresets, requestRecordingPermissionsAsync } = require('expo-audio');
+          const perm = await requestRecordingPermissionsAsync();
+          if (!perm.granted) {
+            console.warn('[VOICE] Audio recording permission not granted');
+            return false;
+          }
+          const recorder = new AudioModule.AudioRecorder(RecordingPresets.HIGH_QUALITY);
+          await recorder.prepareToRecordAsync();
+          recorder.record();
+          this.nativeRecording = recorder;
+          console.log('[VOICE] Native expo-audio AudioRecorder started');
           return true;
         } catch (err) {
           console.warn('[VOICE] Native recording start error:', err);
@@ -87,10 +87,9 @@ class VoiceRecordingService {
       } else {
         if (!this.nativeRecording) return null;
         try {
-          await this.nativeRecording.stopAndUnloadAsync();
-          const uri = this.nativeRecording.getURI();
-          const status = await this.nativeRecording.getStatusAsync();
-          const durationSec = Math.round((status?.durationMillis || 1000) / 1000);
+          await this.nativeRecording.stop();
+          const uri = this.nativeRecording.uri;
+          const durationSec = Math.max(1, Math.round(this.nativeRecording.currentTime || 1));
           this.nativeRecording = null;
           return { uri, durationSec };
         } catch (e) {
@@ -117,7 +116,7 @@ class VoiceRecordingService {
       this.audioChunks = [];
     } else if (this.nativeRecording) {
       try {
-        this.nativeRecording.stopAndUnloadAsync();
+        this.nativeRecording.stop();
       } catch (e) {}
       this.nativeRecording = null;
     }
@@ -151,18 +150,17 @@ class VoiceRecordingService {
       }
     } else {
       try {
-        const { Audio } = require('expo-av');
-        const { sound } = await Audio.Sound.createAsync(
-          { uri },
-          { shouldPlay: true },
-          (status: any) => {
-            if (status.didJustFinish) {
-              if (this.playbackCallback) this.playbackCallback(false);
-              this.activePlaybackUrl = null;
-            }
+        const { createAudioPlayer } = require('expo-audio');
+        const player = createAudioPlayer(uri);
+        this.currentSound = player;
+        player.addListener('playbackStatusUpdate', (status: any) => {
+          if (status?.playbackState === 'ended' || (status?.duration > 0 && status?.currentTime >= status?.duration)) {
+            if (this.playbackCallback) this.playbackCallback(false);
+            this.activePlaybackUrl = null;
+            this.currentSound = null;
           }
-        );
-        this.currentSound = sound;
+        });
+        player.play();
         if (this.playbackCallback) this.playbackCallback(true);
       } catch (e) {
         console.warn('[VOICE] Play audio native exception:', e);
@@ -178,8 +176,10 @@ class VoiceRecordingService {
           this.currentSound.pause();
           this.currentSound.currentTime = 0;
         } else {
-          await this.currentSound.stopAsync();
-          await this.currentSound.unloadAsync();
+          this.currentSound.pause();
+          if (typeof this.currentSound.remove === 'function') {
+            this.currentSound.remove();
+          }
         }
       } catch (e) {}
       this.currentSound = null;
