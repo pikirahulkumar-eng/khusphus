@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "599001852630",
+    "project_id": "khusphusx",
+    "storage_bucket": "khusphusx.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:599001852630:android:34c18bcb29c1008ea3b777",
+        "android_client_info": {
+          "package_name": "com.khusphus.apk"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBkncskkswaR7ZMzsfUsSKOxngce9R81BY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
