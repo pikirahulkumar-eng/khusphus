@@ -24,9 +24,6 @@ jobs:
       - name: Install Dependencies
         run: npm install --legacy-peer-deps
 
-      - name: Install Electron & Electron Builder
-        run: npm install --save-dev electron@33.2.1 electron-builder@25.1.8
-
       - name: Build React Native Web Dist Bundle
         run: npx expo export -p web
 
