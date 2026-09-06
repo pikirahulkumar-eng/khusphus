@@ -14,6 +14,14 @@ class CallIntentModule(reactContext: ReactApplicationContext) : ReactContextBase
         var pendingCallerName: String? = null
         var pendingCallType: String? = null
         var pendingCallerPhoto: String? = null
+
+        fun clear() {
+            pendingCallId = null
+            pendingCallerId = null
+            pendingCallerName = null
+            pendingCallType = null
+            pendingCallerPhoto = null
+        }
     }
 
     override fun getName(): String {
@@ -37,10 +45,6 @@ class CallIntentModule(reactContext: ReactApplicationContext) : ReactContextBase
 
     @ReactMethod
     fun clearPendingCall() {
-        pendingCallId = null
-        pendingCallerId = null
-        pendingCallerName = null
-        pendingCallType = null
-        pendingCallerPhoto = null
+        clear()
     }
 }

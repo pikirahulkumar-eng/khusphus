@@ -1,5 +1,8 @@
 package com.khusphus.apk
 
+import android.app.PictureInPictureParams
+import android.content.res.Configuration
+import android.util.Rational
 import android.os.Build
 import android.os.Bundle
 import android.content.Intent
@@ -10,10 +13,35 @@ import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnable
 import com.facebook.react.defaults.DefaultReactActivityDelegate
 
 import expo.modules.ReactActivityDelegateWrapper
-
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.IntentFilter
 class MainActivity : ReactActivity() {
 
+  companion object {
+    @Volatile var isLockscreenCall = false
+  }
+
   private var pendingIncomingCallIntent: Intent? = null
+
+  private val callEndedReceiver = object : BroadcastReceiver() {
+    override fun onReceive(context: Context?, intent: Intent?) {
+      if (isLockscreenCall) {
+        android.util.Log.d("SYNKING_DEBUG", "MainActivity: CALL_ENDED received for lockscreen call — auto-dismissing to lockscreen")
+        isLockscreenCall = false
+        runOnUiThread {
+          try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+              setShowWhenLocked(false)
+            }
+            finishAndRemoveTask()
+          } catch (e: Exception) {
+            finish()
+          }
+        }
+      }
+    }
+  }
 
   override fun onCreate(savedInstanceState: Bundle?) {
     // Set the theme to AppTheme BEFORE onCreate to support
@@ -21,13 +49,26 @@ class MainActivity : ReactActivity() {
     // This is required for expo-splash-screen.
     setTheme(R.style.AppTheme);
     super.onCreate(null)
+    // Temporarily disabled for screenshots during development/testing:
+    // window.setFlags(
+    //   android.view.WindowManager.LayoutParams.FLAG_SECURE,
+    //   android.view.WindowManager.LayoutParams.FLAG_SECURE
+    // )
+    // 🔒 Lock orientation strictly to Portrait (no rotation)
+    try {
+      requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+    } catch (e: Exception) {}
+    val chatPartnerId = intent?.getStringExtra("chatPartnerId") ?: intent?.getStringExtra("senderId")
+    if (!chatPartnerId.isNullOrEmpty()) {
+        TelecomModule.emitOpenChatEvent(chatPartnerId)
+    }
     handleIncomingCallIntent(intent)
 
     // 1. Native High-Priority Incoming Calls Notification Channel for Lock Screen & AOD Wakeup
     try {
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         val channelId = "incoming_calls"
-        val channelName = "SYNKING Incoming Calls"
+        val channelName = "Synkin Incoming Calls"
         val importance = android.app.NotificationManager.IMPORTANCE_HIGH
         val channel = android.app.NotificationChannel(channelId, channelName, importance).apply {
           description = "Full screen and lock screen notifications for incoming calls"
@@ -46,25 +87,27 @@ class MainActivity : ReactActivity() {
       android.util.Log.w("SYNKING_NATIVE", "NotificationChannel warning: ${e.message}")
     }
 
-    // 2. Lock Screen & Turn Screen On Flags
+    // 2. Register CALL_ENDED_FROM_JS receiver for 0ms lockscreen auto-dismiss
     try {
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-        setShowWhenLocked(true)
-        setTurnScreenOn(true)
-        val keyguardManager = getSystemService(android.content.Context.KEYGUARD_SERVICE) as? android.app.KeyguardManager
-        keyguardManager?.requestDismissKeyguard(this, null)
+      val filter = IntentFilter("com.khusphus.apk.CALL_ENDED_FROM_JS")
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        registerReceiver(callEndedReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
       } else {
-        window.addFlags(
-          android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-          android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
-          android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
-          android.view.WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
-        )
+        registerReceiver(callEndedReceiver, filter)
       }
-    } catch (e: Exception) {
-      android.util.Log.w("SYNKING_NATIVE", "Lockscreen flag warning: ${e.message}")
-    }
-    android.util.Log.d("SYNKING_NATIVE", "MainActivity: Lockscreen & TurnScreenOn flags applied.")
+    } catch (e: Exception) {}
+  }
+
+  override fun onResume() {
+    super.onResume()
+  }
+
+  override fun onDestroy() {
+    super.onDestroy()
+    try {
+      unregisterReceiver(callEndedReceiver)
+    } catch (e: Exception) {}
+    isLockscreenCall = false
   }
 
   /**
@@ -111,8 +154,44 @@ class MainActivity : ReactActivity() {
     super.onNewIntent(intent)
     if (intent != null) {
         setIntent(intent)
+        val chatPartnerId = intent.getStringExtra("chatPartnerId") ?: intent.getStringExtra("senderId")
+        if (!chatPartnerId.isNullOrEmpty()) {
+            android.util.Log.d("SYNKING_DEBUG", "MainActivity: onNewIntent with chatPartnerId=$chatPartnerId")
+            TelecomModule.emitOpenChatEvent(chatPartnerId)
+        }
         handleIncomingCallIntent(intent)
     }
+  }
+
+  override fun onUserLeaveHint() {
+    super.onUserLeaveHint()
+    enterPipModeIfActive()
+  }
+
+  fun enterPipModeIfActive() {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      try {
+        val conn = CallConnectionManager.currentConnection
+        val isCallActive = TelecomModule.isCallActive || (conn != null && conn.state == android.telecom.Connection.STATE_ACTIVE)
+        if (isCallActive) {
+          val aspectRatio = Rational(9, 16)
+          val builder = PictureInPictureParams.Builder()
+            .setAspectRatio(aspectRatio)
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            builder.setAutoEnterEnabled(true)
+          }
+          enterPictureInPictureMode(builder.build())
+        }
+      } catch (e: Exception) {
+        android.util.Log.e("SYNKING_DEBUG", "MainActivity enterPictureInPictureMode error: ${e.message}")
+      }
+    }
+  }
+
+  override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
+    super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+    android.util.Log.d("SYNKING_DEBUG", "MainActivity onPictureInPictureModeChanged: isInPictureInPictureMode=$isInPictureInPictureMode")
+    TelecomModule.emitPipModeChanged(isInPictureInPictureMode)
   }
 
   private fun handleIncomingCallIntent(intent: Intent?) {
@@ -120,11 +199,28 @@ class MainActivity : ReactActivity() {
         return
     }
 
+    isLockscreenCall = true
+
+    window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+        setShowWhenLocked(true)
+        setTurnScreenOn(true)
+    } else {
+        window.addFlags(
+            android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+            android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+        )
+    }
+
     val callId = intent.getStringExtra("callId") ?: ""
     val callerId = intent.getStringExtra("callerId") ?: ""
     val callerName = intent.getStringExtra("callerName") ?: "Someone"
-    val callType = intent.getStringExtra("callType") ?: "audio"
+    val callType = intent.getStringExtra("callType") 
+        ?: intent.getStringExtra("call_type") 
+        ?: intent.getStringExtra("type") 
+        ?: "audio"
     val callerPhoto = intent.getStringExtra("callerPhoto")
+    val autoAccept = intent.getBooleanExtra("autoAccept", false)
 
     CallIntentModule.pendingCallId = callId
     CallIntentModule.pendingCallerId = callerId
@@ -132,10 +228,18 @@ class MainActivity : ReactActivity() {
     CallIntentModule.pendingCallType = callType
     CallIntentModule.pendingCallerPhoto = callerPhoto
 
+    if (callId.isNotEmpty()) {
+      val pending = PendingCall(callId, callerId, callerName, callerPhoto, callType, autoAccept)
+      PendingCallStore.save(this, pending)
+      if (autoAccept) {
+        TelecomModule.emitAcceptEvent(pending)
+      }
+    }
+
     android.util.Log.d(
         "SYNKING_FCM",
-        "[SYNKING_CALL_DEBUG] [OK] MAIN_ACTIVITY_HANDOFF " +
-        "callId=$callId caller=$callerName type=$callType"
+        "[SYNKING_CALL_DEBUG] [OK] MAIN_ACTIVITY_INCOMING_CALL " +
+        "callId=$callId caller=$callerName type=$callType autoAccept=$autoAccept"
     )
   }
 }

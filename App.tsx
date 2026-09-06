@@ -187,6 +187,7 @@ export default function App() {
             session={callSession}
             onAcceptCall={() => WebRTCService.acceptCall()}
             onEndCall={() => WebRTCService.endCall()}
+            onMinimize={() => WebRTCService.setMinimized(true)}
             onToggleMute={() => WebRTCService.toggleMute()}
             onToggleVideo={() => WebRTCService.toggleVideo()}
             onToggleSpeaker={() => WebRTCService.toggleSpeaker()}
@@ -213,6 +214,7 @@ export default function App() {
             session={callSession}
             onAcceptCall={() => WebRTCService.acceptCall()}
             onEndCall={() => WebRTCService.endCall()}
+            onMinimize={() => WebRTCService.setMinimized(true)}
             onToggleMute={() => WebRTCService.toggleMute()}
             onToggleVideo={() => WebRTCService.toggleVideo()}
             onToggleSpeaker={() => WebRTCService.toggleSpeaker()}
@@ -235,6 +237,7 @@ export default function App() {
           session={callSession}
           onAcceptCall={() => WebRTCService.acceptCall()}
           onEndCall={() => WebRTCService.endCall()}
+          onMinimize={() => WebRTCService.setMinimized(true)}
           onToggleMute={() => WebRTCService.toggleMute()}
           onToggleVideo={() => WebRTCService.toggleVideo()}
           onToggleSpeaker={() => WebRTCService.toggleSpeaker()}

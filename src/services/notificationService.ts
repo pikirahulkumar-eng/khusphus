@@ -41,12 +41,21 @@ class NotificationServiceClass {
 
       if (Platform.OS === 'android') {
         await Notifications.setNotificationChannelAsync('incoming_calls', {
-          name: 'Sunao Incoming Calls',
+          name: 'SYNKING Incoming Calls',
           importance: Notifications.AndroidImportance.MAX,
           vibrationPattern: [0, 800, 1000],
           lightColor: '#FD3A73',
           lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
           bypassDnd: true,
+          sound: 'default',
+        });
+
+        await Notifications.setNotificationChannelAsync('synking_messages', {
+          name: 'SYNKING Messages',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#FD3A73',
+          lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
           sound: 'default',
         });
       }
@@ -75,6 +84,15 @@ class NotificationServiceClass {
         const actionId = response.actionIdentifier;
         const callData = response.notification?.request?.content?.data;
         CallDebugger.logStage('NOTIFICATION ACTION', 'OK', { actionId, callId: callData?.callId });
+
+        // Direct tap on Chat Notification opens that specific chat
+        if (callData?.type === 'NEW_MESSAGE' && callData?.senderId) {
+          try {
+            const { router } = require('expo-router');
+            router.push(`/chat/${callData.senderId}`);
+          } catch (e) {}
+          return;
+        }
 
         if (actionId === 'ACCEPT_CALL' || actionId === Notifications.DEFAULT_ACTION_IDENTIFIER) {
           this.dismissCallNotification(callData?.callId);
@@ -106,7 +124,7 @@ class NotificationServiceClass {
           try {
             CallDebugger.logStage('MESSAGE HANDLER', 'OK', { launchingCall: true });
             const { WebRTCService } = require('./webrtcService');
-            WebRTCService.receiveIncomingCall(data.callerUser, data.callType || 'audio', data.callId);
+            WebRTCService.receiveIncomingCall(data.callerUser, data.callType || data.type || 'audio', data.callId);
           } catch (e: any) {
             CallDebugger.logStage('MESSAGE HANDLER', 'FAIL', { error: e?.message });
           }
@@ -120,7 +138,9 @@ class NotificationServiceClass {
   }
 
   public async showIncomingCallNotification(callerName: string, callType: 'audio' | 'video', callId: string) {
-    if (Platform.OS === 'web' || !Notifications) return;
+    // On Android, Native TelecomManager & MyFirebaseMessagingService handle the incoming call banner 100% natively.
+    // Scheduling an Expo notification here creates a duplicate second banner on Android!
+    if (Platform.OS === 'web' || Platform.OS === 'android' || !Notifications) return;
 
     try {
       await this.initialize();
@@ -128,7 +148,7 @@ class NotificationServiceClass {
         identifier: `call_${callId}`,
         content: {
           title: `📞 Incoming ${callType === 'video' ? 'Video' : 'Voice'} Call`,
-          body: `${callerName} is calling you on Sunao`,
+          body: `${callerName} is calling you on SYNKING`,
           data: { callId, callerName, callType },
           sound: 'default',
           priority: Notifications.AndroidNotificationPriority.MAX,
@@ -143,6 +163,24 @@ class NotificationServiceClass {
     }
   }
 
+  public async showMessageNotification(senderName: string, messageText: string, senderId: string) {
+    if (Platform.OS === 'web' || !Notifications) return;
+    try {
+      await this.initialize();
+      await Notifications.scheduleNotificationAsync({
+        identifier: `msg_${Date.now()}`,
+        content: {
+          title: senderName,
+          body: messageText,
+          data: { senderId, type: 'NEW_MESSAGE' },
+          sound: 'default',
+          priority: Notifications.AndroidNotificationPriority.HIGH,
+          channelId: 'synking_messages',
+        },
+        trigger: null,
+      });
+    } catch (e) {}
+  }
 
   public async dismissCallNotification(callId?: string) {
     if (Platform.OS === 'web' || !Notifications) return;
@@ -157,8 +195,8 @@ class NotificationServiceClass {
   }
 
   // Register device push token to backend for background / closed app call wakeups
-    public async registerForPushNotificationsAsync(userId: string) {
-  if (Platform.OS === 'web' || !Notifications || !userId) return;
+  public async registerForPushNotificationsAsync(userId: string, phoneNumber?: string) {
+    if (Platform.OS === 'web' || !Notifications || !userId) return;
 
   try {
     await this.initialize();
@@ -169,11 +207,13 @@ class NotificationServiceClass {
     // 1. Get native Android FCM token FIRST (most reliable for dead-state wakeup)
     if (Platform.OS === 'android') {
       try {
-        // @ts-ignore
-        const fbMessaging: any = await import('@react-native-firebase/messaging').catch(() => ({ getMessaging: null, getToken: null }));
-        const { getMessaging, getToken } = fbMessaging || {};
-        if (getMessaging && getToken) {
-          const nativeToken = await getToken(getMessaging()).catch(() => null);
+        // Try firebase/messaging first (most reliable native FCM token)
+        let fbMessaging: any = null;
+        try {
+          fbMessaging = require('@react-native-firebase/messaging');
+        } catch (e) {}
+        if (fbMessaging && fbMessaging.default) {
+          const nativeToken = await fbMessaging.default().getToken().catch(() => null);
           if (nativeToken) {
             fcmPushToken = nativeToken;
             CallDebugger.logStage('FCM TOKEN (native)', 'OK', { token: nativeToken.substring(0, 20) + '...' });
@@ -220,6 +260,9 @@ class NotificationServiceClass {
     const { getLocalBackendUrl } = require('./firebase');
     const backendUrl = getLocalBackendUrl();
 
+    const cleanPhone = (phoneNumber || '').replace(/\D/g, '').slice(-10);
+    const userPhoneKey = cleanPhone ? `user_${cleanPhone}` : null;
+
     await fetch(`${backendUrl}/api/profiles/push-token`, {
       method: 'POST',
       headers: {
@@ -233,8 +276,24 @@ class NotificationServiceClass {
       }),
     });
 
+    if (userPhoneKey && userPhoneKey !== userId) {
+      await fetch(`${backendUrl}/api/profiles/push-token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: userPhoneKey,
+          pushToken: expoPushToken || fcmPushToken,
+          expoPushToken,
+          fcmPushToken,
+        }),
+      }).catch(() => {});
+    }
+
     CallDebugger.logStage('PUSH TOKEN REGISTERED', 'OK', {
       userId,
+      userPhoneKey,
       expo: !!expoPushToken,
       fcm: !!fcmPushToken,
     });

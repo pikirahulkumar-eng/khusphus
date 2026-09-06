@@ -1,7 +1,7 @@
 import { Platform, Vibration } from 'react-native';
 import { CallDebugger } from './callDebugger';
 
-// Professional Ringtone Engine for Sunao
+// Professional Ringtone Engine for SYNKING
 // Uses expo-audio on native Android/iOS & Web Audio API for Web browsers
 // Completely isolated from WebRTC call audio to prevent interference
 
@@ -10,15 +10,15 @@ try {
   ExpoAudioModule = require('expo-audio');
 } catch (e) {}
 
-const INCOMING_RINGTONE_URL = 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3';
+const INCOMING_RINGTONE_URL = 'https://raw.githubusercontent.com/pikirahulkumar-eng/synking/main/assets/sounds/synk_signature.mp3';
 const OUTGOING_RINGTONE_URL = 'https://assets.mixkit.co/active_storage/sfx/1360/1360-preview.mp3';
 
 class RingtoneServiceClass {
   private audioCtx: any = null;
-  private ringInterval: any = null;
   private isPlaying: boolean = false;
   private currentMode: 'incoming' | 'outgoing' | null = null;
   private nativePlayer: any = null;
+  private webAudio: any = null;
 
   private getAudioContext(): any {
     if (typeof window === 'undefined') return null;
@@ -39,15 +39,30 @@ class RingtoneServiceClass {
     return null;
   }
 
-  // 1. OUTGOING CALL: Modern Dial Tone ("Tring... Tring...")
+  // 1. OUTGOING CALL: Pleasant Ringback Tone (looping "Tuuu... Tuuu...")
   public async playOutgoingRing() {
-    if (this.isPlaying && this.currentMode === 'outgoing') return;
+    if ((globalThis as any).__SYNKING_RINGTONE_PLAYING__ && (globalThis as any).__SYNKING_RINGTONE_MODE__ === 'outgoing') {
+      return;
+    }
     this.stop();
     this.isPlaying = true;
     this.currentMode = 'outgoing';
+    (globalThis as any).__SYNKING_RINGTONE_PLAYING__ = true;
+    (globalThis as any).__SYNKING_RINGTONE_MODE__ = 'outgoing';
     CallDebugger.logStage('RINGTONE', 'OK', { mode: 'outgoing' });
 
-    // Native expo-audio playback
+    // Use native Android ToneGenerator for reliable ringback
+    if (Platform.OS === 'android') {
+      try {
+        const { NativeModules } = require('react-native');
+        if (NativeModules.AudioRouteModule?.startRingbackTone) {
+          NativeModules.AudioRouteModule.startRingbackTone();
+          return;
+        }
+      } catch (e) {}
+    }
+
+    // Fallback: expo-audio for iOS
     if (Platform.OS !== 'web' && ExpoAudioModule && typeof ExpoAudioModule.createAudioPlayer === 'function') {
       try {
         const player = ExpoAudioModule.createAudioPlayer({ uri: OUTGOING_RINGTONE_URL });
@@ -61,7 +76,7 @@ class RingtoneServiceClass {
       }
     }
 
-    // Audio Oscillator for Web & Fallback Environments
+    // Audio Oscillator for Web
     const playPulse = () => {
       if (!this.isPlaying || this.currentMode !== 'outgoing') return;
       const ctx = this.getAudioContext();
@@ -94,22 +109,36 @@ class RingtoneServiceClass {
     };
 
     playPulse();
-    this.ringInterval = setInterval(playPulse, 3200);
+    (globalThis as any).__SYNKING_RINGTONE_INTERVAL__ = setInterval(playPulse, 3200);
   }
 
   // 2. INCOMING CALL: Melodic Marimba Tone + Looping Vibration
   public async playIncomingRing() {
-    if (this.isPlaying && this.currentMode === 'incoming') return;
+    if ((globalThis as any).__SYNKING_RINGTONE_PLAYING__ && (globalThis as any).__SYNKING_RINGTONE_MODE__ === 'incoming') {
+      return;
+    }
     this.stop();
     this.isPlaying = true;
     this.currentMode = 'incoming';
+    (globalThis as any).__SYNKING_RINGTONE_PLAYING__ = true;
+    (globalThis as any).__SYNKING_RINGTONE_MODE__ = 'incoming';
     CallDebugger.logStage('RINGTONE', 'OK', { mode: 'incoming' });
 
-    // 📳 Trigger standard incoming call vibration pattern on mobile
+    // Trigger vibration on mobile
     if (Platform.OS !== 'web') {
       try {
         Vibration.vibrate([0, 800, 1000], true);
-        CallDebugger.logStage('VIBRATION', 'OK', { pattern: '[0, 800, 1000]' });
+      } catch (e) {}
+    }
+
+    // Native Android custom ringtone ("Synk Signature") via MediaPlayer
+    if (Platform.OS === 'android') {
+      try {
+        const { NativeModules } = require('react-native');
+        if (NativeModules.AudioRouteModule?.startIncomingRingtone) {
+          NativeModules.AudioRouteModule.startIncomingRingtone();
+          return;
+        }
       } catch (e) {}
     }
 
@@ -127,51 +156,34 @@ class RingtoneServiceClass {
       }
     }
 
-    // Melodic Synth Chime for Web
-    const playMelody = () => {
-      if (!this.isPlaying || this.currentMode !== 'incoming') return;
-      const ctx = this.getAudioContext();
-      if (!ctx) return;
-
+    // Web HTML5 Audio playback for Synk Signature
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.Audio !== 'undefined') {
       try {
-        const now = ctx.currentTime;
-        const notes = [
-          { freq: 659.25, time: 0.00, dur: 0.22 },
-          { freq: 830.61, time: 0.16, dur: 0.22 },
-          { freq: 987.77, time: 0.32, dur: 0.22 },
-          { freq: 1318.51, time: 0.48, dur: 0.35 },
-          { freq: 987.77, time: 0.72, dur: 0.22 },
-          { freq: 1318.51, time: 0.88, dur: 0.45 },
-        ];
-
-        notes.forEach(({ freq, time, dur }) => {
-          const noteStart = now + time;
-          const noteEnd = noteStart + dur;
-          const gain = ctx.createGain();
-          gain.gain.setValueAtTime(0, noteStart);
-          gain.gain.linearRampToValueAtTime(0.22, noteStart + 0.02);
-          gain.gain.exponentialRampToValueAtTime(0.001, noteEnd);
-          gain.connect(ctx.destination);
-
-          const osc = ctx.createOscillator();
-          osc.type = 'triangle';
-          osc.frequency.setValueAtTime(freq, noteStart);
-          osc.connect(gain);
-
-          osc.start(noteStart);
-          osc.stop(noteEnd);
+        const webPlayer = new window.Audio(INCOMING_RINGTONE_URL);
+        webPlayer.loop = true;
+        webPlayer.volume = 1.0;
+        this.webAudio = webPlayer;
+        webPlayer.play().catch(err => {
+          console.warn('[WEB_AUDIO_AUTOPLAY_BLOCKED]', err);
         });
-      } catch (e) {}
-    };
-
-    playMelody();
-    this.ringInterval = setInterval(playMelody, 2200);
+        return;
+      } catch (e) {
+        console.warn('[WEB_AUDIO_INIT_ERR]', e);
+      }
+    }
   }
 
   // 3. STOP RINGTONE INSTANTLY & CANCEL VIBRATION
   public async stop() {
     this.isPlaying = false;
     this.currentMode = null;
+    (globalThis as any).__SYNKING_RINGTONE_PLAYING__ = false;
+    (globalThis as any).__SYNKING_RINGTONE_MODE__ = null;
+
+    if ((globalThis as any).__SYNKING_RINGTONE_INTERVAL__) {
+      clearInterval((globalThis as any).__SYNKING_RINGTONE_INTERVAL__);
+      (globalThis as any).__SYNKING_RINGTONE_INTERVAL__ = null;
+    }
 
     if (Platform.OS !== 'web') {
       try {
@@ -179,9 +191,25 @@ class RingtoneServiceClass {
       } catch (e) {}
     }
 
-    if (this.ringInterval) {
-      clearInterval(this.ringInterval);
-      this.ringInterval = null;
+    // Stop native Android ringtone & ringback tone
+    if (Platform.OS === 'android') {
+      try {
+        const { NativeModules } = require('react-native');
+        if (NativeModules.AudioRouteModule?.stopRingbackTone) {
+          NativeModules.AudioRouteModule.stopRingbackTone();
+        }
+        if (NativeModules.AudioRouteModule?.stopIncomingRingtone) {
+          NativeModules.AudioRouteModule.stopIncomingRingtone();
+        }
+      } catch (e) {}
+    }
+
+    if (this.webAudio) {
+      try {
+        this.webAudio.pause();
+        this.webAudio.currentTime = 0;
+      } catch (e) {}
+      this.webAudio = null;
     }
 
     if (this.nativePlayer) {

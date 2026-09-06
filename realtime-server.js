@@ -61,6 +61,68 @@ app.get('/api/search', async (req, res) => {
   }
 });
 
+// Native Android Direct Call Signal Relay (HTTP -> Socket.io & FCM)
+app.post('/api/call-signal', async (req, res) => {
+  try {
+    const { type: signalType, callId, targetUserId, callerId, callType } = req.body;
+    const target = targetUserId || callerId;
+    const sender = req.body.senderId || req.body.userId || 'native_phone';
+    const resolvedType = callType || 'audio';
+
+    console.log(`📡 [NATIVE_CALL_SIGNAL_RECEIVED] type=${signalType} callId=${callId} target=${target} from=${sender}`);
+
+    const wsMessage = {
+      type: signalType,
+      targetUserId: target,
+      senderId: sender,
+      payload: {
+        callId: callId || `call_${Date.now()}`,
+        callerId: target,
+        receiverId: sender,
+        type: resolvedType,
+        callType: resolvedType
+      }
+    };
+
+    let delivered = false;
+    const targetSockets = connectedUsers.get(target);
+    if (targetSockets && targetSockets.size > 0) {
+      targetSockets.forEach((sId) => {
+        io.to(sId).emit('message', wsMessage);
+      });
+      delivered = true;
+    } else {
+      io.emit('message', wsMessage);
+    }
+
+    if (signalType === 'CALL_ENDED' && target && admin && admin.apps && admin.apps.length > 0) {
+      try {
+        const result = await turso.execute({
+          sql: 'SELECT fcm_token FROM users WHERE phone = ?',
+          args: [target]
+        });
+        const fcmToken = result.rows[0]?.fcm_token;
+        if (fcmToken) {
+          await admin.messaging().send({
+            token: fcmToken,
+            data: {
+              type: 'CALL_ENDED',
+              callId: callId || ''
+            },
+            android: { priority: 'high' }
+          });
+          console.log(`Sent CALL_ENDED FCM cancel to ${target}`);
+        }
+      } catch (e) {}
+    }
+
+    res.json({ success: true, delivered, signalType, callId });
+  } catch (err) {
+    console.error('[NATIVE_CALL_SIGNAL_ERR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 const connectedUsers = new Map(); // userId -> Set of socket IDs
 
 io.on('connection', (socket) => {

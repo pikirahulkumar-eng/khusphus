@@ -99,16 +99,18 @@ class RealtimeBridgeManager {
 
   public broadcast(type: string, payload: any, targetUserId?: string) {
     if (this.socket && this.isConnected) {
-      // Map outgoing bridge broadcast types to socket.io events based on our realtime-server.js
-      if (type === 'WEBRTC_OFFER') {
+      // Primary: deliver via message event directly to target peer
+      this.socket.emit('message', { type, payload, targetUserId });
+
+      // Secondary: trigger server-side handlers (e.g. FCM push wakeup on call-user)
+      if (type === 'INCOMING_CALL') {
+        this.socket.emit('call-user', { to: targetUserId, from: this.registeredUserId, offer: payload.offer, isVideo: payload.type === 'video' });
+      } else if (type === 'WEBRTC_OFFER') {
         this.socket.emit('call-user', { to: targetUserId, from: this.registeredUserId, offer: payload.offer, isVideo: payload.isVideo });
       } else if (type === 'WEBRTC_ANSWER') {
         this.socket.emit('answer-call', { to: targetUserId, answer: payload.answer });
       } else if (type === 'WEBRTC_ICE') {
         this.socket.emit('ice-candidate', { to: targetUserId, candidate: payload.candidate });
-      } else {
-        // Fallback for generic messages like CALL_ENDED
-        this.socket.emit('message', { type, payload, targetUserId });
       }
     }
   }
@@ -119,6 +121,10 @@ class RealtimeBridgeManager {
 
   public sendTyping(targetUserId: string, isTyping: boolean) {
     this.broadcast('USER_TYPING', { senderId: this.registeredUserId, isTyping }, targetUserId);
+  }
+
+  public get myUserId(): string | null {
+    return this.registeredUserId;
   }
 
   public getUserId(): string | null {
