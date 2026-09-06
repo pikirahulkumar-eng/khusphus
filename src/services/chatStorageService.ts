@@ -170,4 +170,17 @@ export const ChatStorageService = {
       return [];
     }
   },
+
+  /**
+   * Clear all messages in a chat thread
+   */
+  async clearMessages(myPhone: string, contactPhone: string): Promise<void> {
+    try {
+      const key = getChatKey(myPhone, contactPhone);
+      await AsyncStorage.removeItem(key);
+      await AsyncStorage.removeItem(`@khusphus_msgs_${[myPhone, contactPhone].sort().join('_')}`);
+    } catch (e) {
+      console.warn('[STORAGE] Error clearing messages:', e);
+    }
+  },
 };

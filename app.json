@@ -10,7 +10,7 @@
       "supportsTablet": true
     },
     "android": {
-      "package": "com.sunao.app",
+      "package": "com.khusphus.apk",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
