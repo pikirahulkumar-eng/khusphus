@@ -58,67 +58,62 @@ export default function SunaoHeader({
   return (
     <View style={styles.headerContainer}>
       <View style={styles.leftBrand}>
-        <View style={styles.brandIconWrapper}>
-          <MaterialCommunityIcons name="waveform" size={22} color="#059669" />
-        </View>
-        <View>
-          <Text style={styles.brandTitle}>Sunao</Text>
-          <View style={styles.telemetryTag}>
-            <View style={styles.liveDot} />
-            <Text style={styles.telemetryText}>Online</Text>
-          </View>
-        </View>
+        <Text style={styles.brandTitle}>Sunao</Text>
       </View>
 
       <View style={styles.rightActions}>
-        {onOpenNewChat && (
-          <TouchableOpacity
-            style={[styles.iconCircle, styles.composeBtn]}
-            onPress={onOpenNewChat}
-            activeOpacity={0.75}
-          >
-            <Feather name="edit-3" size={16} color="#FFFFFF" />
-          </TouchableOpacity>
-        )}
-
-        <TouchableOpacity style={styles.iconCircle} onPress={onOpenSearch}>
-          <Feather name="search" size={17} color="#475569" />
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={onCameraPress}
+          activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="camera-outline" size={23} color="#111B21" />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.iconCircle} onPress={() => setShowMenu(true)}>
-          <Feather name="more-vertical" size={17} color="#475569" />
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={onOpenSearch}
+          activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="search-outline" size={22} color="#111B21" />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={() => setShowMenu(true)}
+          activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="ellipsis-vertical" size={20} color="#111B21" />
         </TouchableOpacity>
       </View>
 
-      {/* Modern Popover Menu */}
+      {/* WhatsApp Style Dropdown Menu */}
       <Modal visible={showMenu} transparent animationType="fade" onRequestClose={() => setShowMenu(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setShowMenu(false)}>
           <View style={styles.dropdownMenu}>
             {onOpenNewChat && (
-              <>
-                <TouchableOpacity
-                  style={styles.menuItem}
-                  onPress={() => {
-                    setShowMenu(false);
-                    onOpenNewChat();
-                  }}
-                >
-                  <Feather name="plus-circle" size={16} color="#059669" style={styles.menuItemIcon} />
-                  <Text style={[styles.menuItemText, { fontWeight: '700', color: '#059669' }]}>New Chat</Text>
-                </TouchableOpacity>
-                <View style={styles.menuDivider} />
-              </>
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  setShowMenu(false);
+                  onOpenNewChat();
+                }}
+              >
+                <Text style={styles.menuItemText}>New group</Text>
+              </TouchableOpacity>
             )}
 
             <TouchableOpacity
               style={styles.menuItem}
               onPress={() => {
                 setShowMenu(false);
-                onOpenSettings();
+                onOpenNewChat?.();
               }}
             >
-              <Feather name="settings" size={16} color="#64748B" style={styles.menuItemIcon} />
-              <Text style={styles.menuItemText}>Preferences</Text>
+              <Text style={styles.menuItemText}>New broadcast</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -128,8 +123,27 @@ export default function SunaoHeader({
                 setShowSecurityModal(true);
               }}
             >
-              <Feather name="shield" size={16} color="#059669" style={styles.menuItemIcon} />
-              <Text style={styles.menuItemText}>Security Keys</Text>
+              <Text style={styles.menuItemText}>Linked devices</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setShowMenu(false);
+                setShowSecurityModal(true);
+              }}
+            >
+              <Text style={styles.menuItemText}>Starred messages</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setShowMenu(false);
+                onOpenSettings();
+              }}
+            >
+              <Text style={styles.menuItemText}>Settings</Text>
             </TouchableOpacity>
 
             <View style={styles.menuDivider} />
@@ -141,8 +155,7 @@ export default function SunaoHeader({
                 onLogout();
               }}
             >
-              <Feather name="log-out" size={16} color="#EF4444" style={styles.menuItemIcon} />
-              <Text style={[styles.menuItemText, { color: '#EF4444' }]}>Sign Out</Text>
+              <Text style={[styles.menuItemText, { color: '#EF4444' }]}>Log out</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
@@ -158,21 +171,16 @@ export default function SunaoHeader({
         <Pressable style={styles.securityOverlay} onPress={() => setShowSecurityModal(false)}>
           <View style={styles.securityCard}>
             <View style={styles.securityIconCircle}>
-              <Feather name="shield" size={28} color="#059669" />
+              <Ionicons name="lock-closed" size={28} color="#008069" />
             </View>
             <Text style={styles.securityTitle}>End-to-End Encryption</Text>
             <Text style={styles.securitySubtitle}>
-              Messages and calls are secured end-to-end. No one outside of this chat, not even Sunao, can read or listen to them.
+              Messages and calls are secured end-to-end with AES-256 and WebRTC encryption. No one outside of this chat, not even Sunao, can read or listen to them.
             </Text>
 
             <View style={styles.fingerprintCard}>
               <Text style={styles.fingerprintLabel}>SECURITY CODE</Text>
               <Text style={styles.fingerprintValue}>8749 2038 9120 4482 1092 5712</Text>
-            </View>
-
-            <View style={styles.securityBadgeRow}>
-              <Ionicons name="lock-closed" size={14} color="#059669" />
-              <Text style={styles.securityBadgeText}>256-bit AES + Curve25519 Verified</Text>
             </View>
 
             <TouchableOpacity
@@ -195,97 +203,55 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 48 : ((StatusBar.currentHeight || 24) + 10),
-    paddingBottom: 12,
+    paddingTop: Platform.OS === 'ios' ? 50 : ((StatusBar.currentHeight || 24) + 10),
+    paddingBottom: 10,
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
   },
   leftBrand: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  brandIconWrapper: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: '#ECFDF5',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-  },
   brandTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#0F172A',
-    letterSpacing: -0.3,
-  },
-  telemetryTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 1,
-  },
-  liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#059669',
-    marginRight: 5,
-  },
-  telemetryText: {
-    fontSize: 10,
-    color: '#059669',
+    fontSize: 22,
     fontWeight: '700',
-    letterSpacing: 0.3,
+    color: '#008069',
+    letterSpacing: -0.2,
   },
   rightActions: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 16,
   },
-  iconCircle: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#F1F5F9',
+  iconBtn: {
+    padding: 6,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  composeBtn: {
-    backgroundColor: '#059669',
-    borderColor: '#047857',
   },
   searchContainer: {
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 16,
     paddingTop: Platform.OS === 'ios' ? 48 : ((StatusBar.currentHeight || 24) + 10),
     paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#F0F2F5',
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    height: 40,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    backgroundColor: '#F0F2F5',
+    borderRadius: 24,
+    paddingHorizontal: 12,
+    height: 42,
   },
   searchBackBtn: {
     padding: 4,
-    marginRight: 6,
+    marginRight: 8,
   },
   searchInput: {
     flex: 1,
-    fontSize: 14,
-    color: '#0F172A',
-    fontWeight: '500',
+    fontSize: 15,
+    color: '#111B21',
+    fontWeight: '400',
   },
   clearBtn: {
     padding: 4,

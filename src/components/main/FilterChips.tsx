@@ -15,11 +15,11 @@ export default function FilterChips({
   onSelectFilter,
   unreadCount = 0,
 }: FilterChipsProps) {
-  const filterItems: { key: FilterType; label: string; icon: any }[] = [
-    { key: 'All', label: 'All', icon: 'message-circle' },
-    { key: 'Unread', label: 'Unread', icon: 'inbox' },
-    { key: 'Favourites', label: 'Starred', icon: 'star' },
-    { key: 'Groups', label: 'Channels', icon: 'users' },
+  const filterItems: { key: FilterType; label: string }[] = [
+    { key: 'All', label: 'All' },
+    { key: 'Unread', label: 'Unread' },
+    { key: 'Favourites', label: 'Favourites' },
+    { key: 'Groups', label: 'Groups' },
   ];
 
   return (
@@ -38,12 +38,6 @@ export default function FilterChips({
               onPress={() => onSelectFilter(item.key)}
               activeOpacity={0.75}
             >
-              <Feather
-                name={item.icon}
-                size={13}
-                color={isActive ? '#059669' : '#64748B'}
-                style={styles.pillIcon}
-              />
               <Text style={[styles.pillText, isActive && styles.pillTextActive]}>
                 {item.label}
               </Text>
@@ -65,8 +59,6 @@ export default function FilterChips({
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
     paddingVertical: 8,
   },
   scrollContent: {
@@ -78,32 +70,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 6,
-    paddingHorizontal: 13,
+    paddingHorizontal: 14,
     borderRadius: 20,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#F0F2F5',
     marginRight: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
   },
   pillActive: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#059669',
-  },
-  pillIcon: {
-    marginRight: 6,
+    backgroundColor: '#D9FDD3',
   },
   pillText: {
-    fontSize: 13,
-    color: '#64748B',
-    fontWeight: '600',
+    fontSize: 13.5,
+    color: '#54656F',
+    fontWeight: '500',
   },
   pillTextActive: {
-    color: '#059669',
+    color: '#008069',
     fontWeight: '700',
   },
   countBadge: {
-    backgroundColor: '#059669',
-    borderRadius: 8,
+    backgroundColor: '#D1D7DB',
+    borderRadius: 10,
     minWidth: 18,
     height: 18,
     justifyContent: 'center',
@@ -112,12 +98,12 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   countBadgeActive: {
-    backgroundColor: '#059669',
+    backgroundColor: '#008069',
   },
   countBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#54656F',
   },
   countBadgeTextActive: {
     color: '#FFFFFF',

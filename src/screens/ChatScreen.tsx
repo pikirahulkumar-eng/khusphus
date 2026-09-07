@@ -14,6 +14,7 @@ import {
   ScrollView,
   StatusBar,
   BackHandler,
+  Image,
 } from 'react-native';
 import { Ionicons, MaterialIcons, Feather } from '@expo/vector-icons';
 import { KhusPhusTheme } from '../constants/theme';
@@ -367,43 +368,62 @@ export default function ChatScreen({
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar backgroundColor="transparent" barStyle="dark-content" translucent />
-      {/* Chat Header */}
+      {/* WhatsApp Clean Chat Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={onBack}>
-          <Ionicons name="arrow-back" size={24} color="#0F172A" />
+        <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.7}>
+          <Ionicons name="arrow-back" size={24} color="#111B21" />
           <View style={styles.avatar}>
-            <Ionicons name="person" size={18} color="#059669" />
+            {activeUser?.avatarUri || activeUser?.photo ? (
+              <Image source={{ uri: activeUser.avatarUri || activeUser.photo }} style={styles.avatarImg} />
+            ) : (
+              <Ionicons name="person" size={20} color="#54656F" />
+            )}
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>{contactName}</Text>
-          <Text style={[styles.headerSubtitle, isPeerTyping && styles.headerSubtitleTyping]}>
+        <TouchableOpacity style={styles.headerTitleContainer} activeOpacity={0.8}>
+          <Text style={styles.headerTitle} numberOfLines={1}>{contactName}</Text>
+          <Text style={[styles.headerSubtitle, isPeerTyping && styles.headerSubtitleTyping]} numberOfLines={1}>
             {isPeerTyping ? 'typing...' : 'online'}
           </Text>
         </TouchableOpacity>
 
         <View style={styles.headerIcons}>
-          <TouchableOpacity onPress={() => triggerCall(true)} style={[styles.icon, styles.iconVideo]}>
-            <Ionicons name="videocam" size={19} color="#0284C7" />
+          <TouchableOpacity onPress={() => triggerCall(true)} style={styles.headerIconBtn} activeOpacity={0.7}>
+            <Ionicons name="videocam-outline" size={24} color="#111B21" />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => triggerCall(false)} style={[styles.icon, styles.iconAudio]}>
-            <Ionicons name="call" size={18} color="#059669" />
+          <TouchableOpacity onPress={() => triggerCall(false)} style={styles.headerIconBtn} activeOpacity={0.7}>
+            <Ionicons name="call-outline" size={22} color="#111B21" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.icon} onPress={() => setShowOptionsMenu(true)}>
-            <Ionicons name="ellipsis-vertical" size={18} color="#64748B" />
+          <TouchableOpacity style={styles.headerIconBtn} onPress={() => setShowOptionsMenu(true)} activeOpacity={0.7}>
+            <Ionicons name="ellipsis-vertical" size={20} color="#111B21" />
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Chat Body */}
+      {/* Chat Body (WhatsApp Wallpaper) */}
       <View style={styles.chatBody}>
         <FlatList
           ref={flatListRef}
           data={messages}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ padding: 16 }}
+          contentContainerStyle={{ paddingHorizontal: 10, paddingVertical: 10 }}
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+          ListHeaderComponent={
+            <View style={styles.listHeaderContainer}>
+              <View style={styles.encryptionCard}>
+                <Ionicons name="lock-closed" size={12} color="#667781" style={{ marginRight: 6 }} />
+                <Text style={styles.encryptionText}>
+                  Messages and calls are end-to-end encrypted. No one outside of this chat, not even Sunao, can read or listen to them.
+                </Text>
+              </View>
+              <View style={styles.dateBadgeContainer}>
+                <View style={styles.dateBadge}>
+                  <Text style={styles.dateBadgeText}>TODAY</Text>
+                </View>
+              </View>
+            </View>
+          }
           renderItem={({ item }) => {
             const isMe = item.sender === 'me';
             return (
@@ -417,19 +437,19 @@ export default function ChatScreen({
                   />
                 ) : (
                   <View style={[styles.messageBubble, isMe ? styles.messageBubbleMe : styles.messageBubbleThem]}>
-                    <Text style={[styles.messageText, isMe ? styles.messageTextMe : styles.messageTextThem]}>
+                    <Text style={styles.messageText}>
                       {item.text}
                     </Text>
                     <View style={styles.messageMetaRow}>
-                      <Text style={[styles.messageTime, isMe ? styles.messageTimeMe : styles.messageTimeThem]}>
+                      <Text style={styles.messageTime}>
                         {item.time}
                       </Text>
                       {isMe && (
                         <Ionicons
                           name="checkmark-done"
-                          size={15}
-                          color="#38BDF8"
-                          style={{ marginLeft: 4 }}
+                          size={16}
+                          color="#53BDEB"
+                          style={{ marginLeft: 3 }}
                         />
                       )}
                     </View>
@@ -459,7 +479,7 @@ export default function ChatScreen({
         </View>
       )}
 
-      {/* Chat Input Footer */}
+      {/* WhatsApp Two-Piece Floating Input Footer */}
       <View style={styles.footer}>
         {isRecordingVoice ? (
           <View style={styles.recordingContainer}>
@@ -468,7 +488,7 @@ export default function ChatScreen({
               <Text style={styles.recordingTimer}>
                 0:{recordSeconds < 10 ? '0' : ''}{recordSeconds}
               </Text>
-              <Text style={styles.recordingHint}>Recording voice note...</Text>
+              <Text style={styles.recordingHint}>Recording audio...</Text>
             </View>
 
             <View style={styles.recordingButtonsRow}>
@@ -489,13 +509,13 @@ export default function ChatScreen({
                 onPress={() => setShowEmojiBar(!showEmojiBar)}
                 activeOpacity={0.7}
               >
-                <MaterialIcons name="emoji-emotions" size={24} color={showEmojiBar ? '#059669' : '#64748B'} />
+                <MaterialIcons name="emoji-emotions" size={24} color={showEmojiBar ? '#00A884' : '#54656F'} />
               </TouchableOpacity>
 
               <TextInput
                 style={styles.textInput}
-                placeholder="Message..."
-                placeholderTextColor="#94A3B8"
+                placeholder="Message"
+                placeholderTextColor="#667781"
                 value={message}
                 onChangeText={handleTextChange}
                 multiline
@@ -512,7 +532,7 @@ export default function ChatScreen({
                 onPress={() => setShowAttachmentMenu(true)}
                 activeOpacity={0.7}
               >
-                <Ionicons name="attach" size={24} color="#64748B" style={{ transform: [{ rotate: '-45deg' }] }} />
+                <Ionicons name="attach" size={24} color="#54656F" style={{ transform: [{ rotate: '-45deg' }] }} />
               </TouchableOpacity>
 
               {message.length === 0 && (
@@ -521,7 +541,7 @@ export default function ChatScreen({
                   onPress={() => handlePickFile('image/*')}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="camera" size={22} color="#64748B" />
+                  <Ionicons name="camera" size={22} color="#54656F" />
                 </TouchableOpacity>
               )}
             </View>
@@ -529,12 +549,12 @@ export default function ChatScreen({
             <TouchableOpacity
               style={styles.sendButton}
               onPress={message.trim().length > 0 ? sendMessage : startVoiceRecording}
-              activeOpacity={0.8}
+              activeOpacity={0.85}
             >
               {message.trim().length > 0 ? (
-                <Ionicons name="send" size={17} color="#FFFFFF" style={{ marginLeft: 2 }} />
+                <Ionicons name="send" size={18} color="#FFFFFF" style={{ marginLeft: 2 }} />
               ) : (
-                <Ionicons name="mic" size={20} color="#FFFFFF" />
+                <Ionicons name="mic" size={22} color="#FFFFFF" />
               )}
             </TouchableOpacity>
           </>
@@ -612,142 +632,196 @@ export default function ChatScreen({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  container: { flex: 1, backgroundColor: '#EFEAE2' },
   header: {
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 48 : ((StatusBar.currentHeight || 24) + 10),
-    paddingBottom: 12,
-    paddingHorizontal: 12,
+    paddingTop: Platform.OS === 'ios' ? 48 : ((StatusBar.currentHeight || 24) + 8),
+    paddingBottom: 8,
+    paddingHorizontal: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: '#E9EDEF',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
   },
-  backBtn: { flexDirection: 'row', alignItems: 'center' },
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingRight: 4,
+    borderRadius: 20,
+  },
   avatar: {
     width: 38,
     height: 38,
-    borderRadius: 14,
-    backgroundColor: '#ECFDF5',
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderRadius: 19,
+    backgroundColor: '#DFE5E7',
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 6,
+    marginLeft: 4,
     marginRight: 10,
+    overflow: 'hidden',
   },
-  headerTitleContainer: { flex: 1 },
+  avatarImg: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 19,
+  },
+  headerTitleContainer: { flex: 1, justifyContent: 'center' },
   headerTitle: {
-    color: '#0F172A',
+    color: '#111B21',
     fontSize: 16,
     fontWeight: '700',
+    letterSpacing: -0.2,
   },
   headerSubtitle: {
-    color: '#64748B',
+    color: '#667781',
     fontSize: 12,
+    marginTop: 1,
   },
   headerSubtitleTyping: {
-    color: '#059669',
-    fontWeight: '700',
+    color: '#00A884',
+    fontWeight: '600',
   },
   headerIcons: { flexDirection: 'row', alignItems: 'center' },
-  icon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#F1F5F9',
-    justifyContent: 'center',
+  headerIconBtn: {
+    padding: 8,
+    marginLeft: 2,
+  },
+  chatBody: { flex: 1, backgroundColor: '#EFEAE2' },
+  listHeaderContainer: {
+    paddingBottom: 16,
     alignItems: 'center',
-    marginLeft: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
   },
-  iconVideo: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#BFDBFE',
+  encryptionCard: {
+    flexDirection: 'row',
+    backgroundColor: '#FFEECD',
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    marginBottom: 10,
+    alignItems: 'center',
+    maxWidth: '92%',
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
   },
-  iconAudio: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#A7F3D0',
+  encryptionText: {
+    color: '#54656F',
+    fontSize: 11.5,
+    lineHeight: 16,
+    flex: 1,
+    textAlign: 'center',
   },
-  chatBody: { flex: 1, backgroundColor: '#F8FAFC' },
-  messageWrapper: { flexDirection: 'row', marginBottom: 8 },
+  dateBadgeContainer: {
+    alignItems: 'center',
+    marginVertical: 4,
+  },
+  dateBadge: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 7,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+  },
+  dateBadgeText: {
+    color: '#54656F',
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  messageWrapper: { flexDirection: 'row', marginVertical: 2.5, marginHorizontal: 4 },
   messageWrapperMe: { justifyContent: 'flex-end' },
   messageWrapperThem: { justifyContent: 'flex-start' },
   messageBubble: {
-    maxWidth: '82%',
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 16,
+    maxWidth: '80%',
+    paddingTop: 6,
+    paddingBottom: 5,
+    paddingHorizontal: 10,
+    borderRadius: 8,
     elevation: 1,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 1.5,
+    shadowOffset: { width: 0, height: 1 },
   },
   messageBubbleMe: {
-    backgroundColor: '#059669',
-    borderTopRightRadius: 4,
+    backgroundColor: '#D9FDD3',
+    borderTopRightRadius: 2,
   },
   messageBubbleThem: {
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 4,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderTopLeftRadius: 2,
   },
   messageText: {
     fontSize: 15,
-    lineHeight: 21,
+    lineHeight: 20,
+    color: '#111B21',
   },
-  messageTextMe: { color: '#FFFFFF' },
-  messageTextThem: { color: '#0F172A' },
   messageMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-end',
-    marginTop: 3,
-    marginLeft: 14,
+    marginTop: 2,
+    marginLeft: 16,
   },
   messageTime: {
     fontSize: 11,
+    color: '#667781',
   },
-  messageTimeMe: { color: 'rgba(255, 255, 255, 0.75)' },
-  messageTimeThem: { color: '#94A3B8' },
   footer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    padding: 8,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+    backgroundColor: 'transparent',
   },
   inputContainer: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    backgroundColor: '#F1F5F9',
-    borderRadius: 24,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    marginRight: 8,
-    minHeight: 46,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 25,
+    paddingHorizontal: 8,
+    paddingVertical: Platform.OS === 'ios' ? 8 : 4,
+    marginRight: 6,
+    minHeight: 48,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
   },
-  inputIcon: { padding: 4, marginHorizontal: 2, marginBottom: 4 },
+  inputIcon: { padding: 6, marginHorizontal: 1 },
   textInput: {
     flex: 1,
-    fontSize: 15,
-    maxHeight: 100,
-    paddingTop: 8,
-    paddingBottom: 8,
+    fontSize: 16,
+    maxHeight: 120,
+    paddingTop: 6,
+    paddingBottom: 6,
     paddingHorizontal: 8,
-    color: '#0F172A',
+    color: '#111B21',
   },
   sendButton: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: '#059669',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#00A884',
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
   },
   recordingContainer: {
     flex: 1,

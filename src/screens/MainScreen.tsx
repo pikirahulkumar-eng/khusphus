@@ -524,19 +524,19 @@ export default function MainScreen({
 const styles = StyleSheet.create({
   rootContainer: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FFFFFF',
   },
   topBarSafe: {
     flex: 0,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FFFFFF',
   },
   bottomBarSafe: {
     flex: 0,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FFFFFF',
   },
   body: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FFFFFF',
   },
   cameraOverlay: {
     flex: 1,
