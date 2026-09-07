@@ -57,7 +57,7 @@ const LiveSelfVideo: React.FC<{ isPip?: boolean }> = ({ isPip = true }) => {
             zOrder={isPip ? 1 : 0}
           />
         ) : (
-          <View style={{ width: '100%', height: '100%', borderRadius: isPip ? 16 : 0, overflow: 'hidden', backgroundColor: '#1A1A1A', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ width: '100%', height: '100%', borderRadius: isPip ? 16 : 0, overflow: 'hidden', backgroundColor: '#000000', justifyContent: 'center', alignItems: 'center' }}>
             <Ionicons name="videocam-off" size={24} color="#555" />
           </View>
         )
@@ -395,7 +395,7 @@ export const CallModal: React.FC<Props> = ({ session, onEndCall, onAcceptCall, o
   ) : (
     <View style={styles.modalOverlay}>
       <LinearGradient
-        colors={['#0F172A', '#05060A', '#020617']}
+        colors={['#000000', '#000000', '#000000']}
         style={styles.callingCard}
         >
           {/* 1. CONNECTED VIDEO CALL: Fullscreen Remote Video + Draggable Self PiP */}
@@ -551,7 +551,7 @@ export const CallModal: React.FC<Props> = ({ session, onEndCall, onAcceptCall, o
                       width: 148,
                       height: 148,
                       borderRadius: 74,
-                      backgroundColor: '#0F172A',
+                      backgroundColor: '#000000',
                     }}
                   />
                 </LinearGradient>
@@ -645,7 +645,7 @@ export const CallModal: React.FC<Props> = ({ session, onEndCall, onAcceptCall, o
                   <Ionicons
                     name={session.isSpeakerOn ? 'volume-high' : 'volume-low'}
                     size={22}
-                    color={session.isSpeakerOn ? '#0A0E17' : '#FFFFFF'}
+                    color={session.isSpeakerOn ? '#000000' : '#FFFFFF'}
                   />
                 </TouchableOpacity>
 
@@ -659,7 +659,7 @@ export const CallModal: React.FC<Props> = ({ session, onEndCall, onAcceptCall, o
                   <Ionicons
                     name={session.isVideoEnabled ? 'videocam' : 'videocam-off'}
                     size={22}
-                    color={session.isVideoEnabled ? '#0A0E17' : '#FFFFFF'}
+                    color={session.isVideoEnabled ? '#000000' : '#FFFFFF'}
                   />
                 </TouchableOpacity>
 
@@ -697,7 +697,7 @@ export const CallModal: React.FC<Props> = ({ session, onEndCall, onAcceptCall, o
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: '#05060A',
+    backgroundColor: '#000000',
   },
   callingCard: {
     flex: 1,
@@ -716,9 +716,9 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'rgba(10, 14, 23, 0.72)',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 999999,
@@ -735,9 +735,9 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'rgba(10, 14, 23, 0.72)',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 999999,
@@ -757,12 +757,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexWrap: 'nowrap',
     gap: 8,
-    backgroundColor: 'rgba(31, 30, 41, 0.75)',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     paddingHorizontal: 16,
     paddingVertical: 6,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.35)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   e2eeText: {
     color: '#E2E8F0',
@@ -862,12 +862,12 @@ const styles = StyleSheet.create({
     top: Platform.OS === 'web' ? 18 : 48,
     alignSelf: 'center',
     minWidth: 210,
-    backgroundColor: 'rgba(10, 14, 23, 0.72)',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 28,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
     zIndex: 20,
     alignItems: 'center',
     gap: 4,
@@ -983,7 +983,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
   },
   declineCallBtn: {
-    backgroundColor: '#1F1315',
+    backgroundColor: '#000000',
     borderWidth: 2,
     borderColor: '#EF4444',
   },
@@ -1003,12 +1003,12 @@ const styles = StyleSheet.create({
     gap: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(10, 14, 23, 0.72)',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     paddingHorizontal: 22,
     paddingVertical: 14,
     borderRadius: 44,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
     zIndex: 9999,
     elevation: 9999,
     shadowColor: '#000',

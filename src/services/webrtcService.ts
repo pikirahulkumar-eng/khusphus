@@ -82,7 +82,18 @@ class WebRTCManager {
       // We rely on the WebSocket server and AppContext to route messages correctly.
       // If a WebRTC signaling message reaches here with a targetUserId, it was meant for us.
 
-      if (type === 'CALL_RINGING' && payload) {
+      if (type === 'INCOMING_CALL' && payload) {
+        CallDebugger.logStage('WEBSOCKET', 'OK', { signal: 'INCOMING_CALL' });
+        this.log(`📲 INCOMING_CALL received from ${payload.callerUser?.name || payload.from || 'caller'}`);
+        const callerUser: UserProfile = payload.callerUser || {
+          id: payload.from || payload.callerId || 'unknown',
+          name: payload.callerName || payload.from || 'Incoming Call',
+          phone: payload.from || payload.callerId || '',
+        };
+        const callType: 'audio' | 'video' = payload.callType || payload.type || (payload.isVideo ? 'video' : 'audio');
+        const callId: string = payload.callId || `call_${Date.now()}`;
+        this.receiveIncomingCall(callerUser, callType, callId);
+      } else if (type === 'CALL_RINGING' && payload) {
         if (this.currentSession && (this.currentSession.id === payload.callId || !payload.callId) && this.currentSession.status === 'calling') {
           this.currentSession.status = 'ringing';
           CallDebugger.logStage('WEBSOCKET', 'OK', { signal: 'CALL_RINGING' });
@@ -104,7 +115,7 @@ class WebRTCManager {
           }
 
           // Create SDP Offer if I am caller
-          if (this.currentSession.id.startsWith('call_')) {
+          if (!this.currentSession.isIncoming) {
             this.createAndSendOffer();
           }
         }
@@ -159,14 +170,12 @@ class WebRTCManager {
 
   private getPeerUserId(): string {
     if (!this.currentSession) return '';
-    const myId = RealtimeBridge.myUserId;
-    if (myId && this.currentSession.callerId === myId) {
-      return this.currentSession.receiverId || '';
-    }
-    if (myId && this.currentSession.receiverId === myId) {
+    // If incoming call, peer is caller
+    if (this.currentSession.isIncoming) {
       return this.currentSession.callerId || '';
     }
-    return this.currentSession.callerId || this.currentSession.receiverId || '';
+    // If outgoing call, peer is receiver
+    return this.currentSession.receiverId || '';
   }
 
   public onLog(listener: (msg: string) => void): () => void {
@@ -199,12 +208,21 @@ class WebRTCManager {
     this.listeners.forEach(cb => cb(this.currentSession ? { ...this.currentSession } : null));
   }
 
+  private isStartingCall = false;
+
   // 1. Initiate Outgoing Call
   public async startCall(params: {
     callerUser: UserProfile;
     targetUser: UserProfile;
     type: 'audio' | 'video';
   }): Promise<CallSession> {
+    if (this.isStartingCall) {
+      this.log('⚠️ startCall already in progress, ignoring double click.');
+      if (this.currentSession) return this.currentSession;
+    }
+    this.isStartingCall = true;
+    setTimeout(() => { this.isStartingCall = false; }, 1500);
+
     this.cleanup();
 
     const newSession: CallSession = {
@@ -289,9 +307,12 @@ class WebRTCManager {
 
   // 2. Receive Incoming Call
   public receiveIncomingCall(callerUser: UserProfile, type: 'audio' | 'video' = 'audio', callId?: string, autoAccept: boolean = false): CallSession {
-    if (callId && this.currentSession && this.currentSession.id === callId && (this.currentSession.status === 'ringing' || this.currentSession.status === 'connected')) {
-      this.log(`📲 Duplicate call event ignored for callId=${callId}`);
-      return this.currentSession;
+    // 🛡️ Comprehensive de-duplication: If a call is already active or ringing, ignore duplicate!
+    if (this.currentSession && (this.currentSession.status === 'ringing' || this.currentSession.status === 'connected' || this.currentSession.status === 'calling')) {
+      if ((callId && this.currentSession.id === callId) || (callerUser && this.currentSession.callerId === callerUser.id)) {
+        this.log(`📲 Duplicate call event ignored for caller=${callerUser?.name || callerUser?.id}, callId=${callId}`);
+        return this.currentSession;
+      }
     }
 
     this.cleanupPeerConnectionOnly();

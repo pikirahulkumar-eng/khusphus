@@ -33,7 +33,13 @@ app.use(express.json());
 const path = require('path');
 const distPath = path.join(__dirname, 'dist');
 if (fs.existsSync(distPath)) {
-  app.use(express.static(distPath));
+  app.use(express.static(distPath, {
+    setHeaders: (res) => {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  }));
 }
 
 const server = http.createServer(app);
@@ -41,16 +47,19 @@ const io = new Server(server, {
   cors: {
     origin: '*',
     methods: ['GET', 'POST']
-  }
+  },
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  transports: ['websocket', 'polling']
 });
 
-// Initialize Turso SQLite Client — uses env vars on production (Render), falls back to local for dev
+// Initialize SQLite Client — uses Turso on cloud (if env set), falls back to local SQLite file for zero-error dev
 const turso = createClient({
-  url: process.env.TURSO_URL || 'libsql://dummy.turso.io',
-  authToken: process.env.TURSO_AUTH_TOKEN || 'dummy-token',
+  url: process.env.TURSO_URL || 'file:sunao_local.db',
+  authToken: process.env.TURSO_AUTH_TOKEN,
 });
 
-// Initialize users table on startup (safe — runs every time server boots)
+// Initialize users and pending_messages tables on startup (safe — runs every time server boots)
 async function initDb() {
   try {
     await turso.execute(`
@@ -64,7 +73,21 @@ async function initDb() {
     `);
     // Ensure legacy rows (phone-keyed) still work — add userId column if missing
     try { await turso.execute('ALTER TABLE users ADD COLUMN userId TEXT'); } catch (_) {}
-    console.log('[DB] users table ready');
+
+    await turso.execute(`
+      CREATE TABLE IF NOT EXISTS pending_messages (
+        id TEXT PRIMARY KEY,
+        target_id TEXT NOT NULL,
+        sender_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      )
+    `);
+    try {
+      await turso.execute('CREATE INDEX IF NOT EXISTS idx_pending_target ON pending_messages(target_id)');
+    } catch (_) {}
+    console.log('[DB] users & pending_messages tables ready');
   } catch (e) {
     console.error('[DB_INIT_ERR]', e);
   }
@@ -110,6 +133,28 @@ app.get('/api/search', async (req, res) => {
   }
 });
 
+// All Users Endpoint — loads real registered users from DB for chat list & live rail
+app.get('/api/users', async (req, res) => {
+  const { excludePhone } = req.query;
+  try {
+    const result = await turso.execute({
+      sql: excludePhone 
+        ? 'SELECT userId, phone, name FROM users WHERE phone != ? ORDER BY registered_at DESC LIMIT 50'
+        : 'SELECT userId, phone, name FROM users ORDER BY registered_at DESC LIMIT 50',
+      args: excludePhone ? [excludePhone] : []
+    });
+    res.json(result.rows);
+  } catch (e) {
+    console.error('Fetch users error:', e);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// Online Users Endpoint — returns array of userIds/phones currently connected
+app.get('/api/online-users', (req, res) => {
+  res.json(Array.from(connectedUsers.keys()));
+});
+
 // Native Android Direct Call Signal Relay (HTTP -> Socket.io & FCM)
 app.post('/api/call-signal', async (req, res) => {
   try {
@@ -134,14 +179,14 @@ app.post('/api/call-signal', async (req, res) => {
     };
 
     let delivered = false;
-    const targetSockets = connectedUsers.get(target);
-    if (targetSockets && targetSockets.size > 0) {
+    const targetSockets = await getSocketsForTarget(target);
+    if (targetSockets && targetSockets.length > 0) {
       targetSockets.forEach((sId) => {
         io.to(sId).emit('message', wsMessage);
       });
       delivered = true;
     } else {
-      io.emit('message', wsMessage);
+      console.log(`[SIGNAL] Target ${target} not currently connected online.`);
     }
 
     if (signalType === 'CALL_ENDED' && target && admin && admin.apps && admin.apps.length > 0) {
@@ -193,29 +238,120 @@ app.post('/api/profiles/push-token', async (req, res) => {
 
 const connectedUsers = new Map(); // userId -> Set of socket IDs
 
+// Helper to get all sockets for a target (resolves phone <-> userId bi-directionally)
+async function getSocketsForTarget(targetId) {
+  if (!targetId) return [];
+  const direct = connectedUsers.get(targetId);
+  if (direct && direct.size > 0) {
+    return Array.from(direct);
+  }
+  // Try DB alias lookup (e.g. if targetId is a phone, find their userId, or vice versa)
+  try {
+    const res = await turso.execute({
+      sql: 'SELECT userId, phone FROM users WHERE userId = ? OR phone = ? LIMIT 1',
+      args: [targetId, targetId]
+    });
+    if (res.rows && res.rows.length > 0) {
+      const { userId, phone } = res.rows[0];
+      const altId = (userId === targetId) ? phone : userId;
+      if (altId && connectedUsers.has(altId)) {
+        return Array.from(connectedUsers.get(altId));
+      }
+    }
+  } catch (_) {}
+  return [];
+}
+
 io.on('connection', (socket) => {
   console.log('A user connected:', socket.id);
 
   socket.on('register', async (data) => {
-    // data can be just userId string (legacy) or object { userId, fcmToken }
+    // data can be userId string or object { userId, phone, fcmToken }
     const userId = typeof data === 'string' ? data : data.userId;
-    const fcmToken = typeof data === 'string' ? null : data.fcmToken;
+    const phone = typeof data === 'object' ? data.phone : null;
+    const fcmToken = typeof data === 'object' ? data.fcmToken : null;
     
     socket.userId = userId;
-    if (!connectedUsers.has(userId)) {
-      connectedUsers.set(userId, new Set());
+    socket.userPhone = phone;
+
+    const mapId = (id) => {
+      if (!id) return;
+      if (!connectedUsers.has(id)) {
+        connectedUsers.set(id, new Set());
+      }
+      connectedUsers.get(id).add(socket.id);
+    };
+
+    mapId(userId);
+    if (phone) mapId(phone);
+
+    // Also auto-map from DB if phone not provided in data
+    if (userId && !phone) {
+      try {
+        const res = await turso.execute({
+          sql: 'SELECT phone FROM users WHERE userId = ? LIMIT 1',
+          args: [userId]
+        });
+        if (res.rows?.[0]?.phone) {
+          socket.userPhone = res.rows[0].phone;
+          mapId(res.rows[0].phone);
+          console.log(`[SOCKET_MAP] Auto-mapped ${userId} -> phone ${res.rows[0].phone}`);
+        }
+      } catch (_) {}
     }
-    connectedUsers.get(userId).add(socket.id);
-    console.log(`User ${userId} registered socket ${socket.id} (Active devices: ${connectedUsers.get(userId).size})`);
+
+    console.log(`User registered: userId=${userId}, phone=${phone || socket.userPhone} on socket ${socket.id}`);
     
+    // Broadcast presence update
+    const activePhone = phone || socket.userPhone;
+    if (activePhone) {
+      io.emit('presence_update', { userId: activePhone, isOnline: true });
+    }
+    if (userId) {
+      io.emit('presence_update', { userId: userId, isOnline: true });
+    }
+    // Send list of all online users to this socket
+    socket.emit('online_users', Array.from(connectedUsers.keys()));
+
+    // Flush pending offline messages for this user (both phone and userId)
     try {
-       // Ensure fcm_token column exists (lazy migration)
+      const pendingTargets = Array.from(new Set([userId, phone, socket.userPhone].filter(Boolean)));
+      for (const tId of pendingTargets) {
+        const pending = await turso.execute({
+          sql: 'SELECT id, type, payload, sender_id, target_id FROM pending_messages WHERE target_id = ? ORDER BY created_at ASC',
+          args: [String(tId)]
+        });
+        if (pending.rows && pending.rows.length > 0) {
+          console.log(`[OFFLINE_FLUSH] Delivering ${pending.rows.length} queued message(s) to ${tId} on socket ${socket.id}`);
+          for (const row of pending.rows) {
+            try {
+              const parsedPayload = typeof row.payload === 'string' ? JSON.parse(row.payload) : row.payload;
+              const msgData = {
+                type: row.type,
+                payload: parsedPayload,
+                targetUserId: row.target_id
+              };
+              socket.emit('message', msgData);
+              await turso.execute({
+                sql: 'DELETE FROM pending_messages WHERE id = ?',
+                args: [row.id]
+              });
+            } catch (err) {
+              console.error('[OFFLINE_FLUSH_ITEM_ERR]', err);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[OFFLINE_FLUSH_ERR]', err);
+    }
+
+    try {
        try { await turso.execute('ALTER TABLE users ADD COLUMN fcm_token TEXT'); } catch(e) {}
-       
-       if (fcmToken) {
+       if (fcmToken && phone) {
          await turso.execute({
-           sql: 'UPDATE users SET fcm_token = ? WHERE phone = ?',
-           args: [fcmToken, userId]
+           sql: 'UPDATE users SET fcm_token = ? WHERE phone = ? OR userId = ?',
+           args: [fcmToken, phone, userId]
          });
        }
     } catch (e) {
@@ -224,23 +360,29 @@ io.on('connection', (socket) => {
   });
 
   socket.on('call-user', async (data) => {
-    const receiverSockets = connectedUsers.get(data.to);
-    if (receiverSockets && receiverSockets.size > 0) {
+    console.log(`[CALL_REQUEST] from=${data.from} to=${data.to} isVideo=${data.isVideo} callId=${data.callId}`);
+    const receiverSockets = await getSocketsForTarget(data.to);
+    if (receiverSockets && receiverSockets.length > 0) {
       receiverSockets.forEach((sId) => {
         io.to(sId).emit('incoming-call', {
           from: data.from,
           offer: data.offer,
-          isVideo: data.isVideo
+          isVideo: data.isVideo,
+          callId: data.callId,
+          callerUser: data.callerUser
         });
       });
+      console.log(`[CALL_DISPATCHED] Delivered incoming-call to ${receiverSockets.length} socket(s) for ${data.to}`);
+    } else {
+      console.warn(`[CALL_TARGET_OFFLINE] No active socket for target ${data.to}`);
     }
 
     // Always attempt to send an FCM push to wake up the device (or if offline)
     try {
       if (admin && admin.apps && admin.apps.length > 0) {
         const result = await turso.execute({
-          sql: 'SELECT fcm_token FROM users WHERE phone = ?',
-          args: [data.to]
+          sql: 'SELECT fcm_token FROM users WHERE phone = ? OR userId = ? LIMIT 1',
+          args: [data.to, data.to]
         });
         const fcmToken = result.rows[0]?.fcm_token;
         if (fcmToken) {
@@ -248,7 +390,7 @@ io.on('connection', (socket) => {
             token: fcmToken,
             data: {
               type: 'INCOMING_CALL',
-              callId: data.from + '-' + Date.now(), // Generate a unique call ID
+              callId: data.from + '-' + Date.now(),
               callerName: data.from,
               callerId: data.from,
               callType: data.isVideo ? 'video' : 'audio',
@@ -266,9 +408,9 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('answer-call', (data) => {
-    const callerSockets = connectedUsers.get(data.to);
-    if (callerSockets && callerSockets.size > 0) {
+  socket.on('answer-call', async (data) => {
+    const callerSockets = await getSocketsForTarget(data.to);
+    if (callerSockets && callerSockets.length > 0) {
       callerSockets.forEach((sId) => {
         io.to(sId).emit('call-answered', {
           answer: data.answer
@@ -285,26 +427,50 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('ice-candidate', (data) => {
-    const targetSockets = connectedUsers.get(data.to);
-    if (targetSockets && targetSockets.size > 0) {
+  socket.on('ice-candidate', async (data) => {
+    const targetSockets = await getSocketsForTarget(data.to);
+    if (targetSockets && targetSockets.length > 0) {
       targetSockets.forEach((sId) => {
         io.to(sId).emit('ice-candidate', data.candidate);
       });
     }
   });
 
-  socket.on('message', (data) => {
+  socket.on('message', async (data) => {
+    const targetUserId = data?.targetUserId || data?.payload?.receiverId;
+    const senderId = data?.payload?.senderId || data?.payload?.readerPhone || socket.userPhone || socket.userId;
+    console.log(`[MSG_IN] type=${data?.type} to=${targetUserId} from=${senderId}`);
+
     // 1. Deliver to all active devices of target recipient
-    const targetSockets = connectedUsers.get(data.targetUserId);
-    if (targetSockets && targetSockets.size > 0) {
+    const targetSockets = await getSocketsForTarget(targetUserId);
+    console.log(`[MSG_ROUTED] to=${targetUserId} sockets=${targetSockets.length}`);
+    if (targetSockets && targetSockets.length > 0) {
       targetSockets.forEach((sId) => {
         io.to(sId).emit('message', data);
       });
+    } else if (targetUserId && data?.type && ['CHAT_MESSAGE', 'MESSAGE_DELIVERED', 'MESSAGE_READ', 'CHAT_READ_SYNC'].includes(data.type)) {
+      // Store in offline queue so it is guaranteed to be delivered as soon as target reconnects!
+      try {
+        const msgId = data.payload?.id || `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        await turso.execute({
+          sql: `INSERT OR REPLACE INTO pending_messages (id, target_id, sender_id, type, payload, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)`,
+          args: [
+            String(msgId),
+            String(targetUserId),
+            String(senderId || ''),
+            String(data.type),
+            JSON.stringify(data.payload || {}),
+            Date.now()
+          ]
+        });
+        console.log(`[MSG_STORED_OFFLINE] Saved pending ${data.type} (id=${msgId}) for offline user ${targetUserId}`);
+      } catch (err) {
+        console.error('[MSG_STORE_OFFLINE_ERR]', err);
+      }
     }
 
     // 2. Multi-Device Companion Sync: mirror message to sender's OTHER devices (Mobile <-> Web <-> Desktop)
-    const senderId = data.payload?.senderId || socket.userId;
     if (senderId && connectedUsers.has(senderId)) {
       connectedUsers.get(senderId).forEach((sId) => {
         if (sId !== socket.id) {
@@ -315,16 +481,19 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    if (socket.userId && connectedUsers.has(socket.userId)) {
-      const userSockets = connectedUsers.get(socket.userId);
-      userSockets.delete(socket.id);
-      if (userSockets.size === 0) {
-        connectedUsers.delete(socket.userId);
+    const cleanup = (id) => {
+      if (id && connectedUsers.has(id)) {
+        const set = connectedUsers.get(id);
+        set.delete(socket.id);
+        if (set.size === 0) {
+          connectedUsers.delete(id);
+          io.emit('presence_update', { userId: id, isOnline: false });
+        }
       }
-      console.log(`Socket ${socket.id} disconnected for user ${socket.userId}. Remaining devices: ${userSockets.size}`);
-    } else {
-      console.log('Unregistered socket disconnected:', socket.id);
-    }
+    };
+    cleanup(socket.userId);
+    cleanup(socket.userPhone);
+    console.log(`Socket ${socket.id} disconnected`);
   });
 });
 

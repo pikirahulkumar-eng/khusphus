@@ -8,6 +8,7 @@ import ChatScreen from './src/screens/ChatScreen';
 import CallModal from './src/components/CallModal';
 import { WebRTCService } from './src/services/webrtcService';
 import { RealtimeBridge } from './src/services/realtimeBridge';
+import { getBackendUrl } from './src/services/firebase';
 
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 
@@ -34,7 +35,7 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
 
 const DesktopWelcomePlaceholder = ({ isDark }: { isDark: boolean }) => (
   <View style={[styles.welcomeContainer, isDark && { backgroundColor: '#000000' }]}>
-    <View style={[styles.welcomeCard, isDark && { backgroundColor: '#0D1117', borderColor: 'rgba(255, 255, 255, 0.12)' }]}>
+    <View style={[styles.welcomeCard, isDark && { backgroundColor: '#000000', borderColor: 'rgba(255, 255, 255, 0.08)' }]}>
       <View style={[styles.welcomeIconContainer, isDark && { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
         <Ionicons name="chatbubbles" size={48} color="#10B981" />
       </View>
@@ -101,6 +102,15 @@ function AppMain() {
     return '';
   });
 
+const DUMMY_PHONES = new Set(['9876543210', '9876543211', '6677889900', '9999888877', '1122334455', 'test_123', '12345', 'space_live_room']);
+const DUMMY_NAMES = new Set(['Rahul Bhai', 'Priya Verma', 'Neha Sharma', 'Amit Patel', 'Vikram Rajput', 'Papa', 'Test Bhai', 'Open Audio Lounge 🎙️']);
+const isDummyContact = (c: any) => {
+  if (!c) return true;
+  if (c.phone && DUMMY_PHONES.has(String(c.phone).trim())) return true;
+  if (c.name && DUMMY_NAMES.has(String(c.name).trim())) return true;
+  return false;
+};
+
   // Synchronous restoration on web from localStorage only — never read sensitive data from URL
   const [activeChatUser, setActiveChatUser] = useState<any>(() => {
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -111,7 +121,8 @@ function AppMain() {
           const raw = window.localStorage.getItem('@sunao_active_chat_user');
           if (raw && hash.startsWith('#/chat')) {
             const parsed = JSON.parse(raw);
-            if (parsed && parsed.phone) return parsed;
+            if (parsed && parsed.phone && !isDummyContact(parsed)) return parsed;
+            window.localStorage.removeItem('@sunao_active_chat_user');
           }
         }
       } catch (e) {}
@@ -126,14 +137,21 @@ function AppMain() {
     setActiveChatUser(user);
     if (user && user.phone) {
       AsyncStorage.setItem('@sunao_active_chat_user', JSON.stringify(user)).catch(() => {});
-      // Use opaque #/chat — never expose phone number or name in URL
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        window.location.hash = '#/chat';
+        if (window.location.hash !== '#/chat') {
+          window.history.pushState({ isChat: true }, '', '#/chat');
+        }
       }
     } else {
       AsyncStorage.removeItem('@sunao_active_chat_user').catch(() => {});
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        window.location.hash = '';
+        if (window.location.hash.startsWith('#/chat')) {
+          if (window.history.length > 1) {
+            window.history.back();
+          } else {
+            window.history.replaceState(null, '', window.location.pathname);
+          }
+        }
       }
     }
   };
@@ -160,9 +178,9 @@ function AppMain() {
           setCurrentUserPhone(activePhone);
           setCurrentUserName(activeName);
           setIsAuthenticated(true);
-          // Use opaque UUID for realtime registration, not raw phone number
+          // Register with both UUID and phone so calls/messages resolve by phone OR UUID
           const registerId = (storedUserId && storedUserId.trim()) || activePhone;
-          RealtimeBridge.registerUser(registerId);
+          RealtimeBridge.registerUser(registerId, activePhone);
         }
 
         // Restore active chat user if not already in state
@@ -171,7 +189,12 @@ function AppMain() {
           try {
             const parsed = JSON.parse(savedChat);
             if (parsed && parsed.phone) {
-              setActiveChatUser((curr: any) => curr || parsed);
+              if (isDummyContact(parsed)) {
+                AsyncStorage.removeItem('@sunao_active_chat_user').catch(() => {});
+                setActiveChatUser(null);
+              } else {
+                setActiveChatUser((curr: any) => curr || parsed);
+              }
             }
           } catch (e) {}
         }
@@ -184,26 +207,26 @@ function AppMain() {
     restoreAppState();
   }, []);
 
-  // Web Hash Route Sync (Browser Back / Forward Buttons)
+  // Web Hash Route Sync (Browser Back / Forward Buttons & Gestures)
   useEffect(() => {
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      const onHashChange = async () => {
+      const onRouteSync = async () => {
         const hash = window.location.hash || '';
         if (hash.startsWith('#/chat')) {
-          // Restore active chat from localStorage only — URL never contains phone/name
           if (!activeChatUser) {
             try {
               const raw = await AsyncStorage.getItem('@sunao_active_chat_user');
               if (raw) {
                 const parsed = JSON.parse(raw);
-                if (parsed && parsed.phone) {
+                if (parsed && parsed.phone && !isDummyContact(parsed)) {
                   setActiveChatUser(parsed);
                   return;
                 }
               }
             } catch (e) {}
           }
-        } else if (hash === '#' || hash === '' || hash === '#/' || hash === '#/chats' || hash === '#/calls' || hash === '#/profile' || hash === '#/updates') {
+        } else {
+          // Any non-chat route (empty, #/chats, #/calls, #/profile, #/updates) closes chat cleanly
           if (activeChatUser) {
             setActiveChatUser(null);
             AsyncStorage.removeItem('@sunao_active_chat_user').catch(() => {});
@@ -211,8 +234,12 @@ function AppMain() {
         }
       };
 
-      window.addEventListener('hashchange', onHashChange);
-      return () => window.removeEventListener('hashchange', onHashChange);
+      window.addEventListener('hashchange', onRouteSync);
+      window.addEventListener('popstate', onRouteSync);
+      return () => {
+        window.removeEventListener('hashchange', onRouteSync);
+        window.removeEventListener('popstate', onRouteSync);
+      };
     }
   }, [activeChatUser]);
 
@@ -277,15 +304,11 @@ function AppMain() {
       setCurrentUserPhone(cleanPhone);
       setCurrentUserName(cleanName);
       setIsAuthenticated(true);
-      // Register with realtime socket using opaque UUID
-      RealtimeBridge.registerUser(userId);
+      // Register with realtime socket using opaque UUID and phone
+      RealtimeBridge.registerUser(userId, cleanPhone);
 
       // Register user profile on server so they are searchable from any device
-      const serverUrl = Platform.OS === 'web'
-        ? (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-            ? 'http://localhost:10000'
-            : 'https://khusphus-epsm.onrender.com')
-        : 'https://khusphus-epsm.onrender.com';
+      const serverUrl = getBackendUrl();
 
       fetch(`${serverUrl}/api/register`, {
         method: 'POST',

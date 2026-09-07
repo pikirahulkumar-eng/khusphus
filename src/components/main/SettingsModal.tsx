@@ -99,7 +99,7 @@ export default function SettingsModal({
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           {/* User Profile Bento Card */}
-          <View style={[styles.profileCard, isDark && { backgroundColor: '#0D1117', borderColor: 'rgba(255, 255, 255, 0.08)' }]}>
+          <View style={[styles.profileCard, isDark && { backgroundColor: '#000000', borderColor: 'rgba(255, 255, 255, 0.08)' }]}>
             <Image
               source={{ uri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150' }}
               style={styles.profileAvatar}
@@ -127,7 +127,7 @@ export default function SettingsModal({
 
           {/* Section 0: Appearance & Theme (Synkon OLED Mode) */}
           <Text style={[styles.sectionHeader, isDark && { color: '#94A3B8' }]}>Appearance & Theme</Text>
-          <View style={[styles.cardGroup, isDark && { backgroundColor: '#0D1117', borderColor: 'rgba(255, 255, 255, 0.08)' }]}>
+          <View style={[styles.cardGroup, isDark && { backgroundColor: '#000000', borderColor: 'rgba(255, 255, 255, 0.08)' }]}>
             {/* Direct Switch: Dark OLED Theme */}
             <View style={styles.settingItem}>
               <View style={[styles.itemIconBg, { backgroundColor: isDark ? 'rgba(168, 85, 247, 0.15)' : '#F5F3FF' }]}>
@@ -156,7 +156,7 @@ export default function SettingsModal({
                 style={[
                   styles.themeModeCard,
                   !isDark && styles.themeModeCardActive,
-                  isDark && { backgroundColor: '#161B22', borderColor: 'rgba(255, 255, 255, 0.08)' },
+                  isDark && { backgroundColor: '#0A0D12', borderColor: 'rgba(255, 255, 255, 0.08)' },
                 ]}
                 onPress={() => {
                   setThemeMode('light');
@@ -164,7 +164,7 @@ export default function SettingsModal({
                 }}
                 activeOpacity={0.75}
               >
-                <View style={[styles.themeModeIconBox, { backgroundColor: !isDark ? '#ECFDF5' : '#1E293B' }]}>
+                <View style={[styles.themeModeIconBox, { backgroundColor: !isDark ? '#ECFDF5' : '#0A0D12' }]}>
                   <Ionicons name="sunny" size={22} color={!isDark ? '#059669' : '#94A3B8'} />
                 </View>
                 <Text style={[styles.themeModeTitle, isDark && { color: '#FFFFFF' }, !isDark && { color: '#047857', fontWeight: '800' }]}>
@@ -209,7 +209,7 @@ export default function SettingsModal({
 
           {/* Section 1: Calls & Audio */}
           <Text style={[styles.sectionHeader, isDark && { color: '#94A3B8' }]}>Calls & Audio</Text>
-          <View style={[styles.cardGroup, isDark && { backgroundColor: '#0D1117', borderColor: 'rgba(255, 255, 255, 0.08)' }]}>
+          <View style={[styles.cardGroup, isDark && { backgroundColor: '#000000', borderColor: 'rgba(255, 255, 255, 0.08)' }]}>
             {/* Direct Connection Item */}
             <View style={styles.settingItem}>
               <View style={[styles.itemIconBg, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5' }]}>
@@ -265,7 +265,7 @@ export default function SettingsModal({
 
           {/* Section 2: Privacy & Security */}
           <Text style={[styles.sectionHeader, isDark && { color: '#94A3B8' }]}>Security & Privacy</Text>
-          <View style={[styles.cardGroup, isDark && { backgroundColor: '#0D1117', borderColor: 'rgba(255, 255, 255, 0.08)' }]}>
+          <View style={[styles.cardGroup, isDark && { backgroundColor: '#000000', borderColor: 'rgba(255, 255, 255, 0.08)' }]}>
             {/* Read Receipts (Blue Ticks) Toggle */}
             <View style={styles.settingItem}>
               <View style={[styles.itemIconBg, { backgroundColor: isDark ? 'rgba(0, 242, 254, 0.15)' : '#EFF6FF' }]}>
@@ -342,7 +342,7 @@ export default function SettingsModal({
 
           {/* Section 3: Data & Storage */}
           <Text style={[styles.sectionHeader, isDark && { color: '#94A3B8' }]}>Storage & Data</Text>
-          <View style={[styles.cardGroup, isDark && { backgroundColor: '#0D1117', borderColor: 'rgba(255, 255, 255, 0.08)' }]}>
+          <View style={[styles.cardGroup, isDark && { backgroundColor: '#000000', borderColor: 'rgba(255, 255, 255, 0.08)' }]}>
             <View style={styles.settingItem}>
               <View style={[styles.itemIconBg, { backgroundColor: isDark ? 'rgba(2, 132, 199, 0.15)' : '#EFF6FF' }]}>
                 <Ionicons name="phone-portrait-outline" size={20} color="#0284C7" />
@@ -396,7 +396,7 @@ export default function SettingsModal({
 
         {/* Floating Toast */}
         {Boolean(toastMessage) && (
-          <View style={[styles.toastBanner, isDark && { backgroundColor: '#1E293B' }]}>
+          <View style={[styles.toastBanner, isDark && { backgroundColor: '#0A0D12', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.08)' }]}>
             <Ionicons name="checkmark-circle" size={18} color="#10B981" style={{ marginRight: 8 }} />
             <Text style={styles.toastText}>{toastMessage}</Text>
           </View>

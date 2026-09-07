@@ -41,21 +41,21 @@ const WALLPAPER_COLORS: Record<string, string> = {
   'Slate Minimalist': '#F8FAFC',
   'Emerald Aura': '#ECFDF5',
   'Acoustic Violet': '#FAF5FF',
-  'Midnight Dark': '#0F172A',
+  'Midnight Dark': '#000000',
   'Desert Sand': '#FEFCE8',
 };
 
 export default function ChatScreen({
   chatUser,
   user,
-  currentUserPhone = '9876543210',
+  currentUserPhone = '',
   onBack,
   onStartCall,
   onCall,
 }: ChatScreenProps) {
   const { isDark } = useTheme();
   const activeUser = chatUser || user;
-  const contactPhone = activeUser?.phone || '1122334455';
+  const contactPhone = activeUser?.phone || '';
   const contactName = activeUser?.name || activeUser?.phone || 'Contact';
 
   const draftKey = `@sunao_draft_${currentUserPhone}_${contactPhone}`;
@@ -82,6 +82,7 @@ export default function ChatScreen({
   });
 
   const [isPeerTyping, setIsPeerTyping] = useState(false);
+  const [isPeerOnline, setIsPeerOnline] = useState(false);
   const [showEmojiBar, setShowEmojiBar] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
@@ -94,6 +95,7 @@ export default function ChatScreen({
   const [wallpaperTheme, setWallpaperTheme] = useState('Slate Minimalist');
 
   const typingTimeoutRef = useRef<any>(null);
+  const lastTypingSentRef = useRef<number>(0);
   const flatListRef = useRef<FlatList>(null);
 
   // Zero-Cost Voice Note Recording States
@@ -174,53 +176,34 @@ export default function ChatScreen({
   useEffect(() => {
     let isMounted = true;
     const loadChatHistory = async () => {
-      const threadExists = await ChatStorageService.hasChatThread(currentUserPhone, contactPhone);
-      if (threadExists) {
-        const stored = await ChatStorageService.getMessages(currentUserPhone, contactPhone);
-        if (isMounted && stored) {
-          setMessages(stored);
-        }
-      } else {
-        // Default initial icebreaker message if completely new
-        const initialMsgs: LocalMessage[] = [
-          {
-            id: 'init_1',
-            senderId: contactPhone,
-            receiverId: currentUserPhone,
-            text: 'Hey! Sunao par video aur voice calling try karein? 🔥',
-            time: '10:30 AM',
-            timestamp: Date.now() - 60000,
-            sender: 'them',
-            status: 'read',
-          },
-          {
-            id: 'init_2',
-            senderId: currentUserPhone,
-            receiverId: contactPhone,
-            text: 'Haan bilkul, aawaz ekdum saaf aur instant aa rahi hai! 🚀',
-            time: '10:31 AM',
-            timestamp: Date.now() - 30000,
-            sender: 'me',
-            status: 'read',
-          },
-        ];
-        if (isMounted) {
-          setMessages(initialMsgs);
-        }
-        for (const m of initialMsgs) {
-          await ChatStorageService.saveMessage(currentUserPhone, contactPhone, m);
-        }
+      const stored = await ChatStorageService.getMessages(currentUserPhone, contactPhone);
+      if (isMounted) {
+        setMessages(stored || []);
       }
       // Mark as read in recent chats list
       await ChatStorageService.markAsRead(currentUserPhone, contactPhone);
-      if (readReceiptsEnabled) {
+      const isVisible = typeof document === 'undefined' || !document.hidden;
+      if (readReceiptsEnabled && isVisible) {
         RealtimeBridge.sendReadReceipt(contactPhone);
       }
     };
 
     loadChatHistory();
+
+    const handleVisibility = () => {
+      if (typeof document !== 'undefined' && !document.hidden && readReceiptsEnabled) {
+        RealtimeBridge.sendReadReceipt(contactPhone);
+      }
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibility);
+    }
+
     return () => {
       isMounted = false;
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibility);
+      }
     };
   }, [currentUserPhone, contactPhone, readReceiptsEnabled]);
 
@@ -229,43 +212,70 @@ export default function ChatScreen({
     const unsubscribe = RealtimeBridge.subscribe((event) => {
       if (event.type === 'CHAT_MESSAGE' && event.payload) {
         const payload = event.payload;
-        if (payload.senderId === contactPhone) {
-          const newIncoming: LocalMessage = {
-            id: payload.id || Date.now().toString(),
-            senderId: contactPhone,
-            receiverId: currentUserPhone,
-            text: payload.text,
-            time: payload.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            timestamp: payload.timestamp || Date.now(),
-            sender: 'them',
-            status: 'read',
-          };
+        // STRICT PRIVACY CHECK: Only process messages belonging to this exact 1-on-1 thread
+        const myCleanPhone = String(currentUserPhone || '').trim();
+        const peerCleanPhone = String(contactPhone || '').trim();
+        const peerUserId = String(activeUser?.userId || '').trim();
+        const msgSender = String(payload.senderId || '').trim();
+        const msgReceiver = String(payload.receiverId || event.targetUserId || '').trim();
 
-          setMessages((prev) => [...prev, newIncoming]);
-          ChatStorageService.saveMessage(currentUserPhone, contactPhone, newIncoming);
-          ChatStorageService.updateRecentChat(
-            currentUserPhone,
-            contactPhone,
-            contactName,
-            payload.text,
-            newIncoming.time,
-            true
-          );
-          setIsPeerTyping(false);
+        const isFromContact = (msgSender === peerCleanPhone || (peerUserId && msgSender === peerUserId)) &&
+                              (msgReceiver === myCleanPhone || !msgReceiver);
+        const isEchoFromMyDevice = msgSender === myCleanPhone &&
+                                   (msgReceiver === peerCleanPhone || (peerUserId && msgReceiver === peerUserId));
+        if (!isFromContact && !isEchoFromMyDevice) {
+          return;
+        }
 
-          // Acknowledge delivery back to sender
+        const newIncoming: LocalMessage = {
+          id: payload.id || Date.now().toString(),
+          senderId: payload.senderId,
+          receiverId: payload.receiverId,
+          text: payload.text,
+          time: payload.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          timestamp: payload.timestamp || Date.now(),
+          sender: isFromContact ? 'them' : 'me',
+          status: 'read',
+          type: payload.type,
+          audioUrl: payload.audioUrl,
+          duration: payload.duration,
+        };
+
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === newIncoming.id)) return prev;
+          return [...prev, newIncoming];
+        });
+        ChatStorageService.saveMessage(currentUserPhone, contactPhone, newIncoming);
+        ChatStorageService.updateRecentChat(
+          currentUserPhone,
+          contactPhone,
+          contactName,
+          payload.text,
+          newIncoming.time,
+          true
+        );
+        setIsPeerTyping(false);
+
+        // Acknowledge delivery back to sender (double grey tick)
+        if (isFromContact) {
           RealtimeBridge.sendDeliveredReceipt(contactPhone, newIncoming.id);
-          // Acknowledge read back to sender if read receipts enabled
-          if (readReceiptsEnabled) {
+          const isWindowActive = typeof document === 'undefined' || !document.hidden;
+          if (readReceiptsEnabled && isWindowActive) {
             RealtimeBridge.sendReadReceipt(contactPhone, newIncoming.id);
           }
         }
       } else if (event.type === 'MESSAGE_DELIVERED' && event.payload) {
-        if (event.payload.senderId === contactPhone) {
+        const isFromPeer =
+          event.payload.senderId === contactPhone ||
+          event.payload.senderPhone === contactPhone ||
+          event.payload.senderUserId === activeUser?.userId ||
+          event.targetUserId === currentUserPhone;
+        if (isFromPeer) {
           const targetMsgId = event.payload.messageId;
           setMessages((prev) =>
             prev.map((m) => {
-              if (m.sender === 'me' && (targetMsgId ? m.id === targetMsgId : m.status === 'sent')) {
+              const isMyMsg = m.sender === 'me' || m.senderId === currentUserPhone;
+              if (isMyMsg && (targetMsgId ? m.id === targetMsgId : m.status === 'sent')) {
                 return { ...m, status: 'delivered' };
               }
               return m;
@@ -278,11 +288,17 @@ export default function ChatScreen({
           }
         }
       } else if (event.type === 'MESSAGE_READ' && event.payload) {
-        if (event.payload.senderId === contactPhone) {
+        const isFromPeer =
+          event.payload.senderId === contactPhone ||
+          event.payload.senderPhone === contactPhone ||
+          event.payload.senderUserId === activeUser?.userId ||
+          event.targetUserId === currentUserPhone;
+        if (isFromPeer) {
           const targetMsgId = event.payload.messageId;
           setMessages((prev) =>
             prev.map((m) => {
-              if (m.sender === 'me' && (targetMsgId ? m.id === targetMsgId : true)) {
+              const isMyMsg = m.sender === 'me' || m.senderId === currentUserPhone;
+              if (isMyMsg && (targetMsgId ? m.id === targetMsgId : true)) {
                 return { ...m, status: 'read' };
               }
               return m;
@@ -295,15 +311,41 @@ export default function ChatScreen({
           }
         }
       } else if (event.type === 'USER_TYPING' && event.payload) {
-        if (event.payload.senderId === contactPhone) {
+        const isFromPeer =
+          event.payload.senderId === contactPhone ||
+          event.payload.senderPhone === contactPhone;
+        if (isFromPeer) {
           setIsPeerTyping(Boolean(event.payload.isTyping));
           if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
           typingTimeoutRef.current = setTimeout(() => {
             setIsPeerTyping(false);
           }, 3000);
         }
+      } else if (event.type === 'PRESENCE_UPDATE' && event.payload) {
+        if (event.payload.userId === contactPhone) {
+          setIsPeerOnline(Boolean(event.payload.isOnline));
+        }
+      } else if (event.type === 'ONLINE_USERS' && event.payload) {
+        const users = event.payload.users;
+        if (Array.isArray(users)) {
+          setIsPeerOnline(users.includes(contactPhone));
+        }
       }
     });
+
+    // Check initial online status
+    const checkInitialOnline = async () => {
+      try {
+        const res = await fetch('/api/online-users');
+        if (res.ok) {
+          const list = await res.json();
+          if (Array.isArray(list)) {
+            setIsPeerOnline(list.includes(contactPhone));
+          }
+        }
+      } catch (_) {}
+    };
+    checkInitialOnline();
 
     return () => {
       unsubscribe();
@@ -315,9 +357,15 @@ export default function ChatScreen({
     setMessage(text);
     if (text.length > 0) {
       AsyncStorage.setItem(draftKey, text).catch(() => {});
-      RealtimeBridge.sendTyping(contactPhone, true);
+      const now = Date.now();
+      if (now - lastTypingSentRef.current > 2500) {
+        lastTypingSentRef.current = now;
+        RealtimeBridge.sendTyping(contactPhone, true);
+      }
     } else {
       AsyncStorage.removeItem(draftKey).catch(() => {});
+      lastTypingSentRef.current = 0;
+      RealtimeBridge.sendTyping(contactPhone, false);
     }
   };
 
@@ -369,21 +417,6 @@ export default function ChatScreen({
           ChatStorageService.updateRecentChat(currentUserPhone, contactPhone, contactName, fileMsgText, formattedTime, false, 'sent');
           RealtimeBridge.sendChatMessage(contactPhone, newMsg);
 
-          // Simulated receipt progression for single-device verification
-          setTimeout(async () => {
-            setMessages((prev) =>
-              prev.map((m) => (m.id === newMsg.id && m.status === 'sent' ? { ...m, status: 'delivered' } : m))
-            );
-            await ChatStorageService.updateMessageStatus(currentUserPhone, contactPhone, newMsg.id, 'delivered');
-          }, 600);
-
-          setTimeout(async () => {
-            setMessages((prev) =>
-              prev.map((m) => (m.id === newMsg.id && m.status === 'delivered' ? { ...m, status: 'read' } : m))
-            );
-            await ChatStorageService.updateMessageStatus(currentUserPhone, contactPhone, newMsg.id, 'read');
-          }, 1600);
-
           setTimeout(() => {
             flatListRef.current?.scrollToEnd({ animated: true });
           }, 100);
@@ -430,21 +463,6 @@ export default function ChatScreen({
 
     // Emit live to peer via Socket.IO
     RealtimeBridge.sendChatMessage(contactPhone, newMsg);
-
-    // Simulated receipt progression for single-device verification
-    setTimeout(async () => {
-      setMessages((prev) =>
-        prev.map((m) => (m.id === newMsg.id && m.status === 'sent' ? { ...m, status: 'delivered' } : m))
-      );
-      await ChatStorageService.updateMessageStatus(currentUserPhone, contactPhone, newMsg.id, 'delivered');
-    }, 600);
-
-    setTimeout(async () => {
-      setMessages((prev) =>
-        prev.map((m) => (m.id === newMsg.id && m.status === 'delivered' ? { ...m, status: 'read' } : m))
-      );
-      await ChatStorageService.updateMessageStatus(currentUserPhone, contactPhone, newMsg.id, 'read');
-    }, 1600);
 
     setTimeout(() => {
       flatListRef.current?.scrollToEnd({ animated: true });
@@ -534,21 +552,6 @@ export default function ChatScreen({
 
       RealtimeBridge.sendChatMessage(contactPhone, newVoiceMsg);
 
-      // Simulated receipt progression for single-device verification
-      setTimeout(async () => {
-        setMessages((prev) =>
-          prev.map((m) => (m.id === newVoiceMsg.id && m.status === 'sent' ? { ...m, status: 'delivered' } : m))
-        );
-        await ChatStorageService.updateMessageStatus(currentUserPhone, contactPhone, newVoiceMsg.id, 'delivered');
-      }, 600);
-
-      setTimeout(async () => {
-        setMessages((prev) =>
-          prev.map((m) => (m.id === newVoiceMsg.id && m.status === 'delivered' ? { ...m, status: 'read' } : m))
-        );
-        await ChatStorageService.updateMessageStatus(currentUserPhone, contactPhone, newVoiceMsg.id, 'read');
-      }, 1600);
-
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
@@ -636,7 +639,7 @@ export default function ChatScreen({
               style={[
                 styles.avatar,
                 isDark && {
-                  backgroundColor: '#161B22',
+                  backgroundColor: '#0A0D12',
                   borderColor: 'rgba(255, 255, 255, 0.08)',
                 },
               ]}
@@ -645,6 +648,21 @@ export default function ChatScreen({
                 <Image source={{ uri: activeUser.avatarUri }} style={styles.avatarImg} />
               ) : (
                 <Ionicons name="person" size={18} color={isDark ? '#10B981' : '#047857'} />
+              )}
+              {isPeerOnline && (
+                <View
+                  style={{
+                    position: 'absolute',
+                    bottom: -1,
+                    right: -1,
+                    width: 10,
+                    height: 10,
+                    borderRadius: 5,
+                    backgroundColor: '#10B981',
+                    borderWidth: 2,
+                    borderColor: isDark ? '#000000' : '#FFFFFF',
+                  }}
+                />
               )}
             </View>
             <View style={styles.headerTitleContainer}>
@@ -657,11 +675,21 @@ export default function ChatScreen({
               <Text
                 style={[
                   styles.headerSubtitle,
-                  isDark && { color: '#94A3B8' },
+                  {
+                    color: isPeerTyping
+                      ? isDark
+                        ? '#00F2FE'
+                        : '#0284C7'
+                      : isPeerOnline
+                        ? '#10B981'
+                        : isDark
+                          ? '#64748B'
+                          : '#94A3B8',
+                  },
                   isPeerTyping && styles.headerSubtitleTyping,
                 ]}
               >
-                {isPeerTyping ? 'typing...' : 'online'}
+                {isPeerTyping ? 'typing...' : isPeerOnline ? '● Online' : 'Offline'}
               </Text>
             </View>
           </TouchableOpacity>
@@ -697,7 +725,7 @@ export default function ChatScreen({
               style={[
                 styles.icon,
                 isDark && {
-                  backgroundColor: '#161B22',
+                  backgroundColor: '#0A0D12',
                   borderColor: 'rgba(255, 255, 255, 0.08)',
                 },
               ]}
@@ -728,10 +756,25 @@ export default function ChatScreen({
                 </Text>
                 <Text style={styles.emptySearchSubtitle}>No results matching "{searchQuery}"</Text>
               </View>
-            ) : null
+            ) : (
+              <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 48, paddingHorizontal: 24 }}>
+                <View style={[
+                  { flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : '#ECFDF5', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: isDark ? 'rgba(16, 185, 129, 0.25)' : '#A7F3D0', marginBottom: 12 }
+                ]}>
+                  <Ionicons name="lock-closed" size={14} color={isDark ? '#10B981' : '#047857'} style={{ marginRight: 6 }} />
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: isDark ? '#10B981' : '#047857' }}>End-to-End Encrypted</Text>
+                </View>
+                <Text style={{ fontSize: 12, color: isDark ? '#64748B' : '#94A3B8', textAlign: 'center', lineHeight: 18, marginBottom: 8 }}>
+                  Messages and calls are secured with Curve25519 & AES-256. Nobody outside this chat can read them.
+                </Text>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: isDark ? '#94A3B8' : '#64748B', marginTop: 4 }}>
+                  Say hello to {contactName} 👋
+                </Text>
+              </View>
+            )
           }
           renderItem={({ item }) => {
-            const isMe = item.sender === 'me';
+            const isMe = item.senderId === currentUserPhone || (item.sender === 'me' && (!item.senderId || item.senderId === currentUserPhone));
             return (
               <View style={[styles.messageWrapper, isMe ? styles.messageWrapperMe : styles.messageWrapperThem]}>
                 {item.type === 'voice' ? (
@@ -749,7 +792,7 @@ export default function ChatScreen({
                       styles.messageBubble,
                       isMe ? styles.messageBubbleMe : styles.messageBubbleThem,
                       !isMe && isDark && {
-                        backgroundColor: '#161B22',
+                        backgroundColor: '#0E1217',
                         borderColor: 'rgba(255, 255, 255, 0.08)',
                       },
                     ]}
@@ -823,7 +866,7 @@ export default function ChatScreen({
                 key={em}
                 style={[
                   styles.emojiBtn,
-                  isDark && { backgroundColor: '#161B22' },
+                  isDark && { backgroundColor: '#0A0D12', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.08)' },
                 ]}
                 onPress={() => handleAddEmoji(em)}
                 activeOpacity={0.65}
@@ -841,7 +884,7 @@ export default function ChatScreen({
           style={[
             styles.blockedBar,
             isDark && {
-              backgroundColor: '#161B22',
+              backgroundColor: '#000000',
               borderTopColor: 'rgba(255, 255, 255, 0.08)',
             },
           ]}
@@ -875,7 +918,7 @@ export default function ChatScreen({
               style={[
                 styles.recordingContainer,
                 isDark && {
-                  backgroundColor: '#161B22',
+                  backgroundColor: '#0A0D12',
                   borderColor: 'rgba(239, 68, 68, 0.4)',
                 },
               ]}
@@ -916,7 +959,7 @@ export default function ChatScreen({
                 style={[
                   styles.inputContainer,
                   isDark && {
-                    backgroundColor: '#161B22',
+                    backgroundColor: '#0A0D12',
                     borderColor: 'rgba(255, 255, 255, 0.08)',
                   },
                 ]}
@@ -996,13 +1039,13 @@ export default function ChatScreen({
 
       {/* Header Options Dropdown Menu */}
       <Modal visible={showOptionsMenu} transparent animationType="fade" onRequestClose={() => setShowOptionsMenu(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setShowOptionsMenu(false)}>
+        <Pressable style={[styles.modalOverlay, isDark && { backgroundColor: 'rgba(0, 0, 0, 0.7)' }]} onPress={() => setShowOptionsMenu(false)}>
           <View
             style={[
               styles.dropdownMenu,
               isDark && {
-                backgroundColor: '#0D1117',
-                borderColor: 'rgba(255, 255, 255, 0.1)',
+                backgroundColor: '#000000',
+                borderColor: 'rgba(255, 255, 255, 0.08)',
               },
             ]}
           >
@@ -1067,13 +1110,14 @@ export default function ChatScreen({
 
       {/* Attachment Options Modal */}
       <Modal visible={showAttachmentMenu} transparent animationType="fade" onRequestClose={() => setShowAttachmentMenu(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setShowAttachmentMenu(false)}>
+        <Pressable style={[styles.modalOverlay, isDark && { backgroundColor: 'rgba(0, 0, 0, 0.7)' }]} onPress={() => setShowAttachmentMenu(false)}>
           <View
             style={[
               styles.attachmentSheet,
               isDark && {
-                backgroundColor: '#0D1117',
-                borderTopColor: 'rgba(255, 255, 255, 0.1)',
+                backgroundColor: '#000000',
+                borderTopColor: 'rgba(255, 255, 255, 0.08)',
+                borderColor: 'rgba(255, 255, 255, 0.08)',
                 borderWidth: 1,
               },
             ]}

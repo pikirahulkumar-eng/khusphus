@@ -122,7 +122,7 @@ export default function CallsTab({
       <View
         style={[
           styles.callCard,
-          isDark && { backgroundColor: '#0D1117', borderColor: 'rgba(255, 255, 255, 0.08)' },
+          isDark && { backgroundColor: '#000000', borderColor: 'rgba(255, 255, 255, 0.08)' },
         ]}
       >
         {/* Squircle Avatar with Presence Indicator */}
@@ -133,7 +133,7 @@ export default function CallsTab({
             <View
               style={[
                 styles.avatarFallback,
-                isDark && { backgroundColor: '#161B22' },
+                isDark && { backgroundColor: '#0A0D12' },
               ]}
             >
               <Ionicons name="person" size={24} color={isDark ? '#94A3B8' : '#64748B'} />
@@ -143,7 +143,7 @@ export default function CallsTab({
             style={[
               styles.presenceDot,
               isMissed ? styles.dotMissed : styles.dotActive,
-              isDark && { borderColor: '#0D1117' },
+              isDark && { borderColor: '#000000' },
             ]}
           />
         </View>
@@ -164,7 +164,7 @@ export default function CallsTab({
               <View
                 style={[
                   styles.countPill,
-                  isDark && { backgroundColor: '#161B22' },
+                  isDark && { backgroundColor: '#0A0D12' },
                 ]}
               >
                 <Text
@@ -261,7 +261,7 @@ export default function CallsTab({
                 style={[
                   styles.quickTile,
                   isDark && {
-                    backgroundColor: '#0D1117',
+                    backgroundColor: '#000000',
                     borderColor: 'rgba(255, 255, 255, 0.08)',
                   },
                 ]}
@@ -307,7 +307,7 @@ export default function CallsTab({
                 style={[
                   styles.quickTile,
                   isDark && {
-                    backgroundColor: '#0D1117',
+                    backgroundColor: '#000000',
                     borderColor: 'rgba(255, 255, 255, 0.08)',
                   },
                 ]}
@@ -364,7 +364,7 @@ export default function CallsTab({
                   style={[
                     styles.pillBtn,
                     isDark && {
-                      backgroundColor: '#161B22',
+                      backgroundColor: '#0A0D12',
                       borderColor: 'rgba(255, 255, 255, 0.08)',
                     },
                     filter === 'all' && [
@@ -395,7 +395,7 @@ export default function CallsTab({
                   style={[
                     styles.pillBtn,
                     isDark && {
-                      backgroundColor: '#161B22',
+                      backgroundColor: '#0A0D12',
                       borderColor: 'rgba(255, 255, 255, 0.08)',
                     },
                     filter === 'missed' && [
@@ -426,7 +426,7 @@ export default function CallsTab({
                   style={[
                     styles.pillBtn,
                     isDark && {
-                      backgroundColor: '#161B22',
+                      backgroundColor: '#0A0D12',
                       borderColor: 'rgba(255, 255, 255, 0.08)',
                     },
                     filter === 'video' && [
@@ -461,7 +461,7 @@ export default function CallsTab({
             style={[
               styles.emptyCard,
               isDark && {
-                backgroundColor: '#0D1117',
+                backgroundColor: '#000000',
                 borderColor: 'rgba(255, 255, 255, 0.08)',
               },
             ]}
@@ -469,7 +469,7 @@ export default function CallsTab({
             <View
               style={[
                 styles.emptyIconBg,
-                isDark && { backgroundColor: '#161B22' },
+                isDark && { backgroundColor: '#0A0D12' },
               ]}
             >
               <Ionicons name="call-outline" size={40} color={isDark ? '#64748B' : '#94A3B8'} />
@@ -516,8 +516,8 @@ export default function CallsTab({
 
       {/* Interactive Dialpad Modal */}
       <Modal visible={showDialer} animationType="slide" transparent>
-        <View style={[styles.dialerModalBackdrop, isDark && { backgroundColor: 'rgba(0, 0, 0, 0.75)' }]}>
-          <View style={[styles.dialerCard, isDark && { backgroundColor: '#0D1117', borderColor: 'rgba(255, 255, 255, 0.1)', borderWidth: 1 }]}>
+        <View style={[styles.dialerModalBackdrop, isDark && { backgroundColor: 'rgba(0, 0, 0, 0.85)' }]}>
+          <View style={[styles.dialerCard, isDark && { backgroundColor: '#000000', borderColor: 'rgba(255, 255, 255, 0.1)', borderWidth: 1 }]}>
             {/* Header */}
             <View style={styles.dialerHeader}>
               <Text style={[styles.dialerTitle, isDark && { color: '#FFFFFF' }]}>Keypad</Text>
@@ -534,7 +534,7 @@ export default function CallsTab({
               style={[
                 styles.displayContainer,
                 isDark && {
-                  backgroundColor: '#161B22',
+                  backgroundColor: '#0A0D12',
                   borderColor: 'rgba(255, 255, 255, 0.1)',
                 },
                 Boolean(dialError) && styles.displayContainerError,
@@ -580,7 +580,7 @@ export default function CallsTab({
                       key={digit}
                       style={[
                         styles.keyBtn,
-                        isDark && { backgroundColor: '#161B22' },
+                        isDark && { backgroundColor: '#0A0D12' },
                       ]}
                       onPress={() => handleDialPress(digit)}
                       activeOpacity={0.6}

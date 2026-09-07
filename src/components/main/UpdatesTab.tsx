@@ -60,79 +60,11 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
   const [newSpaceTitle, setNewSpaceTitle] = useState('');
   const [newMomentText, setNewMomentText] = useState('');
 
-  const moments: StatusUpdateData[] = [
-    {
-      id: '1',
-      name: 'Rahul Bhai',
-      avatarUri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-      time: '18m ago',
-      isViewed: false,
-      type: 'voice',
-      previewText: '🎤 "Voice update!"',
-    },
-    {
-      id: '2',
-      name: 'Neha Sharma',
-      avatarUri: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
-      time: '45m ago',
-      isViewed: false,
-      type: 'photo',
-      previewText: '📸 Weekend mood',
-    },
-    {
-      id: '3',
-      name: 'Amit Patel',
-      avatarUri: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150',
-      time: '2h ago',
-      isViewed: true,
-      type: 'voice',
-      previewText: '🎤 "New photo posted"',
-    },
-    {
-      id: '4',
-      name: 'Priya Verma',
-      avatarUri: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150',
-      time: '5h ago',
-      isViewed: true,
-      type: 'photo',
-      previewText: '📸 At cafe',
-    },
-  ];
+  const moments: StatusUpdateData[] = [];
 
   const [momentsList, setMomentsList] = useState<StatusUpdateData[]>(moments);
 
-  const [liveSpaces, setLiveSpaces] = useState<AudioSpaceData[]>([
-    {
-      id: 'sp_1',
-      title: 'Tech Talk: Future Gadgets & AI Tools 💡',
-      hostName: 'Rahul Bhai',
-      hostAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-      listenersCount: 54,
-      speakers: ['Rahul Bhai', 'Neha', 'Amit'],
-      isLive: true,
-      topicTag: 'Tech & Ideas',
-    },
-    {
-      id: 'sp_2',
-      title: 'Late Night Chai & Chill Music Lounge ☕',
-      hostName: 'Neha Sharma',
-      hostAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
-      listenersCount: 128,
-      speakers: ['Neha Sharma', 'Rohan'],
-      isLive: true,
-      topicTag: 'Casual Hangout',
-    },
-    {
-      id: 'sp_3',
-      title: 'Cricket India vs Australia Live Match Discussion 🏏',
-      hostName: 'Vikram Rajput',
-      hostAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-      listenersCount: 312,
-      speakers: ['Vikram', 'Pooja', 'Sunil'],
-      isLive: true,
-      topicTag: 'Sports',
-    },
-  ]);
+  const [liveSpaces, setLiveSpaces] = useState<AudioSpaceData[]>([]);
 
   const [channels, setChannels] = useState<ChannelData[]>([
     {
@@ -270,8 +202,8 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
             style={[
               styles.addMomentCard,
               isDark && {
-                backgroundColor: '#0D1117',
-                borderColor: 'rgba(255, 255, 255, 0.15)',
+                backgroundColor: '#000000',
+                borderColor: 'rgba(255, 255, 255, 0.12)',
               },
             ]}
             onPress={() => {
@@ -288,7 +220,7 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
               <View
                 style={[
                   styles.addPlusBadge,
-                  isDark && { borderColor: '#0D1117', backgroundColor: '#10B981' },
+                  isDark && { borderColor: '#000000', backgroundColor: '#10B981' },
                 ]}
               >
                 <Ionicons name="add" size={14} color="#FFF" />
@@ -305,7 +237,7 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
               style={[
                 styles.momentStoryCard,
                 isDark && {
-                  backgroundColor: '#0D1117',
+                  backgroundColor: '#000000',
                   borderColor: 'rgba(255, 255, 255, 0.08)',
                 },
               ]}
@@ -330,7 +262,7 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
                   <View
                     style={[
                       styles.voiceStoryBadge,
-                      isDark && { borderColor: '#0D1117' },
+                      isDark && { borderColor: '#000000' },
                     ]}
                   >
                     <Ionicons name="mic" size={10} color="#FFF" />
@@ -362,7 +294,27 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
         </View>
 
         <View style={styles.spacesContainer}>
-          {liveSpaces.map((space) => {
+          {liveSpaces.length === 0 ? (
+            <View
+              style={[
+                styles.spaceCard,
+                isDark && {
+                  backgroundColor: '#000000',
+                  borderColor: 'rgba(255, 255, 255, 0.08)',
+                },
+                { alignItems: 'center', paddingVertical: 20 },
+              ]}
+            >
+              <Ionicons name="mic-outline" size={28} color={isDark ? '#64748B' : '#94A3B8'} style={{ marginBottom: 6 }} />
+              <Text style={[styles.spaceTitle, isDark && { color: '#FFFFFF' }, { textAlign: 'center', fontSize: 13 }]}>
+                No Live Audio Spaces Right Now
+              </Text>
+              <Text style={[styles.listenerText, { textAlign: 'center', marginTop: 4, color: isDark ? '#64748B' : '#94A3B8' }]}>
+                Tap "+ Start Space" to host a live audio room.
+              </Text>
+            </View>
+          ) : (
+            liveSpaces.map((space) => {
             const isTunedIn = activeSpaceId === space.id;
             return (
               <View
@@ -370,7 +322,7 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
                 style={[
                   styles.spaceCard,
                   isDark && {
-                    backgroundColor: '#0D1117',
+                    backgroundColor: '#000000',
                     borderColor: 'rgba(255, 255, 255, 0.08)',
                   },
                   isTunedIn && [
@@ -386,7 +338,7 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
                   <View
                     style={[
                       styles.topicBadge,
-                      isDark && { backgroundColor: '#161B22' },
+                      isDark && { backgroundColor: '#0A0D12', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.08)' },
                     ]}
                   >
                     <Text
@@ -480,7 +432,8 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
                 </View>
               </View>
             );
-          })}
+          })
+        )}
         </View>
 
         {/* Section 3: Verified Channels */}
@@ -502,7 +455,7 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
               style={[
                 styles.channelCard,
                 isDark && {
-                  backgroundColor: '#0D1117',
+                  backgroundColor: '#000000',
                   borderColor: 'rgba(255, 255, 255, 0.08)',
                 },
               ]}
@@ -551,7 +504,7 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
                   ch.isFollowing && [
                     styles.followingBtn,
                     isDark && {
-                      backgroundColor: '#161B22',
+                      backgroundColor: '#0A0D12',
                       borderColor: 'rgba(255, 255, 255, 0.08)',
                     },
                   ],
@@ -622,8 +575,8 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
             style={[
               styles.createModalCard,
               isDark && {
-                backgroundColor: '#0D1117',
-                borderColor: 'rgba(255, 255, 255, 0.1)',
+                backgroundColor: '#000000',
+                borderColor: 'rgba(255, 255, 255, 0.08)',
                 borderWidth: 1,
               },
             ]}
@@ -639,8 +592,8 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
               style={[
                 styles.createInput,
                 isDark && {
-                  backgroundColor: '#161B22',
-                  borderColor: 'rgba(255, 255, 255, 0.1)',
+                  backgroundColor: '#0A0D12',
+                  borderColor: 'rgba(255, 255, 255, 0.08)',
                   color: '#FFFFFF',
                 },
               ]}
@@ -660,7 +613,7 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
                   style={[
                     styles.quickEmojiBubble,
                     isDark && {
-                      backgroundColor: '#161B22',
+                      backgroundColor: '#0A0D12',
                       borderColor: 'rgba(255, 255, 255, 0.08)',
                     },
                   ]}
@@ -695,8 +648,8 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
             style={[
               styles.createModalCard,
               isDark && {
-                backgroundColor: '#0D1117',
-                borderColor: 'rgba(255, 255, 255, 0.1)',
+                backgroundColor: '#000000',
+                borderColor: 'rgba(255, 255, 255, 0.08)',
                 borderWidth: 1,
               },
             ]}
@@ -712,8 +665,8 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
               style={[
                 styles.createInput,
                 isDark && {
-                  backgroundColor: '#161B22',
-                  borderColor: 'rgba(255, 255, 255, 0.1)',
+                  backgroundColor: '#0A0D12',
+                  borderColor: 'rgba(255, 255, 255, 0.08)',
                   color: '#FFFFFF',
                 },
               ]}
@@ -1071,19 +1024,19 @@ const styles = StyleSheet.create({
   },
   storyBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.92)',
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
   },
   storyCard: {
-    backgroundColor: '#1E293B',
+    backgroundColor: '#000000',
     borderRadius: 24,
     width: 380,
     maxWidth: '100%',
     padding: 20,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   storyProgressBar: {
     height: 3,

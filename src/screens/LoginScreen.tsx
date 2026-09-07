@@ -97,8 +97,8 @@ export default function LoginScreen({
             style={[
               styles.cardBox,
               isDark && {
-                backgroundColor: '#0D1117',
-                borderColor: 'rgba(255, 255, 255, 0.1)',
+                backgroundColor: '#000000',
+                borderColor: 'rgba(255, 255, 255, 0.08)',
                 shadowColor: '#000000',
               },
             ]}
@@ -107,8 +107,8 @@ export default function LoginScreen({
               style={[
                 styles.otpInput,
                 isDark && {
-                  backgroundColor: '#161B22',
-                  borderColor: 'rgba(255, 255, 255, 0.12)',
+                  backgroundColor: '#0A0D12',
+                  borderColor: 'rgba(255, 255, 255, 0.08)',
                   color: '#FFFFFF',
                 },
               ]}
@@ -179,8 +179,8 @@ export default function LoginScreen({
           style={[
             styles.cardBox,
             isDark && {
-              backgroundColor: '#0D1117',
-              borderColor: 'rgba(255, 255, 255, 0.1)',
+              backgroundColor: '#000000',
+              borderColor: 'rgba(255, 255, 255, 0.08)',
               shadowColor: '#000000',
             },
           ]}
@@ -196,8 +196,8 @@ export default function LoginScreen({
             style={[
               styles.inputRow,
               isDark && {
-                backgroundColor: '#161B22',
-                borderColor: 'rgba(255, 255, 255, 0.12)',
+                backgroundColor: '#0A0D12',
+                borderColor: 'rgba(255, 255, 255, 0.08)',
               },
             ]}
           >
@@ -222,8 +222,8 @@ export default function LoginScreen({
             style={[
               styles.phoneInputRow,
               isDark && {
-                backgroundColor: '#161B22',
-                borderColor: 'rgba(255, 255, 255, 0.12)',
+                backgroundColor: '#0A0D12',
+                borderColor: 'rgba(255, 255, 255, 0.08)',
               },
             ]}
           >
@@ -231,8 +231,8 @@ export default function LoginScreen({
               style={[
                 styles.countryCodeBox,
                 isDark && {
-                  backgroundColor: '#0D1117',
-                  borderRightColor: 'rgba(255, 255, 255, 0.12)',
+                  backgroundColor: '#000000',
+                  borderRightColor: 'rgba(255, 255, 255, 0.08)',
                 },
               ]}
             >

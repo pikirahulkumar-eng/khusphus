@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { SunaoTheme } from '../../constants/theme';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface ContactUser {
   phone: string;
@@ -35,6 +36,7 @@ export default function NewChatModal({
   onSelectUser,
   contacts,
 }: NewChatModalProps) {
+  const { isDark } = useTheme();
   const [search, setSearch] = useState('');
   const [toastMessage, setToastMessage] = useState('');
 
@@ -51,35 +53,35 @@ export default function NewChatModal({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View style={styles.container}>
+      <View style={[styles.container, isDark && { backgroundColor: '#000000', borderColor: 'rgba(255, 255, 255, 0.08)' }]}>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, isDark && { backgroundColor: '#000000', borderBottomColor: 'rgba(255, 255, 255, 0.08)' }]}>
           <View style={styles.headerTop}>
             <TouchableOpacity onPress={onClose} style={styles.backBtn} activeOpacity={0.7}>
-              <Ionicons name="arrow-back" size={24} color="#0F172A" />
+              <Ionicons name="arrow-back" size={24} color={isDark ? '#FFFFFF' : '#0F172A'} />
             </TouchableOpacity>
 
             <View style={styles.headerTitleBox}>
-              <Text style={styles.headerTitle}>New Chat</Text>
-              <Text style={styles.headerSubtitle}>{contacts.length} contacts</Text>
+              <Text style={[styles.headerTitle, isDark && { color: '#FFFFFF' }]}>New Chat</Text>
+              <Text style={[styles.headerSubtitle, isDark && { color: '#94A3B8' }]}>{contacts.length} contacts</Text>
             </View>
 
             <TouchableOpacity
-              style={styles.qrScanBtn}
+              style={[styles.qrScanBtn, isDark && { backgroundColor: 'rgba(16, 185, 129, 0.15)', borderColor: 'rgba(16, 185, 129, 0.3)' }]}
               onPress={() => showToast('📷 QR Scanner Active')}
               activeOpacity={0.7}
             >
-              <Ionicons name="qr-code-outline" size={20} color="#059669" />
+              <Ionicons name="qr-code-outline" size={20} color="#10B981" />
             </TouchableOpacity>
           </View>
 
           {/* Search Bar */}
-          <View style={styles.searchBarWrapper}>
+          <View style={[styles.searchBarWrapper, isDark && { backgroundColor: '#0A0D12', borderColor: 'rgba(255, 255, 255, 0.08)' }]}>
             <Ionicons name="search" size={18} color="#94A3B8" style={{ marginRight: 8 }} />
             <TextInput
-              style={styles.searchInput}
+              style={[styles.searchInput, isDark && { color: '#FFFFFF' }]}
               placeholder="Search by name or phone..."
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
               value={search}
               onChangeText={setSearch}
             />
@@ -102,46 +104,31 @@ export default function NewChatModal({
                 {/* 2 Modern Action Tiles */}
                 <View style={styles.actionTilesRow}>
                   <TouchableOpacity
-                    style={styles.actionTile}
+                    style={[styles.actionTile, isDark && { backgroundColor: '#000000', borderColor: 'rgba(255, 255, 255, 0.08)' }]}
                     onPress={() => {
                       onClose();
                       onSelectUser({ phone: 'grp_sunao_new', name: 'New Project Group 🚀' });
                     }}
                     activeOpacity={0.75}
                   >
-                    <View style={[styles.actionIconBg, { backgroundColor: '#ECFDF5' }]}>
-                      <Ionicons name="people" size={20} color="#059669" />
+                    <View style={[styles.actionIconBg, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5' }]}>
+                      <Ionicons name="people" size={20} color="#10B981" />
                     </View>
-                    <Text style={styles.actionTileTitle}>New Group</Text>
-                    <Text style={styles.actionTileSub}>Chat with friends</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.actionTile}
-                    onPress={() => {
-                      onClose();
-                      onSelectUser({ phone: 'space_live_room', name: 'Open Audio Lounge 🎙️' });
-                    }}
-                    activeOpacity={0.75}
-                  >
-                    <View style={[styles.actionIconBg, { backgroundColor: '#EFF6FF' }]}>
-                      <Ionicons name="radio" size={20} color="#0284C7" />
-                    </View>
-                    <Text style={styles.actionTileTitle}>Audio Space</Text>
-                    <Text style={styles.actionTileSub}>Live voice room</Text>
+                    <Text style={[styles.actionTileTitle, isDark && { color: '#FFFFFF' }]}>New Group</Text>
+                    <Text style={[styles.actionTileSub, isDark && { color: '#94A3B8' }]}>Chat with friends</Text>
                   </TouchableOpacity>
                 </View>
 
                 <View style={styles.sectionHeaderRow}>
-                  <Text style={styles.sectionHeaderTitle}>Contacts on Sunao</Text>
-                  <Text style={styles.sectionHeaderCount}>{filteredContacts.length}</Text>
+                  <Text style={[styles.sectionHeaderTitle, isDark && { color: '#64748B' }]}>Contacts on Sunao</Text>
+                  <Text style={[styles.sectionHeaderCount, isDark && { color: '#10B981' }]}>{filteredContacts.length}</Text>
                 </View>
               </View>
             ) : null
           }
           renderItem={({ item }) => (
             <TouchableOpacity
-              style={styles.contactCard}
+              style={[styles.contactCard, isDark && { backgroundColor: '#000000', borderColor: 'rgba(255, 255, 255, 0.08)' }]}
               onPress={() => {
                 onClose();
                 onSelectUser({ phone: item.phone, name: item.name });
@@ -152,24 +139,24 @@ export default function NewChatModal({
                 {item.avatarUri ? (
                   <Image source={{ uri: item.avatarUri }} style={styles.avatarImg} />
                 ) : (
-                  <View style={styles.avatarFallback}>
-                    <Ionicons name="person" size={22} color="#64748B" />
+                  <View style={[styles.avatarFallback, isDark && { backgroundColor: '#0A0D12' }]}>
+                    <Ionicons name="person" size={22} color={isDark ? '#94A3B8' : '#64748B'} />
                   </View>
                 )}
-                <View style={styles.onlineDot} />
+                <View style={[styles.onlineDot, isDark && { borderColor: '#000000' }]} />
               </View>
 
               <View style={styles.contactInfo}>
-                <Text style={styles.contactName}>{item.name}</Text>
-                <Text style={styles.contactAbout} numberOfLines={1}>
+                <Text style={[styles.contactName, isDark && { color: '#FFFFFF' }]}>{item.name}</Text>
+                <Text style={[styles.contactAbout, isDark && { color: '#94A3B8' }]} numberOfLines={1}>
                   {item.about}
                 </Text>
-                <Text style={styles.contactPhone}>+91 {item.phone}</Text>
+                <Text style={[styles.contactPhone, isDark && { color: '#64748B' }]}>+91 {item.phone}</Text>
               </View>
 
               <View style={styles.cardActions}>
-                <View style={styles.chatActionBtn}>
-                  <Ionicons name="chatbubble-ellipses" size={16} color="#059669" />
+                <View style={[styles.chatActionBtn, isDark && { backgroundColor: 'rgba(16, 185, 129, 0.15)', borderColor: 'rgba(16, 185, 129, 0.3)' }]}>
+                  <Ionicons name="chatbubble-ellipses" size={16} color="#10B981" />
                 </View>
               </View>
             </TouchableOpacity>
@@ -184,7 +171,7 @@ export default function NewChatModal({
 
         {/* Floating Toast Notification */}
         {Boolean(toastMessage) && (
-          <View style={styles.toastBanner}>
+          <View style={[styles.toastBanner, isDark && { backgroundColor: '#000000', borderColor: 'rgba(255, 255, 255, 0.08)', borderWidth: 1 }]}>
             <Ionicons name="checkmark-circle" size={18} color="#10B981" style={{ marginRight: 8 }} />
             <Text style={styles.toastText}>{toastMessage}</Text>
           </View>

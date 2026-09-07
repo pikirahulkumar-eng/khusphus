@@ -191,8 +191,11 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
     { label: 'Do Not Disturb', emoji: '🔕' },
   ];
 
+  const oledCardStyle = isDark ? { backgroundColor: '#000000', borderColor: 'rgba(255, 255, 255, 0.08)' } : null;
+  const oledElevatedStyle = isDark ? { backgroundColor: '#0A0D12', borderColor: 'rgba(255, 255, 255, 0.08)' } : null;
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <ScrollView style={[styles.container, isDark && { backgroundColor: '#000000' }]} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       {/* 1. Gradient Cover & Hero Header */}
       <View style={styles.heroContainer}>
         <LinearGradient
@@ -218,7 +221,7 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
         </LinearGradient>
 
         {/* Floating Identity Card */}
-        <View style={styles.floatingProfileCard}>
+        <View style={[styles.floatingProfileCard, oledCardStyle]}>
           <View style={styles.avatarRow}>
             <TouchableOpacity
               style={styles.avatarGlowWrapper}
@@ -239,9 +242,9 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
 
             <View style={styles.identityDetails}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Text style={styles.userName}>{userName}</Text>
+                <Text style={[styles.userName, isDark && { color: '#FFFFFF' }]}>{userName}</Text>
                 <TouchableOpacity
-                  style={styles.editProfilePill}
+                  style={[styles.editProfilePill, isDark && { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}
                   onPress={() => {
                     setEditNameInput(userName);
                     setEditHandleInput(userHandle);
@@ -250,25 +253,25 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
                     setShowEditProfileModal(true);
                   }}
                 >
-                  <Feather name="edit-2" size={12} color="#047857" />
-                  <Text style={styles.editProfilePillText}>Edit</Text>
+                  <Feather name="edit-2" size={12} color="#10B981" />
+                  <Text style={[styles.editProfilePillText, isDark && { color: '#10B981' }]}>Edit</Text>
                 </TouchableOpacity>
               </View>
               <View style={styles.handleRow}>
-                <Text style={styles.userHandle}>{userHandle}</Text>
+                <Text style={[styles.userHandle, isDark && { color: '#10B981' }]}>{userHandle}</Text>
                 <TouchableOpacity onPress={() => copyToClipboard(userHandle, 'Sunao ID')}>
-                  <Feather name="copy" size={13} color="#059669" style={{ marginLeft: 6 }} />
+                  <Feather name="copy" size={13} color={isDark ? '#10B981' : '#059669'} style={{ marginLeft: 6 }} />
                 </TouchableOpacity>
               </View>
-              <Text style={styles.userPhone}>+91 {currentUserPhone || '9876543210'}</Text>
-              <Text style={styles.userBioText}>{userBio}</Text>
+              <Text style={[styles.userPhone, isDark && { color: '#94A3B8' }]}>{currentUserPhone ? `+91 ${currentUserPhone}` : ''}</Text>
+              <Text style={[styles.userBioText, isDark && { color: '#94A3B8' }]}>{userBio}</Text>
             </View>
           </View>
 
           {/* Quick Mood / Presence Selector */}
-          <View style={styles.moodSelectorWrapper}>
+          <View style={[styles.moodSelectorWrapper, isDark && { borderTopColor: 'rgba(255, 255, 255, 0.08)' }]}>
             <View style={styles.statusHeaderRow}>
-              <Text style={styles.sectionMiniLabel}>CURRENT STATUS</Text>
+              <Text style={[styles.sectionMiniLabel, isDark && { color: '#64748B' }]}>CURRENT STATUS</Text>
               <TouchableOpacity
                 style={styles.setCustomBtn}
                 onPress={() => {
@@ -278,8 +281,8 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
                 }}
                 activeOpacity={0.7}
               >
-                <Feather name="edit-2" size={11} color="#059669" />
-                <Text style={styles.setCustomBtnText}>
+                <Feather name="edit-2" size={11} color={isDark ? '#10B981' : '#059669'} />
+                <Text style={[styles.setCustomBtnText, isDark && { color: '#10B981' }]}>
                   {customStatus ? 'Edit' : '+ Type Status'}
                 </Text>
               </TouchableOpacity>
@@ -288,7 +291,11 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.moodsScroll}>
               {Boolean(customStatus) && (
                 <TouchableOpacity
-                  style={[styles.moodChip, activeMood === customStatus && styles.moodChipActive]}
+                  style={[
+                    styles.moodChip,
+                    isDark && { backgroundColor: '#0A0D12', borderColor: 'rgba(255, 255, 255, 0.08)' },
+                    activeMood === customStatus && styles.moodChipActive,
+                  ]}
                   onPress={() => {
                     setActiveMood(customStatus);
                     AsyncStorage.setItem('@sunao_active_mood', customStatus);
@@ -297,7 +304,11 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
                 >
                   <Text style={styles.moodEmoji}>{customEmoji}</Text>
                   <Text
-                    style={[styles.moodText, activeMood === customStatus && styles.moodTextActive]}
+                    style={[
+                      styles.moodText,
+                      isDark && { color: '#94A3B8' },
+                      activeMood === customStatus && styles.moodTextActive,
+                    ]}
                     numberOfLines={1}
                   >
                     {customStatus}
@@ -310,7 +321,11 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
                 return (
                   <TouchableOpacity
                     key={m.label}
-                    style={[styles.moodChip, isSelected && styles.moodChipActive]}
+                    style={[
+                      styles.moodChip,
+                      isDark && { backgroundColor: '#0A0D12', borderColor: 'rgba(255, 255, 255, 0.08)' },
+                      isSelected && styles.moodChipActive,
+                    ]}
                     onPress={() => {
                       setActiveMood(m.label);
                       AsyncStorage.setItem('@sunao_active_mood', m.label);
@@ -318,7 +333,7 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
                     activeOpacity={0.7}
                   >
                     <Text style={styles.moodEmoji}>{m.emoji}</Text>
-                    <Text style={[styles.moodText, isSelected && styles.moodTextActive]}>
+                    <Text style={[styles.moodText, isDark && { color: '#94A3B8' }, isSelected && styles.moodTextActive]}>
                       {m.label}
                     </Text>
                   </TouchableOpacity>
@@ -326,7 +341,11 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
               })}
 
               <TouchableOpacity
-                style={[styles.moodChip, styles.addCustomChip]}
+                style={[
+                  styles.moodChip,
+                  styles.addCustomChip,
+                  isDark && { backgroundColor: '#0A0D12', borderColor: 'rgba(16, 185, 129, 0.3)' },
+                ]}
                 onPress={() => {
                   setInputCustomText(customStatus);
                   setSelectedEmoji(customEmoji || '💬');
@@ -334,8 +353,8 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
                 }}
                 activeOpacity={0.7}
               >
-                <Feather name="plus" size={13} color="#047857" />
-                <Text style={[styles.moodText, { color: '#047857' }]}>Custom...</Text>
+                <Feather name="plus" size={13} color={isDark ? '#10B981' : '#047857'} />
+                <Text style={[styles.moodText, { color: isDark ? '#10B981' : '#047857' }]}>Custom...</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -343,40 +362,40 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
       </View>
 
       {/* 2. Security & Privacy Highlights Bar */}
-      <View style={styles.telemetryCard}>
+      <View style={[styles.telemetryCard, oledCardStyle]}>
         <View style={styles.telemetryItem}>
-          <Text style={styles.telemetryValue}>PRIVATE</Text>
-          <Text style={styles.telemetryLabel}>Zero Tracking</Text>
+          <Text style={[styles.telemetryValue, isDark && { color: '#FFFFFF' }]}>PRIVATE</Text>
+          <Text style={[styles.telemetryLabel, isDark && { color: '#94A3B8' }]}>Zero Tracking</Text>
         </View>
-        <View style={styles.telemetryDivider} />
+        <View style={[styles.telemetryDivider, isDark && { backgroundColor: 'rgba(255, 255, 255, 0.08)' }]} />
         <View style={styles.telemetryItem}>
-          <Text style={[styles.telemetryValue, { color: '#047857' }]}>100%</Text>
-          <Text style={styles.telemetryLabel}>E2E Encrypted</Text>
+          <Text style={[styles.telemetryValue, { color: '#10B981' }]}>100%</Text>
+          <Text style={[styles.telemetryLabel, isDark && { color: '#94A3B8' }]}>E2E Encrypted</Text>
         </View>
-        <View style={styles.telemetryDivider} />
+        <View style={[styles.telemetryDivider, isDark && { backgroundColor: 'rgba(255, 255, 255, 0.08)' }]} />
         <View style={styles.telemetryItem}>
-          <Text style={[styles.telemetryValue, { color: '#0284C7' }]}>OPUS 48k</Text>
-          <Text style={styles.telemetryLabel}>HD Audio</Text>
+          <Text style={[styles.telemetryValue, { color: '#00F2FE' }]}>OPUS 48k</Text>
+          <Text style={[styles.telemetryLabel, isDark && { color: '#94A3B8' }]}>HD Audio</Text>
         </View>
       </View>
 
       {/* 3. Bento-Style Grid Dashboard (ALL 4 ACTIVE) */}
-      <Text style={styles.bentoSectionTitle}>SETTINGS & TOOLS</Text>
+      <Text style={[styles.bentoSectionTitle, isDark && { color: '#64748B' }]}>SETTINGS & TOOLS</Text>
       
       <View style={styles.bentoGrid}>
         {/* Bento 1: Privacy Vault */}
         <TouchableOpacity
-          style={styles.bentoCard}
+          style={[styles.bentoCard, oledCardStyle]}
           onPress={() => setActiveBentoModal('vault')}
           activeOpacity={0.8}
         >
-          <View style={[styles.bentoIconBadge, { backgroundColor: '#F5F3FF' }]}>
-            <Ionicons name="finger-print" size={22} color="#7C3AED" />
+          <View style={[styles.bentoIconBadge, { backgroundColor: isDark ? 'rgba(124, 58, 237, 0.15)' : '#F5F3FF' }]}>
+            <Ionicons name="finger-print" size={22} color={isDark ? '#A78BFA' : '#7C3AED'} />
           </View>
-          <Text style={styles.bentoCardTitle}>Privacy Vault</Text>
-          <Text style={styles.bentoCardSubtitle}>PIN lock, blue ticks & privacy</Text>
-          <View style={[styles.bentoFooterPill, { backgroundColor: pinLockEnabled ? '#ECFDF5' : '#F5F3FF' }]}>
-            <Text style={[styles.bentoFooterPillText, { color: pinLockEnabled ? '#047857' : '#7C3AED' }]}>
+          <Text style={[styles.bentoCardTitle, isDark && { color: '#FFFFFF' }]}>Privacy Vault</Text>
+          <Text style={[styles.bentoCardSubtitle, isDark && { color: '#94A3B8' }]}>PIN lock, blue ticks & privacy</Text>
+          <View style={[styles.bentoFooterPill, { backgroundColor: pinLockEnabled ? (isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5') : (isDark ? 'rgba(124, 58, 237, 0.15)' : '#F5F3FF') }]}>
+            <Text style={[styles.bentoFooterPillText, { color: pinLockEnabled ? '#10B981' : (isDark ? '#A78BFA' : '#7C3AED') }]}>
               {pinLockEnabled ? 'PIN ACTIVE' : 'CONFIGURE'}
             </Text>
           </View>
@@ -384,23 +403,23 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
 
         {/* Bento 2: Call Studio (Noise & Audio) */}
         <TouchableOpacity
-          style={styles.bentoCard}
+          style={[styles.bentoCard, oledCardStyle]}
           onPress={() => setActiveBentoModal('studio')}
           activeOpacity={0.8}
         >
-          <View style={[styles.bentoIconBadge, { backgroundColor: '#ECFDF5' }]}>
-            <MaterialCommunityIcons name="broadcast" size={22} color="#047857" />
+          <View style={[styles.bentoIconBadge, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5' }]}>
+            <MaterialCommunityIcons name="broadcast" size={22} color="#10B981" />
           </View>
-          <Text style={styles.bentoCardTitle}>Call Studio</Text>
-          <Text style={styles.bentoCardSubtitle}>Acoustic noise filter & HD mic</Text>
-          <View style={[styles.bentoFooterPill, { backgroundColor: '#ECFDF5' }]}>
-            <Text style={[styles.bentoFooterPillText, { color: '#047857' }]}>{noiseLevel.toUpperCase()}</Text>
+          <Text style={[styles.bentoCardTitle, isDark && { color: '#FFFFFF' }]}>Call Studio</Text>
+          <Text style={[styles.bentoCardSubtitle, isDark && { color: '#94A3B8' }]}>Acoustic noise filter & HD mic</Text>
+          <View style={[styles.bentoFooterPill, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5' }]}>
+            <Text style={[styles.bentoFooterPillText, { color: '#10B981' }]}>{noiseLevel.toUpperCase()}</Text>
           </View>
         </TouchableOpacity>
 
         {/* Bento 3: Appearance & Themes */}
         <TouchableOpacity
-          style={[styles.bentoCard, isDark && { backgroundColor: '#0D1117', borderColor: 'rgba(255, 255, 255, 0.08)' }]}
+          style={[styles.bentoCard, oledCardStyle]}
           onPress={() => setActiveBentoModal('theme')}
           activeOpacity={0.8}
         >
@@ -420,29 +439,29 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
 
         {/* Bento 4: Linked Devices */}
         <TouchableOpacity
-          style={styles.bentoCard}
+          style={[styles.bentoCard, oledCardStyle]}
           onPress={() => setActiveBentoModal('devices')}
           activeOpacity={0.8}
         >
-          <View style={[styles.bentoIconBadge, { backgroundColor: '#FEF2F2' }]}>
+          <View style={[styles.bentoIconBadge, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2' }]}>
             <MaterialCommunityIcons name="laptop" size={22} color="#EF4444" />
           </View>
-          <Text style={styles.bentoCardTitle}>Devices</Text>
-          <Text style={styles.bentoCardSubtitle}>Web & Mobile active sessions</Text>
-          <View style={[styles.bentoFooterPill, { backgroundColor: '#FEF2F2' }]}>
+          <Text style={[styles.bentoCardTitle, isDark && { color: '#FFFFFF' }]}>Devices</Text>
+          <Text style={[styles.bentoCardSubtitle, isDark && { color: '#94A3B8' }]}>Web & Mobile active sessions</Text>
+          <View style={[styles.bentoFooterPill, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2' }]}>
             <Text style={[styles.bentoFooterPillText, { color: '#EF4444' }]}>2 SESSIONS</Text>
           </View>
         </TouchableOpacity>
       </View>
 
       {/* 4. Quick Toggles Card (ACTIVE WITH PERSISTENCE) */}
-      <View style={styles.togglesCard}>
+      <View style={[styles.togglesCard, oledCardStyle]}>
         <View style={styles.toggleRow}>
           <View style={styles.toggleLeft}>
-            <MaterialCommunityIcons name="incognito" size={22} color="#047857" />
+            <MaterialCommunityIcons name="incognito" size={22} color={isDark ? '#10B981' : '#047857'} />
             <View style={styles.toggleTextGroup}>
-              <Text style={styles.toggleTitle}>Ghost Mode</Text>
-              <Text style={styles.toggleSubtitle}>Hide online status & typing indicator</Text>
+              <Text style={[styles.toggleTitle, isDark && { color: '#FFFFFF' }]}>Ghost Mode</Text>
+              <Text style={[styles.toggleSubtitle, isDark && { color: '#94A3B8' }]}>Hide online status & typing indicator</Text>
             </View>
           </View>
           <Switch
@@ -507,17 +526,17 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
 
       {/* 1. Edit Profile Modal */}
       <Modal visible={showEditProfileModal} transparent animationType="slide" onRequestClose={() => setShowEditProfileModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.editProfileCard}>
+        <View style={[styles.modalOverlay, isDark && { backgroundColor: 'rgba(0, 0, 0, 0.85)' }]}>
+          <View style={[styles.editProfileCard, oledCardStyle, isDark && { borderWidth: 1 }]}>
             <View style={styles.modalHeaderRow}>
-              <Text style={styles.modalHeaderTitle}>Edit Profile</Text>
+              <Text style={[styles.modalHeaderTitle, isDark && { color: '#FFFFFF' }]}>Edit Profile</Text>
               <TouchableOpacity onPress={() => setShowEditProfileModal(false)}>
-                <Ionicons name="close" size={22} color="#64748B" />
+                <Ionicons name="close" size={22} color={isDark ? '#94A3B8' : '#64748B'} />
               </TouchableOpacity>
             </View>
 
             <ScrollView style={{ maxHeight: 420 }}>
-              <Text style={styles.inputMiniLabel}>SELECT AVATAR</Text>
+              <Text style={[styles.inputMiniLabel, isDark && { color: '#64748B' }]}>SELECT AVATAR</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
                 {AVATAR_PRESETS.map((uri, idx) => (
                   <TouchableOpacity
@@ -533,38 +552,38 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
                 ))}
               </ScrollView>
 
-              <Text style={styles.inputMiniLabel}>FULL NAME</Text>
+              <Text style={[styles.inputMiniLabel, isDark && { color: '#64748B' }]}>FULL NAME</Text>
               <TextInput
-                style={styles.modalTextInput}
+                style={[styles.modalTextInput, oledElevatedStyle, isDark && { color: '#FFFFFF' }]}
                 value={editNameInput}
                 onChangeText={setEditNameInput}
                 placeholder="Enter full name"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
               />
 
-              <Text style={styles.inputMiniLabel}>SUNAO HANDLE</Text>
+              <Text style={[styles.inputMiniLabel, isDark && { color: '#64748B' }]}>SUNAO HANDLE</Text>
               <TextInput
-                style={styles.modalTextInput}
+                style={[styles.modalTextInput, oledElevatedStyle, isDark && { color: '#FFFFFF' }]}
                 value={editHandleInput}
                 onChangeText={setEditHandleInput}
                 placeholder="@username"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
               />
 
-              <Text style={styles.inputMiniLabel}>ABOUT / BIO</Text>
+              <Text style={[styles.inputMiniLabel, isDark && { color: '#64748B' }]}>ABOUT / BIO</Text>
               <TextInput
-                style={[styles.modalTextInput, { height: 64 }]}
+                style={[styles.modalTextInput, { height: 64 }, oledElevatedStyle, isDark && { color: '#FFFFFF' }]}
                 value={editBioInput}
                 onChangeText={setEditBioInput}
                 placeholder="What's on your mind?"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
                 multiline
               />
             </ScrollView>
 
             <View style={styles.modalBtnRow}>
-              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setShowEditProfileModal(false)}>
-                <Text style={styles.modalCancelBtnText}>Cancel</Text>
+              <TouchableOpacity style={[styles.modalCancelBtn, oledElevatedStyle]} onPress={() => setShowEditProfileModal(false)}>
+                <Text style={[styles.modalCancelBtnText, isDark && { color: '#94A3B8' }]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalSaveBtn} onPress={handleSaveProfile}>
                 <Text style={styles.modalSaveBtnText}>Save Profile</Text>
@@ -576,34 +595,34 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
 
       {/* 2. QR Code Share Digital Pass Modal */}
       <Modal visible={showQRModal} transparent animationType="fade" onRequestClose={() => setShowQRModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.qrPassCard}>
+        <View style={[styles.modalOverlay, isDark && { backgroundColor: 'rgba(0, 0, 0, 0.85)' }]}>
+          <View style={[styles.qrPassCard, oledCardStyle, isDark && { borderWidth: 1 }]}>
             <View style={styles.modalHeaderRow}>
-              <Text style={styles.modalHeaderTitle}>Sunao ID Pass</Text>
+              <Text style={[styles.modalHeaderTitle, isDark && { color: '#FFFFFF' }]}>Sunao ID Pass</Text>
               <TouchableOpacity onPress={() => setShowQRModal(false)}>
-                <Ionicons name="close" size={22} color="#64748B" />
+                <Ionicons name="close" size={22} color={isDark ? '#94A3B8' : '#64748B'} />
               </TouchableOpacity>
             </View>
 
-            <View style={styles.qrCodeBox}>
+            <View style={[styles.qrCodeBox, isDark && { backgroundColor: '#0A0D12', borderColor: 'rgba(255, 255, 255, 0.08)' }]}>
               <Image source={{ uri: avatarUri }} style={styles.qrAvatarCenter} />
               {/* Visual Simulated QR Matrix */}
               <View style={styles.qrMatrixPattern}>
-                <MaterialCommunityIcons name="qrcode" size={180} color="#047857" />
+                <MaterialCommunityIcons name="qrcode" size={180} color="#10B981" />
               </View>
             </View>
 
-            <Text style={styles.qrCardName}>{userName}</Text>
-            <Text style={styles.qrCardHandle}>{userHandle} • +91 {currentUserPhone || '9876543210'}</Text>
-            <Text style={styles.qrCardSub}>Scan this code to start an instant encrypted chat with me.</Text>
+            <Text style={[styles.qrCardName, isDark && { color: '#FFFFFF' }]}>{userName}</Text>
+            <Text style={[styles.qrCardHandle, isDark && { color: '#10B981' }]}>{userHandle}{currentUserPhone ? ` • +91 ${currentUserPhone}` : ''}</Text>
+            <Text style={[styles.qrCardSub, isDark && { color: '#94A3B8' }]}>Scan this code to start an instant encrypted chat with me.</Text>
 
             <View style={styles.modalBtnRow}>
               <TouchableOpacity
-                style={styles.modalSecondaryBtn}
+                style={[styles.modalSecondaryBtn, isDark && { backgroundColor: 'rgba(16, 185, 129, 0.15)', borderColor: 'rgba(16, 185, 129, 0.3)' }]}
                 onPress={() => copyToClipboard(`https://sunao.chat/u/${userHandle.replace('@', '')}`, 'Profile Link')}
               >
-                <Feather name="copy" size={14} color="#047857" style={{ marginRight: 6 }} />
-                <Text style={{ color: '#047857', fontWeight: '700', fontSize: 13 }}>Copy Link</Text>
+                <Feather name="copy" size={14} color="#10B981" style={{ marginRight: 6 }} />
+                <Text style={{ color: '#10B981', fontWeight: '700', fontSize: 13 }}>Copy Link</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -627,17 +646,17 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
 
       {/* 3. Bento 1: Privacy Vault Modal (FULLY ACTIVE) */}
       <Modal visible={activeBentoModal === 'vault'} transparent animationType="fade" onRequestClose={() => setActiveBentoModal(null)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.bentoDetailCard}>
-            <View style={styles.bentoDetailHeader}>
+        <View style={[styles.modalOverlay, isDark && { backgroundColor: 'rgba(0, 0, 0, 0.85)' }]}>
+          <View style={[styles.bentoDetailCard, oledCardStyle, isDark && { borderWidth: 1 }]}>
+            <View style={[styles.bentoDetailHeader, isDark && { borderBottomColor: 'rgba(255, 255, 255, 0.08)' }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <View style={[styles.bentoIconBadge, { backgroundColor: '#F5F3FF', width: 34, height: 34, marginRight: 10 }]}>
-                  <Ionicons name="finger-print" size={18} color="#7C3AED" />
+                <View style={[styles.bentoIconBadge, { backgroundColor: isDark ? 'rgba(124, 58, 237, 0.15)' : '#F5F3FF', width: 34, height: 34, marginRight: 10 }]}>
+                  <Ionicons name="finger-print" size={18} color={isDark ? '#A78BFA' : '#7C3AED'} />
                 </View>
-                <Text style={styles.bentoDetailTitle}>Privacy Vault</Text>
+                <Text style={[styles.bentoDetailTitle, isDark && { color: '#FFFFFF' }]}>Privacy Vault</Text>
               </View>
               <TouchableOpacity onPress={() => setActiveBentoModal(null)}>
-                <Ionicons name="close" size={22} color="#64748B" />
+                <Ionicons name="close" size={22} color={isDark ? '#94A3B8' : '#64748B'} />
               </TouchableOpacity>
             </View>
 
@@ -736,17 +755,17 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
 
       {/* 4. Bento 2: Call Studio Modal (FULLY ACTIVE) */}
       <Modal visible={activeBentoModal === 'studio'} transparent animationType="fade" onRequestClose={() => setActiveBentoModal(null)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.bentoDetailCard}>
-            <View style={styles.bentoDetailHeader}>
+        <View style={[styles.modalOverlay, isDark && { backgroundColor: 'rgba(0, 0, 0, 0.85)' }]}>
+          <View style={[styles.bentoDetailCard, oledCardStyle, isDark && { borderWidth: 1 }]}>
+            <View style={[styles.bentoDetailHeader, isDark && { borderBottomColor: 'rgba(255, 255, 255, 0.08)' }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <View style={[styles.bentoIconBadge, { backgroundColor: '#ECFDF5', width: 34, height: 34, marginRight: 10 }]}>
-                  <MaterialCommunityIcons name="broadcast" size={18} color="#047857" />
+                <View style={[styles.bentoIconBadge, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5', width: 34, height: 34, marginRight: 10 }]}>
+                  <MaterialCommunityIcons name="broadcast" size={18} color="#10B981" />
                 </View>
-                <Text style={styles.bentoDetailTitle}>Call Studio</Text>
+                <Text style={[styles.bentoDetailTitle, isDark && { color: '#FFFFFF' }]}>Call Studio</Text>
               </View>
               <TouchableOpacity onPress={() => setActiveBentoModal(null)}>
-                <Ionicons name="close" size={22} color="#64748B" />
+                <Ionicons name="close" size={22} color={isDark ? '#94A3B8' : '#64748B'} />
               </TouchableOpacity>
             </View>
 
@@ -857,29 +876,29 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
 
       {/* 5. Bento 3: Theme Studio Modal (FULLY ACTIVE) */}
       <Modal visible={activeBentoModal === 'theme'} transparent animationType="fade" onRequestClose={() => setActiveBentoModal(null)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.bentoDetailCard}>
-            <View style={styles.bentoDetailHeader}>
+        <View style={[styles.modalOverlay, isDark && { backgroundColor: 'rgba(0, 0, 0, 0.85)' }]}>
+          <View style={[styles.bentoDetailCard, oledCardStyle, isDark && { borderWidth: 1 }]}>
+            <View style={[styles.bentoDetailHeader, isDark && { borderBottomColor: 'rgba(255, 255, 255, 0.08)' }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <View style={[styles.bentoIconBadge, { backgroundColor: '#EFF6FF', width: 34, height: 34, marginRight: 10 }]}>
-                  <Ionicons name="color-palette" size={18} color="#0284C7" />
+                <View style={[styles.bentoIconBadge, { backgroundColor: isDark ? 'rgba(0, 242, 254, 0.15)' : '#EFF6FF', width: 34, height: 34, marginRight: 10 }]}>
+                  <Ionicons name="color-palette" size={18} color={isDark ? '#00F2FE' : '#0284C7'} />
                 </View>
-                <Text style={styles.bentoDetailTitle}>Theme Studio</Text>
+                <Text style={[styles.bentoDetailTitle, isDark && { color: '#FFFFFF' }]}>Theme Studio</Text>
               </View>
               <TouchableOpacity onPress={() => setActiveBentoModal(null)}>
-                <Ionicons name="close" size={22} color="#64748B" />
+                <Ionicons name="close" size={22} color={isDark ? '#94A3B8' : '#64748B'} />
               </TouchableOpacity>
             </View>
 
             <ScrollView style={{ maxHeight: 380 }}>
-              <Text style={styles.inputMiniLabel}>APPEARANCE / COLOR SCHEME</Text>
+              <Text style={[styles.inputMiniLabel, isDark && { color: '#64748B' }]}>APPEARANCE / COLOR SCHEME</Text>
               <View style={styles.themeCardsRow}>
                 {/* Light */}
                 <TouchableOpacity
                   style={[
                     styles.themeModeCard,
                     !isDark && styles.themeModeCardActive,
-                    isDark && { backgroundColor: '#161B22', borderColor: 'rgba(255, 255, 255, 0.08)' },
+                    isDark && { backgroundColor: '#0A0D12', borderColor: 'rgba(255, 255, 255, 0.08)' },
                   ]}
                   onPress={() => {
                     setThemeMode('light');
@@ -887,7 +906,7 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
                   }}
                   activeOpacity={0.75}
                 >
-                  <View style={[styles.themeModeIconBox, { backgroundColor: !isDark ? '#ECFDF5' : '#1E293B' }]}>
+                  <View style={[styles.themeModeIconBox, { backgroundColor: !isDark ? '#ECFDF5' : '#0A0D12' }]}>
                     <Ionicons name="sunny" size={20} color={!isDark ? '#059669' : '#94A3B8'} />
                   </View>
                   <Text style={[styles.themeModeTitle, isDark && { color: '#FFFFFF' }, !isDark && { color: '#047857', fontWeight: '800' }]}>
@@ -930,7 +949,7 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
               </View>
 
               {/* Direct Switch Row */}
-              <View style={[styles.themeSwitchRow, isDark && { backgroundColor: '#161B22', borderColor: 'rgba(255, 255, 255, 0.08)' }]}>
+              <View style={[styles.themeSwitchRow, isDark && { backgroundColor: '#0A0D12', borderColor: 'rgba(255, 255, 255, 0.08)' }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <Ionicons name={isDark ? 'moon' : 'sunny'} size={18} color={isDark ? '#A855F7' : '#059669'} style={{ marginRight: 10 }} />
                   <Text style={[styles.themeSwitchText, isDark && { color: '#FFFFFF' }]}>Dark OLED Theme</Text>
@@ -1018,17 +1037,17 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
 
       {/* 6. Bento 4: Linked Devices Modal (FULLY ACTIVE) */}
       <Modal visible={activeBentoModal === 'devices'} transparent animationType="fade" onRequestClose={() => setActiveBentoModal(null)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.bentoDetailCard}>
-            <View style={styles.bentoDetailHeader}>
+        <View style={[styles.modalOverlay, isDark && { backgroundColor: 'rgba(0, 0, 0, 0.85)' }]}>
+          <View style={[styles.bentoDetailCard, oledCardStyle, isDark && { borderWidth: 1 }]}>
+            <View style={[styles.bentoDetailHeader, isDark && { borderBottomColor: 'rgba(255, 255, 255, 0.08)' }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <View style={[styles.bentoIconBadge, { backgroundColor: '#FEF2F2', width: 34, height: 34, marginRight: 10 }]}>
+                <View style={[styles.bentoIconBadge, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2', width: 34, height: 34, marginRight: 10 }]}>
                   <MaterialCommunityIcons name="laptop" size={18} color="#EF4444" />
                 </View>
-                <Text style={styles.bentoDetailTitle}>Linked Devices</Text>
+                <Text style={[styles.bentoDetailTitle, isDark && { color: '#FFFFFF' }]}>Linked Devices</Text>
               </View>
               <TouchableOpacity onPress={() => setActiveBentoModal(null)}>
-                <Ionicons name="close" size={22} color="#64748B" />
+                <Ionicons name="close" size={22} color={isDark ? '#94A3B8' : '#64748B'} />
               </TouchableOpacity>
             </View>
 
@@ -1089,31 +1108,31 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
 
       {/* 7. Link Device QR Scanner Modal */}
       <Modal visible={showLinkDeviceScanner} transparent animationType="fade" onRequestClose={() => setShowLinkDeviceScanner(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.scannerCard}>
+        <View style={[styles.modalOverlay, isDark && { backgroundColor: 'rgba(0, 0, 0, 0.85)' }]}>
+          <View style={[styles.scannerCard, oledCardStyle, isDark && { borderWidth: 1 }]}>
             <View style={styles.modalHeaderRow}>
-              <Text style={styles.modalHeaderTitle}>Scan QR Code</Text>
+              <Text style={[styles.modalHeaderTitle, isDark && { color: '#FFFFFF' }]}>Scan QR Code</Text>
               <TouchableOpacity onPress={() => setShowLinkDeviceScanner(false)}>
-                <Ionicons name="close" size={22} color="#64748B" />
+                <Ionicons name="close" size={22} color={isDark ? '#94A3B8' : '#64748B'} />
               </TouchableOpacity>
             </View>
-            <Text style={styles.scannerSub}>
-              Open Sunao on your desktop or laptop at <Text style={{ fontWeight: '700', color: '#047857' }}>sunao.chat</Text> and scan the QR code to link instantly.
+            <Text style={[styles.scannerSub, isDark && { color: '#94A3B8' }]}>
+              Open Sunao on your desktop or laptop at <Text style={{ fontWeight: '700', color: isDark ? '#10B981' : '#047857' }}>sunao.chat</Text> and scan the QR code to link instantly.
             </Text>
 
-            <View style={styles.scannerViewport}>
-              <MaterialCommunityIcons name="qrcode-scan" size={100} color="#047857" />
-              <Text style={styles.scannerHint}>Point camera at screen</Text>
+            <View style={[styles.scannerViewport, isDark && { backgroundColor: '#0A0D12', borderColor: '#10B981' }]}>
+              <MaterialCommunityIcons name="qrcode-scan" size={100} color={isDark ? '#10B981' : '#047857'} />
+              <Text style={[styles.scannerHint, isDark && { color: '#94A3B8' }]}>Point camera at screen</Text>
             </View>
 
             <TouchableOpacity
-              style={styles.modalSaveBtn}
+              style={[styles.modalSaveBtn, isDark && { backgroundColor: '#10B981' }]}
               onPress={() => {
                 setShowLinkDeviceScanner(false);
                 showToast('Device linked successfully!');
               }}
             >
-              <Text style={styles.modalSaveBtnText}>Simulate Instant Pair</Text>
+              <Text style={[styles.modalSaveBtnText, isDark && { color: '#000000', fontWeight: '800' }]}>Simulate Instant Pair</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1126,27 +1145,31 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
         animationType="fade"
         onRequestClose={() => setShowCustomStatusModal(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={() => setShowCustomStatusModal(false)}>
-          <Pressable style={styles.customStatusCard} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={[styles.modalOverlay, isDark && { backgroundColor: 'rgba(0, 0, 0, 0.85)' }]} onPress={() => setShowCustomStatusModal(false)}>
+          <Pressable style={[styles.customStatusCard, oledCardStyle, isDark && { borderWidth: 1 }]} onPress={(e) => e.stopPropagation()}>
             <View style={styles.customStatusHeader}>
               <View>
-                <Text style={styles.customStatusTitle}>Set Current Status</Text>
-                <Text style={styles.customStatusSubtitle}>Type a custom status or mood to share</Text>
+                <Text style={[styles.customStatusTitle, isDark && { color: '#FFFFFF' }]}>Set Current Status</Text>
+                <Text style={[styles.customStatusSubtitle, isDark && { color: '#94A3B8' }]}>Type a custom status or mood to share</Text>
               </View>
               <TouchableOpacity
                 onPress={() => setShowCustomStatusModal(false)}
                 style={styles.modalCloseBtn}
               >
-                <Ionicons name="close" size={20} color="#64748B" />
+                <Ionicons name="close" size={20} color={isDark ? '#94A3B8' : '#64748B'} />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.inputMiniLabel}>CHOOSE EMOJI</Text>
+            <Text style={[styles.inputMiniLabel, isDark && { color: '#64748B' }]}>CHOOSE EMOJI</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.emojiScrollRow}>
               {['💬', '💻', '☕', '🚀', '✈️', '🏖️', '📚', '🎵', '🏃', '💪', '🔥', '✨', '⚡', '😴'].map((em) => (
                 <TouchableOpacity
                   key={em}
-                  style={[styles.emojiSelectBtn, selectedEmoji === em && styles.emojiSelectBtnActive]}
+                  style={[
+                    styles.emojiSelectBtn,
+                    isDark && { backgroundColor: '#0A0D12', borderColor: 'rgba(255, 255, 255, 0.08)' },
+                    selectedEmoji === em && styles.emojiSelectBtnActive,
+                  ]}
                   onPress={() => setSelectedEmoji(em)}
                   activeOpacity={0.7}
                 >
@@ -1155,13 +1178,13 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
               ))}
             </ScrollView>
 
-            <Text style={styles.inputMiniLabel}>STATUS MESSAGE</Text>
-            <View style={styles.statusInputWrapper}>
+            <Text style={[styles.inputMiniLabel, isDark && { color: '#64748B' }]}>STATUS MESSAGE</Text>
+            <View style={[styles.statusInputWrapper, isDark && { backgroundColor: '#0A0D12', borderColor: 'rgba(255, 255, 255, 0.08)' }]}>
               <Text style={styles.inputLeadingEmoji}>{selectedEmoji}</Text>
               <TextInput
-                style={styles.statusTextInput}
+                style={[styles.statusTextInput, isDark && { color: '#FFFFFF' }]}
                 placeholder="e.g. Coding on Sunao, In gym, On vacation..."
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
                 value={inputCustomText}
                 onChangeText={setInputCustomText}
                 maxLength={60}
@@ -1169,13 +1192,13 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
               />
               {Boolean(inputCustomText) && (
                 <TouchableOpacity onPress={() => setInputCustomText('')}>
-                  <Ionicons name="close-circle" size={18} color="#94A3B8" />
+                  <Ionicons name="close-circle" size={18} color={isDark ? '#94A3B8' : '#64748B'} />
                 </TouchableOpacity>
               )}
             </View>
-            <Text style={styles.charCountText}>{inputCustomText.length}/60 characters</Text>
+            <Text style={[styles.charCountText, isDark && { color: '#64748B' }]}>{inputCustomText.length}/60 characters</Text>
 
-            <Text style={styles.inputMiniLabel}>QUICK SUGGESTIONS</Text>
+            <Text style={[styles.inputMiniLabel, isDark && { color: '#64748B' }]}>QUICK SUGGESTIONS</Text>
             <View style={styles.suggestionChips}>
               {[
                 { emoji: '💻', text: 'Working remotely' },
@@ -1187,7 +1210,10 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
               ].map((sug) => (
                 <TouchableOpacity
                   key={sug.text}
-                  style={styles.sugChip}
+                  style={[
+                    styles.sugChip,
+                    isDark && { backgroundColor: '#0A0D12', borderColor: 'rgba(255, 255, 255, 0.08)' },
+                  ]}
                   onPress={() => {
                     setSelectedEmoji(sug.emoji);
                     setInputCustomText(sug.text);
@@ -1195,7 +1221,7 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
                   activeOpacity={0.7}
                 >
                   <Text style={{ fontSize: 12 }}>{sug.emoji}</Text>
-                  <Text style={styles.sugChipText}>{sug.text}</Text>
+                  <Text style={[styles.sugChipText, isDark && { color: '#94A3B8' }]}>{sug.text}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -1203,7 +1229,7 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
             <View style={styles.customStatusActions}>
               {Boolean(customStatus) && (
                 <TouchableOpacity
-                  style={styles.clearStatusBtn}
+                  style={[styles.clearStatusBtn, isDark && { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}
                   onPress={handleClearCustomStatus}
                   activeOpacity={0.7}
                 >
@@ -1212,11 +1238,11 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
               )}
 
               <TouchableOpacity
-                style={styles.cancelStatusBtn}
+                style={[styles.cancelStatusBtn, isDark && { backgroundColor: '#0A0D12', borderColor: 'rgba(255, 255, 255, 0.08)' }]}
                 onPress={() => setShowCustomStatusModal(false)}
                 activeOpacity={0.7}
               >
-                <Text style={styles.cancelStatusBtnText}>Cancel</Text>
+                <Text style={[styles.cancelStatusBtnText, isDark && { color: '#94A3B8' }]}>Cancel</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -1237,18 +1263,18 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
 
       {/* 9. Logout Confirmation Modal */}
       <Modal visible={showLogoutConfirm} transparent animationType="fade" onRequestClose={() => setShowLogoutConfirm(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setShowLogoutConfirm(false)}>
-          <View style={styles.logoutCard}>
+        <Pressable style={[styles.modalOverlay, isDark && { backgroundColor: 'rgba(0, 0, 0, 0.85)' }]} onPress={() => setShowLogoutConfirm(false)}>
+          <View style={[styles.logoutCard, oledCardStyle, isDark && { borderWidth: 1 }]}>
             <View style={styles.logoutIconCircle}>
               <Feather name="log-out" size={28} color="#EF4444" />
             </View>
-            <Text style={styles.logoutTitle}>Sign Out</Text>
-            <Text style={styles.logoutSubtitle}>
+            <Text style={[styles.logoutTitle, isDark && { color: '#FFFFFF' }]}>Sign Out</Text>
+            <Text style={[styles.logoutSubtitle, isDark && { color: '#94A3B8' }]}>
               Are you sure you want to sign out of this device? Your local chats remain safely encrypted.
             </Text>
             <View style={styles.logoutActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowLogoutConfirm(false)}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
+              <TouchableOpacity style={[styles.cancelBtn, isDark && { backgroundColor: '#0A0D12', borderColor: 'rgba(255, 255, 255, 0.08)' }]} onPress={() => setShowLogoutConfirm(false)}>
+                <Text style={[styles.cancelBtnText, isDark && { color: '#94A3B8' }]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.confirmLogoutBtn}

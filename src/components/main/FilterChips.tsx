@@ -38,7 +38,7 @@ export default function FilterChips({
               key={item.key}
               style={[
                 styles.pill,
-                isDark && { backgroundColor: '#161B22', borderColor: 'rgba(255, 255, 255, 0.08)' },
+                isDark && { backgroundColor: '#0A0D12', borderColor: 'rgba(255, 255, 255, 0.08)' },
                 isActive && styles.pillActive,
                 isActive && isDark && { backgroundColor: 'rgba(16, 185, 129, 0.2)', borderColor: '#10B981' },
               ]}

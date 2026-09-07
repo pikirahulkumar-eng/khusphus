@@ -61,23 +61,23 @@ export const SynkonDarkColors = {
   accentHover: '#38BDF8',
   acoustic: '#818CF8',
 
-  // Surfaces & Backgrounds (Synkon OLED Black)
+  // Surfaces & Backgrounds (Pure OLED Black)
   background: '#000000',       // Pure OLED Black
-  surface: '#0D1117',          // Dark Card Surface
-  surfaceLight: '#161B22',     // Elevated Dark Surface
-  surfaceSubtle: '#080C14',    // Pitch-black sub-canvas
-  card: '#0D1117',
-  cardHover: '#161B22',
+  surface: '#000000',          // Pure OLED Black Surface
+  surfaceLight: '#0A0D12',     // Elevated Dark Obsidian Surface
+  surfaceSubtle: '#000000',    // Pure OLED Pitch-black Canvas
+  card: '#000000',
+  cardHover: '#0A0D12',
   chatBackground: '#000000',
   headerBg: '#000000',
-  inputBg: '#161B22',
+  inputBg: '#0A0D12',
 
   // Message Bubbles
   bubbleMe: '#047857',         // Rich Emerald
   bubbleMeBorder: '#059669',
   bubbleMeText: '#FFFFFF',
-  bubbleThem: '#1E293B',       // Deep Slate Card
-  bubbleThemBorder: '#334155',
+  bubbleThem: '#0E1217',       // Pure OLED Obsidian Bubble
+  bubbleThemBorder: 'rgba(255, 255, 255, 0.08)',
   bubbleThemText: '#F1F5F9',
   bubbleTickBlue: '#38BDF8',
 
@@ -97,9 +97,9 @@ export const SynkonDarkColors = {
 
   // Borders & Dividers
   border: 'rgba(255, 255, 255, 0.08)',
-  glassBorder: 'rgba(255, 255, 255, 0.12)',
+  glassBorder: 'rgba(255, 255, 255, 0.08)',
   borderLight: 'rgba(255, 255, 255, 0.05)',
-  divider: 'rgba(255, 255, 255, 0.08)',
+  divider: 'rgba(255, 255, 255, 0.06)',
 };
 
 export const SunaoTheme = {

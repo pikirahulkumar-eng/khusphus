@@ -14,9 +14,22 @@ async function decryptE2EEMessage(text: string, _senderId?: string, _receiverId?
 
 export const CLOUD_BACKEND_URL = 'https://khusphus-epsm.onrender.com';
 
-export function getLocalBackendUrl(): string {
-  // Unify Web & Native Mobile to the Central Live Render Cloud Backend
+export function getBackendUrl(): string {
+  if (typeof window !== 'undefined' && window.location) {
+    if (window.location.port === '10000') {
+      return window.location.origin;
+    }
+    const hostname = window.location.hostname;
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.startsWith('172.')) {
+      return `${window.location.protocol}//${hostname}:10000`;
+    }
+    return window.location.origin;
+  }
   return CLOUD_BACKEND_URL;
+}
+
+export function getLocalBackendUrl(): string {
+  return getBackendUrl();
 }
 
 export interface UserVerificationRecord {

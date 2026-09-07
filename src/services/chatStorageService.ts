@@ -15,10 +15,8 @@ export interface LocalMessage {
   duration?: string;
 }
 
-export const getChatKey = (user1: string, user2: string) => {
-  // Alphabetically sorted to ensure consistent conversation thread key
-  const [first, second] = [user1, user2].sort();
-  return `@sunao_msgs_${first}_${second}`;
+export const getChatKey = (myPhone: string, contactPhone: string) => {
+  return `@sunao_msgs_${myPhone}_${contactPhone}`;
 };
 
 export const getRecentKey = (phone: string) => `@sunao_recent_${phone}`;
@@ -32,8 +30,11 @@ export const ChatStorageService = {
       const key = getChatKey(myPhone, contactPhone);
       const raw = await AsyncStorage.getItem(key);
       if (raw !== null) return true;
-      const legacyRaw = await AsyncStorage.getItem(`@khusphus_msgs_${[myPhone, contactPhone].sort().join('_')}`);
-      return legacyRaw !== null;
+      const [first, second] = [myPhone, contactPhone].sort();
+      const legacyRaw = await AsyncStorage.getItem(`@sunao_msgs_${first}_${second}`);
+      if (legacyRaw !== null) return true;
+      const oldLegacyRaw = await AsyncStorage.getItem(`@khusphus_msgs_${first}_${second}`);
+      return oldLegacyRaw !== null;
     } catch {
       return false;
     }
@@ -46,11 +47,20 @@ export const ChatStorageService = {
       const key = getChatKey(myPhone, contactPhone);
       let raw = await AsyncStorage.getItem(key);
       if (!raw) {
-        // Legacy fallback
+        // Legacy fallback to shared thread
+        const [first, second] = [myPhone, contactPhone].sort();
+        raw = await AsyncStorage.getItem(`@sunao_msgs_${first}_${second}`);
+      }
+      if (!raw) {
         raw = await AsyncStorage.getItem(`@khusphus_msgs_${[myPhone, contactPhone].sort().join('_')}`);
       }
       if (raw) {
-        return JSON.parse(raw);
+        const parsed: LocalMessage[] = JSON.parse(raw);
+        // Ensure sender 'me' vs 'them' is dynamically and strictly calculated relative to myPhone
+        return parsed.map((m) => ({
+          ...m,
+          sender: m.senderId === myPhone ? 'me' : 'them',
+        }));
       }
     } catch (e) {
       console.warn('[STORAGE] Error reading messages:', e);
@@ -68,7 +78,11 @@ export const ChatStorageService = {
       
       // Avoid duplicate by id
       if (!current.some((m) => m.id === message.id)) {
-        const updated = [...current, message];
+        const normalizedMsg = {
+          ...message,
+          sender: message.senderId === myPhone ? ('me' as const) : ('them' as const),
+        };
+        const updated = [...current, normalizedMsg];
         await AsyncStorage.setItem(key, JSON.stringify(updated));
         return updated;
       }
@@ -82,7 +96,7 @@ export const ChatStorageService = {
   /**
    * Load all recent conversation summaries for the main screen
    */
-  async getRecentChats(myPhone: string, defaultChats: ChatItemData[]): Promise<ChatItemData[]> {
+  async getRecentChats(myPhone: string, defaultChats: ChatItemData[] = []): Promise<ChatItemData[]> {
     try {
       const key = getRecentKey(myPhone);
       let raw = await AsyncStorage.getItem(key);
@@ -91,25 +105,25 @@ export const ChatStorageService = {
       }
       if (raw) {
         let saved: ChatItemData[] = JSON.parse(raw);
-        if (saved && saved.length > 0) {
-          saved = saved.map((c) => ({
-            ...c,
-            name: c.name.replace(/KhusPhus/gi, 'Sunao'),
-            lastMessage: c.lastMessage
-              .replace(/WebRTC low latency audio call tested on 5G/gi, 'Audio aur video call clear hai')
-              .replace(/KhusPhus/gi, 'Sunao'),
-          }));
-          await AsyncStorage.setItem(key, JSON.stringify(saved));
+        if (saved && Array.isArray(saved) && saved.length > 0) {
           return saved;
         }
       }
-      // Initialize with defaults if empty
-      await AsyncStorage.setItem(key, JSON.stringify(defaultChats));
       return defaultChats;
     } catch (e) {
       console.warn('[STORAGE] Error loading recent chats:', e);
       return defaultChats;
     }
+  },
+
+  /**
+   * Overwrite chats list with cleaned data (purging dummy users)
+   */
+  async saveCleanChats(myPhone: string, chats: ChatItemData[]): Promise<void> {
+    try {
+      const key = getRecentKey(myPhone);
+      await AsyncStorage.setItem(key, JSON.stringify(chats));
+    } catch (_) {}
   },
 
   /**
@@ -243,7 +257,7 @@ export const ChatStorageService = {
       const messages = await this.getMessages(myPhone, contactPhone);
       let changed = false;
       const updated = messages.map((m) => {
-        if (m.sender === 'me' && (status === 'read' || m.status !== 'read')) {
+        if ((m.sender === 'me' || m.senderId === myPhone) && (status === 'read' || m.status !== 'read')) {
           changed = true;
           return { ...m, status };
         }

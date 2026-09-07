@@ -26,6 +26,7 @@ export interface ChatItemData {
   hasStatusStory?: boolean;
   sentByMe?: boolean;
   messageStatus?: 'sent' | 'delivered' | 'read';
+  isOnline?: boolean;
 }
 
 interface ChatsTabProps {
@@ -73,7 +74,9 @@ export default function ChatsTab({
             <View style={styles.activeDot} />
             <Text style={[styles.presenceTitle, isDark && { color: '#94A3B8' }]}>SUNAO LIVE</Text>
           </View>
-          <Text style={[styles.presenceCount, isDark && { color: '#64748B' }]}>{chats.length} Online</Text>
+          <Text style={[styles.presenceCount, isDark && { color: '#64748B' }]}>
+            {chats.filter((c) => c.isOnline).length} Online
+          </Text>
         </View>
 
         <ScrollView
@@ -87,28 +90,13 @@ export default function ChatsTab({
             onPress={onOpenNewChat}
             activeOpacity={0.75}
           >
-            <View style={[styles.newChatPresenceWrapper, isDark && { backgroundColor: '#161B22', borderColor: 'rgba(255, 255, 255, 0.1)' }]}>
+            <View style={[styles.newChatPresenceWrapper, isDark && { backgroundColor: '#000000', borderColor: 'rgba(255, 255, 255, 0.08)' }]}>
               <Ionicons name="add" size={24} color={isDark ? '#10B981' : '#047857'} />
             </View>
             <Text style={[styles.presenceName, isDark && { color: '#FFFFFF' }]} numberOfLines={1}>
               New Chat
             </Text>
           </TouchableOpacity>
-
-          {/* Sunao Audio Lounge Tile */}
-          <TouchableOpacity
-            style={styles.presenceCard}
-            onPress={() => onSelectChat({ phone: 'space_live_room', name: 'Open Audio Lounge 🎙️', lastMessage: 'Live Voice Space', timestamp: 'Live' })}
-            activeOpacity={0.75}
-          >
-            <View style={[styles.audioLoungeWrapper, isDark && { backgroundColor: 'rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99, 102, 241, 0.3)' }]}>
-              <Ionicons name="radio" size={20} color="#818CF8" />
-            </View>
-            <Text style={[styles.presenceName, { color: '#818CF8' }]} numberOfLines={1}>
-              Lounge 🎙️
-            </Text>
-          </TouchableOpacity>
-
           {/* Real Contacts Horizontal Stories / Presence Avatars */}
           {activeContacts.map((contact) => (
             <TouchableOpacity
@@ -125,7 +113,9 @@ export default function ChatsTab({
                     <Text style={styles.avatarInitial}>{contact.name.charAt(0)}</Text>
                   </View>
                 )}
-                <View style={[styles.activePulseRing, isDark && { borderColor: '#000000' }]} />
+                {contact.isOnline && (
+                  <View style={[styles.activePulseRing, isDark && { borderColor: '#000000' }]} />
+                )}
               </View>
               <Text style={[styles.presenceName, isDark && { color: '#FFFFFF' }]} numberOfLines={1}>
                 {contact.name.split(' ')[0]}
@@ -147,7 +137,7 @@ export default function ChatsTab({
           styles.chatCard,
           isDark && { backgroundColor: '#000000', borderColor: 'rgba(255, 255, 255, 0.08)' },
           isSelected && styles.chatCardSelected,
-          isSelected && isDark && { backgroundColor: '#161B22' },
+          isSelected && isDark && { backgroundColor: '#000000', borderColor: '#10B981' },
         ]}
         onPress={() => onSelectChat(item)}
         activeOpacity={0.75}
@@ -165,14 +155,21 @@ export default function ChatsTab({
               )}
             </View>
           )}
-          <View style={styles.onlineDot} />
+          {item.isOnline && <View style={styles.onlineDot} />}
         </View>
 
         {/* Center Details: Name + Status + Message Preview */}
         <View style={styles.chatCenter}>
           <View style={styles.topRow}>
             <View style={styles.nameGroup}>
-              <Text style={[styles.contactName, isDark && { color: '#FFFFFF' }, isUnread && styles.nameUnread]} numberOfLines={1}>
+              <Text
+                style={[
+                  styles.contactName,
+                  isUnread && styles.nameUnread,
+                  { color: isDark ? '#FFFFFF' : '#0F172A' },
+                ]}
+                numberOfLines={1}
+              >
                 {item.name}
               </Text>
               {item.isGroup && (
@@ -186,7 +183,13 @@ export default function ChatsTab({
               {item.isPinned && (
                 <Ionicons name="pin" size={12} color="#94A3B8" style={{ marginRight: 4 }} />
               )}
-              <Text style={[styles.timestamp, isDark && { color: '#64748B' }, isUnread && styles.timestampUnread]}>
+              <Text
+                style={[
+                  styles.timestamp,
+                  isUnread && styles.timestampUnread,
+                  isDark && { color: isUnread ? '#10B981' : '#64748B' },
+                ]}
+              >
                 {item.timestamp}
               </Text>
             </View>
@@ -210,7 +213,19 @@ export default function ChatsTab({
                 </View>
               )}
               <Text
-                style={[styles.messagePreview, isDark && { color: '#94A3B8' }, isUnread && styles.previewUnread]}
+                style={[
+                  styles.messagePreview,
+                  isUnread && styles.previewUnread,
+                  {
+                    color: isDark
+                      ? isUnread
+                        ? '#F8FAFC'
+                        : '#94A3B8'
+                      : isUnread
+                        ? '#0F172A'
+                        : '#64748B',
+                  },
+                ]}
                 numberOfLines={1}
               >
                 {item.lastMessage}
@@ -438,7 +453,6 @@ const styles = StyleSheet.create({
   },
   nameUnread: {
     fontWeight: '800',
-    color: '#0F172A',
   },
   groupBadge: {
     backgroundColor: '#F1F5F9',
@@ -477,7 +491,6 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   previewUnread: {
-    color: '#0F172A',
     fontWeight: '600',
   },
   youPrefix: {
@@ -510,16 +523,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  audioLoungeWrapper: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#EEF2FF',
-    borderWidth: 1.5,
-    borderColor: '#818CF8',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+
   previewContainer: {
     flexDirection: 'row',
     alignItems: 'center',

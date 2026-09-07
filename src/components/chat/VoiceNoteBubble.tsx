@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { VoiceService } from '../../services/voiceRecordingService';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface VoiceNoteBubbleProps {
   audioUrl?: string;
@@ -20,6 +21,7 @@ export default function VoiceNoteBubble({
   status = 'read',
   readReceipts = true,
 }: VoiceNoteBubbleProps) {
+  const { isDark } = useTheme();
   const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
@@ -46,17 +48,30 @@ export default function VoiceNoteBubble({
   const waveHeights = [8, 14, 22, 16, 26, 12, 20, 28, 18, 10, 24, 15, 8, 19, 11, 23, 13, 7];
 
   return (
-    <View style={[styles.container, isMe ? styles.containerMe : styles.containerThem]}>
+    <View
+      style={[
+        styles.container,
+        isMe ? styles.containerMe : styles.containerThem,
+        !isMe && isDark && {
+          backgroundColor: '#0E1217',
+          borderColor: 'rgba(255, 255, 255, 0.08)',
+        },
+      ]}
+    >
       <View style={styles.topRow}>
         <TouchableOpacity
-          style={[styles.playButton, isMe ? styles.playButtonMe : styles.playButtonThem]}
+          style={[
+            styles.playButton,
+            isMe ? styles.playButtonMe : styles.playButtonThem,
+            !isMe && isDark && { backgroundColor: 'rgba(16, 185, 129, 0.15)' },
+          ]}
           onPress={togglePlay}
           activeOpacity={0.8}
         >
           <Ionicons
             name={isPlaying ? 'pause' : 'play'}
             size={18}
-            color={isMe ? '#059669' : '#059669'}
+            color={isMe ? '#059669' : isDark ? '#10B981' : '#059669'}
             style={!isPlaying ? { marginLeft: 2 } : undefined}
           />
         </TouchableOpacity>
@@ -76,8 +91,8 @@ export default function VoiceNoteBubble({
                       ? styles.waveBarPlayedMe
                       : styles.waveBarMe
                     : isPlayedBar
-                    ? styles.waveBarPlayedThem
-                    : styles.waveBarThem,
+                    ? [styles.waveBarPlayedThem, isDark && { backgroundColor: '#10B981' }]
+                    : [styles.waveBarThem, isDark && { backgroundColor: 'rgba(255, 255, 255, 0.15)' }],
                 ]}
               />
             );
@@ -85,18 +100,24 @@ export default function VoiceNoteBubble({
         </View>
 
         {/* Mic Badge */}
-        <View style={styles.micBadge}>
+        <View style={[styles.micBadge, !isMe && isDark && { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
           <Ionicons
             name="mic"
             size={13}
-            color={isMe ? '#FFFFFF' : '#059669'}
+            color={isMe ? '#FFFFFF' : isDark ? '#10B981' : '#059669'}
           />
         </View>
       </View>
 
       {/* Meta Row: Duration + Timestamp + Blue Tick */}
       <View style={styles.metaRow}>
-        <Text style={[styles.durationText, isMe ? styles.durationMe : styles.durationThem]}>
+        <Text
+          style={[
+            styles.durationText,
+            isMe ? styles.durationMe : styles.durationThem,
+            !isMe && isDark && { color: '#94A3B8' },
+          ]}
+        >
           {isPlaying ? 'Playing...' : duration}
         </Text>
 

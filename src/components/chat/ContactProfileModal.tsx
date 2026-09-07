@@ -36,7 +36,7 @@ export default function ContactProfileModal({
   onClose,
   contactName,
   contactPhone,
-  currentUserPhone = '9876543210',
+  currentUserPhone = '',
   avatarUri,
   aboutText = 'Hey there! Using Sunao for HD voice & crystal clear calling. 🚀',
   onStartCall,
@@ -277,7 +277,7 @@ export default function ContactProfileModal({
             style={[
               styles.heroCard,
               isDark && {
-                backgroundColor: '#0D1117',
+                backgroundColor: '#000000',
                 borderColor: 'rgba(255, 255, 255, 0.08)',
               },
             ]}
@@ -294,7 +294,7 @@ export default function ContactProfileModal({
                   style={[
                     styles.avatarFallback,
                     isDark && {
-                      backgroundColor: '#161B22',
+                      backgroundColor: '#0A0D12',
                       borderColor: 'rgba(16, 185, 129, 0.3)',
                     },
                   ]}
@@ -312,7 +312,7 @@ export default function ContactProfileModal({
               <View
                 style={[
                   styles.onlineBadge,
-                  isDark && { backgroundColor: '#0D1117' },
+                  isDark && { backgroundColor: '#000000' },
                 ]}
               >
                 <View style={styles.onlineDot} />
@@ -379,7 +379,7 @@ export default function ContactProfileModal({
               style={[
                 styles.actionTile,
                 isDark && {
-                  backgroundColor: '#0D1117',
+                  backgroundColor: '#000000',
                   borderColor: 'rgba(255, 255, 255, 0.08)',
                 },
               ]}
@@ -410,7 +410,7 @@ export default function ContactProfileModal({
               style={[
                 styles.actionTile,
                 isDark && {
-                  backgroundColor: '#0D1117',
+                  backgroundColor: '#000000',
                   borderColor: 'rgba(255, 255, 255, 0.08)',
                 },
               ]}
@@ -441,7 +441,7 @@ export default function ContactProfileModal({
               style={[
                 styles.actionTile,
                 isDark && {
-                  backgroundColor: '#0D1117',
+                  backgroundColor: '#000000',
                   borderColor: 'rgba(255, 255, 255, 0.08)',
                 },
               ]}
@@ -455,7 +455,7 @@ export default function ContactProfileModal({
                 style={[
                   styles.actionIconBg,
                   {
-                    backgroundColor: isDark ? '#161B22' : '#F8FAFC',
+                    backgroundColor: isDark ? '#0A0D12' : '#F8FAFC',
                   },
                 ]}
               >
@@ -472,35 +472,35 @@ export default function ContactProfileModal({
               style={[
                 styles.actionTile,
                 isDark && {
-                  backgroundColor: '#0D1117',
+                  backgroundColor: '#000000',
                   borderColor: 'rgba(255, 255, 255, 0.08)',
                 },
               ]}
               onPress={() => handleToggleMute(!isMuted)}
               activeOpacity={0.75}
             >
-              <View style={[styles.actionIconBg, isMuted ? { backgroundColor: '#FEF2F2' } : { backgroundColor: '#F8FAFC' }]}>
+              <View style={[styles.actionIconBg, isMuted ? { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.2)' : '#FEF2F2' } : { backgroundColor: isDark ? '#0A0D12' : '#F8FAFC' }]}>
                 <Ionicons
                   name={isMuted ? 'volume-mute' : 'volume-high-outline'}
                   size={20}
-                  color={isMuted ? '#EF4444' : '#475569'}
+                  color={isMuted ? '#EF4444' : (isDark ? '#94A3B8' : '#475569')}
                 />
               </View>
-              <Text style={[styles.actionLabel, isMuted && { color: '#EF4444' }]}>
+              <Text style={[styles.actionLabel, isMuted ? { color: '#EF4444' } : (isDark && { color: '#94A3B8' })]}>
                 {isMuted ? 'Muted' : 'Mute'}
               </Text>
             </TouchableOpacity>
           </View>
 
           {/* Media, Links & Documents Shelf (ACTIVE) */}
-          <View style={styles.sectionCard}>
+          <View style={[styles.sectionCard, isDark && { backgroundColor: '#000000', borderColor: 'rgba(255, 255, 255, 0.08)' }]}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Media, links, and docs</Text>
+              <Text style={[styles.sectionTitle, isDark && { color: '#F1F5F9' }]}>Media, links, and docs</Text>
               <TouchableOpacity
                 onPress={() => setShowMediaGallery(true)}
                 activeOpacity={0.7}
               >
-                <Text style={styles.sectionLink}>
+                <Text style={[styles.sectionLink, isDark && { color: '#10B981' }]}>
                   {totalMediaCount > 0 ? `${totalMediaCount} items ›` : 'Open Gallery ›'}
                 </Text>
               </TouchableOpacity>
@@ -511,125 +511,125 @@ export default function ContactProfileModal({
               onPress={() => setShowMediaGallery(true)}
               activeOpacity={0.8}
             >
-              <View style={[styles.mediaThumb, { backgroundColor: '#ECFDF5' }]}>
-                <Ionicons name="image" size={20} color="#047857" />
-                <Text style={styles.mediaThumbCount}>{mediaItems.photos.length}</Text>
+              <View style={[styles.mediaThumb, { backgroundColor: isDark ? '#0A0D12' : '#ECFDF5', borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#DCFCE7' }]}>
+                <Ionicons name="image" size={20} color={isDark ? '#10B981' : '#047857'} />
+                <Text style={[styles.mediaThumbCount, isDark && { color: '#94A3B8' }]}>{mediaItems.photos.length}</Text>
               </View>
-              <View style={[styles.mediaThumb, { backgroundColor: '#EFF6FF' }]}>
-                <Ionicons name="mic" size={20} color="#0284C7" />
-                <Text style={styles.mediaThumbCount}>{mediaItems.audios.length}</Text>
+              <View style={[styles.mediaThumb, { backgroundColor: isDark ? '#0A0D12' : '#EFF6FF', borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#DBEAFE' }]}>
+                <Ionicons name="mic" size={20} color={isDark ? '#38BDF8' : '#0284C7'} />
+                <Text style={[styles.mediaThumbCount, isDark && { color: '#94A3B8' }]}>{mediaItems.audios.length}</Text>
               </View>
-              <View style={[styles.mediaThumb, { backgroundColor: '#FAF5FF' }]}>
-                <Ionicons name="document-text" size={20} color="#8B5CF6" />
-                <Text style={styles.mediaThumbCount}>{mediaItems.docs.length}</Text>
+              <View style={[styles.mediaThumb, { backgroundColor: isDark ? '#0A0D12' : '#FAF5FF', borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#F3E8FF' }]}>
+                <Ionicons name="document-text" size={20} color={isDark ? '#A78BFA' : '#8B5CF6'} />
+                <Text style={[styles.mediaThumbCount, isDark && { color: '#94A3B8' }]}>{mediaItems.docs.length}</Text>
               </View>
-              <View style={[styles.mediaThumb, { backgroundColor: '#FFFBEB' }]}>
-                <Ionicons name="link" size={20} color="#D97706" />
-                <Text style={styles.mediaThumbCount}>{mediaItems.links.length}</Text>
+              <View style={[styles.mediaThumb, { backgroundColor: isDark ? '#0A0D12' : '#FFFBEB', borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#FEF3C7' }]}>
+                <Ionicons name="link" size={20} color={isDark ? '#FBBF24' : '#D97706'} />
+                <Text style={[styles.mediaThumbCount, isDark && { color: '#94A3B8' }]}>{mediaItems.links.length}</Text>
               </View>
             </TouchableOpacity>
           </View>
 
           {/* Security & Verification Card (ACTIVE) */}
           <TouchableOpacity
-            style={styles.sectionCard}
+            style={[styles.sectionCard, isDark && { backgroundColor: '#000000', borderColor: 'rgba(255, 255, 255, 0.08)' }]}
             onPress={() => setShowSecurityVerify(true)}
             activeOpacity={0.7}
           >
             <View style={styles.securityRow}>
-              <View style={[styles.securityIconBg, isSecurityVerified && { backgroundColor: '#ECFDF5' }]}>
+              <View style={[styles.securityIconBg, isDark ? { backgroundColor: 'rgba(16, 185, 129, 0.15)' } : (isSecurityVerified ? { backgroundColor: '#ECFDF5' } : {})]}>
                 <Ionicons
                   name={isSecurityVerified ? 'shield-checkmark' : 'lock-closed'}
                   size={20}
-                  color={isSecurityVerified ? '#047857' : '#047857'}
+                  color={isDark ? '#10B981' : '#047857'}
                 />
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Text style={styles.securityTitle}>Encryption</Text>
+                  <Text style={[styles.securityTitle, isDark && { color: '#F1F5F9' }]}>Encryption</Text>
                   {isSecurityVerified && (
-                    <View style={styles.verifiedTag}>
-                      <Text style={styles.verifiedTagText}>VERIFIED</Text>
+                    <View style={[styles.verifiedTag, isDark && { backgroundColor: 'rgba(16, 185, 129, 0.2)' }]}>
+                      <Text style={[styles.verifiedTagText, isDark && { color: '#10B981' }]}>VERIFIED</Text>
                     </View>
                   )}
                 </View>
-                <Text style={styles.securitySub}>
+                <Text style={[styles.securitySub, isDark && { color: '#94A3B8' }]}>
                   Curve25519 & AES-256 E2EE. Tap to view cryptographic safety codes.
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              <Ionicons name="chevron-forward" size={18} color={isDark ? '#64748B' : '#94A3B8'} />
             </View>
           </TouchableOpacity>
 
           {/* Chat Preferences (ACTIVE) */}
-          <View style={styles.sectionCard}>
+          <View style={[styles.sectionCard, isDark && { backgroundColor: '#000000', borderColor: 'rgba(255, 255, 255, 0.08)' }]}>
             <View style={styles.prefRow}>
-              <View style={styles.prefIconBg}>
-                <Ionicons name="notifications-outline" size={20} color="#475569" />
+              <View style={[styles.prefIconBg, isDark && { backgroundColor: '#0A0D12' }]}>
+                <Ionicons name="notifications-outline" size={20} color={isDark ? '#94A3B8' : '#475569'} />
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.prefTitle}>Mute notifications</Text>
-                <Text style={styles.prefSub}>Silence alerts for new messages</Text>
+                <Text style={[styles.prefTitle, isDark && { color: '#F1F5F9' }]}>Mute notifications</Text>
+                <Text style={[styles.prefSub, isDark && { color: '#94A3B8' }]}>Silence alerts for new messages</Text>
               </View>
               <Switch
                 value={isMuted}
                 onValueChange={handleToggleMute}
-                trackColor={{ false: '#E2E8F0', true: '#A7F3D0' }}
-                thumbColor={isMuted ? '#047857' : '#FFFFFF'}
+                trackColor={{ false: isDark ? '#1E293B' : '#E2E8F0', true: '#10B981' }}
+                thumbColor={isMuted ? (isDark ? '#34D399' : '#047857') : '#FFFFFF'}
               />
             </View>
 
-            <View style={styles.divider} />
+            <View style={[styles.divider, isDark && { backgroundColor: 'rgba(255, 255, 255, 0.08)' }]} />
 
             <TouchableOpacity
               style={styles.prefRow}
               onPress={() => setShowDisappearingModal(true)}
               activeOpacity={0.7}
             >
-              <View style={styles.prefIconBg}>
-                <Ionicons name="timer-outline" size={20} color="#475569" />
+              <View style={[styles.prefIconBg, isDark && { backgroundColor: '#0A0D12' }]}>
+                <Ionicons name="timer-outline" size={20} color={isDark ? '#94A3B8' : '#475569'} />
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.prefTitle}>Disappearing messages</Text>
-                <Text style={styles.prefSub}>{disappearingTimer}</Text>
+                <Text style={[styles.prefTitle, isDark && { color: '#F1F5F9' }]}>Disappearing messages</Text>
+                <Text style={[styles.prefSub, isDark && { color: '#94A3B8' }]}>{disappearingTimer}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              <Ionicons name="chevron-forward" size={18} color={isDark ? '#64748B' : '#94A3B8'} />
             </TouchableOpacity>
 
-            <View style={styles.divider} />
+            <View style={[styles.divider, isDark && { backgroundColor: 'rgba(255, 255, 255, 0.08)' }]} />
 
             <TouchableOpacity
               style={styles.prefRow}
               onPress={() => setShowWallpaperModal(true)}
               activeOpacity={0.7}
             >
-              <View style={styles.prefIconBg}>
-                <Ionicons name="color-palette-outline" size={20} color="#475569" />
+              <View style={[styles.prefIconBg, isDark && { backgroundColor: '#0A0D12' }]}>
+                <Ionicons name="color-palette-outline" size={20} color={isDark ? '#94A3B8' : '#475569'} />
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.prefTitle}>Chat theme & wallpaper</Text>
-                <Text style={styles.prefSub}>{currentWallpaper}</Text>
+                <Text style={[styles.prefTitle, isDark && { color: '#F1F5F9' }]}>Chat theme & wallpaper</Text>
+                <Text style={[styles.prefSub, isDark && { color: '#94A3B8' }]}>{currentWallpaper}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              <Ionicons name="chevron-forward" size={18} color={isDark ? '#64748B' : '#94A3B8'} />
             </TouchableOpacity>
           </View>
 
           {/* Groups in Common */}
-          <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Groups in common</Text>
+          <View style={[styles.sectionCard, isDark && { backgroundColor: '#000000', borderColor: 'rgba(255, 255, 255, 0.08)' }]}>
+            <Text style={[styles.sectionTitle, isDark && { color: '#F1F5F9' }]}>Groups in common</Text>
             <View style={styles.groupRow}>
-              <View style={styles.groupAvatar}>
-                <Ionicons name="people" size={18} color="#047857" />
+              <View style={[styles.groupAvatar, isDark && { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
+                <Ionicons name="people" size={18} color={isDark ? '#10B981' : '#047857'} />
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.groupName}>Sunao Core Devs 🚀</Text>
-                <Text style={styles.groupMembers}>Amit, Vikram, Rahul, Papa</Text>
+                <Text style={[styles.groupName, isDark && { color: '#F1F5F9' }]}>Sunao Core Devs 🚀</Text>
+                <Text style={[styles.groupMembers, isDark && { color: '#94A3B8' }]}>Amit, Vikram, Rahul, Papa</Text>
               </View>
             </View>
           </View>
 
           {/* Danger Zone */}
-          <View style={[styles.sectionCard, { marginBottom: 36 }]}>
+          <View style={[styles.sectionCard, { marginBottom: 36 }, isDark && { backgroundColor: '#000000', borderColor: 'rgba(255, 255, 255, 0.08)' }]}>
             <TouchableOpacity
               style={styles.dangerRow}
               onPress={() => setShowClearConfirmModal(true)}
@@ -639,20 +639,20 @@ export default function ContactProfileModal({
               <Text style={styles.dangerText}>Clear Chat History</Text>
             </TouchableOpacity>
 
-            <View style={styles.divider} />
+            <View style={[styles.divider, isDark && { backgroundColor: 'rgba(255, 255, 255, 0.08)' }]} />
 
             <TouchableOpacity
               style={styles.dangerRow}
               onPress={() => setShowBlockModal(true)}
               activeOpacity={0.7}
             >
-              <Ionicons name="ban-outline" size={19} color={isBlocked ? '#047857' : '#EF4444'} />
-              <Text style={[styles.dangerText, isBlocked && { color: '#047857' }]}>
+              <Ionicons name="ban-outline" size={19} color={isBlocked ? (isDark ? '#10B981' : '#047857') : '#EF4444'} />
+              <Text style={[styles.dangerText, isBlocked && { color: isDark ? '#10B981' : '#047857' }]}>
                 {isBlocked ? `Unblock ${displayName}` : `Block ${displayName}`}
               </Text>
             </TouchableOpacity>
 
-            <View style={styles.divider} />
+            <View style={[styles.divider, isDark && { backgroundColor: 'rgba(255, 255, 255, 0.08)' }]} />
 
             <TouchableOpacity
               style={styles.dangerRow}
@@ -667,7 +667,7 @@ export default function ContactProfileModal({
 
         {/* Toast Pill */}
         {toastMessage.length > 0 && (
-          <View style={styles.toast}>
+          <View style={[styles.toast, isDark && { backgroundColor: '#000000', borderColor: 'rgba(255, 255, 255, 0.12)', borderWidth: 1 }]}>
             <Text style={styles.toastText}>{toastMessage}</Text>
           </View>
         )}
@@ -679,49 +679,49 @@ export default function ContactProfileModal({
           animationType="slide"
           onRequestClose={() => setShowMediaGallery(false)}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.galleryCard}>
-              <View style={styles.galleryHeader}>
-                <Text style={styles.galleryTitle}>Shared Content with {displayName}</Text>
+          <View style={[styles.modalOverlay, isDark && { backgroundColor: 'rgba(0, 0, 0, 0.85)' }]}>
+            <View style={[styles.galleryCard, isDark && { backgroundColor: '#000000', borderColor: 'rgba(255, 255, 255, 0.08)', borderWidth: 1 }]}>
+              <View style={[styles.galleryHeader, isDark && { borderBottomColor: 'rgba(255, 255, 255, 0.08)' }]}>
+                <Text style={[styles.galleryTitle, isDark && { color: '#F1F5F9' }]}>Shared Content with {displayName}</Text>
                 <TouchableOpacity onPress={() => setShowMediaGallery(false)}>
-                  <Ionicons name="close" size={22} color="#64748B" />
+                  <Ionicons name="close" size={22} color={isDark ? '#94A3B8' : '#64748B'} />
                 </TouchableOpacity>
               </View>
 
               {/* Tabs */}
-              <View style={styles.galleryTabsRow}>
+              <View style={[styles.galleryTabsRow, isDark && { borderBottomColor: 'rgba(255, 255, 255, 0.08)' }]}>
                 <TouchableOpacity
-                  style={[styles.galleryTabBtn, mediaGalleryTab === 'media' && styles.galleryTabBtnActive]}
+                  style={[styles.galleryTabBtn, mediaGalleryTab === 'media' && (isDark ? { borderBottomColor: '#10B981' } : styles.galleryTabBtnActive)]}
                   onPress={() => setMediaGalleryTab('media')}
                 >
-                  <Text style={[styles.galleryTabText, mediaGalleryTab === 'media' && styles.galleryTabTextActive]}>
+                  <Text style={[styles.galleryTabText, isDark && { color: '#64748B' }, mediaGalleryTab === 'media' && (isDark ? { color: '#10B981', fontWeight: '700' } : styles.galleryTabTextActive)]}>
                     Photos ({mediaItems.photos.length})
                   </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.galleryTabBtn, mediaGalleryTab === 'audio' && styles.galleryTabBtnActive]}
+                  style={[styles.galleryTabBtn, mediaGalleryTab === 'audio' && (isDark ? { borderBottomColor: '#10B981' } : styles.galleryTabBtnActive)]}
                   onPress={() => setMediaGalleryTab('audio')}
                 >
-                  <Text style={[styles.galleryTabText, mediaGalleryTab === 'audio' && styles.galleryTabTextActive]}>
+                  <Text style={[styles.galleryTabText, isDark && { color: '#64748B' }, mediaGalleryTab === 'audio' && (isDark ? { color: '#10B981', fontWeight: '700' } : styles.galleryTabTextActive)]}>
                     Audio ({mediaItems.audios.length})
                   </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.galleryTabBtn, mediaGalleryTab === 'docs' && styles.galleryTabBtnActive]}
+                  style={[styles.galleryTabBtn, mediaGalleryTab === 'docs' && (isDark ? { borderBottomColor: '#10B981' } : styles.galleryTabBtnActive)]}
                   onPress={() => setMediaGalleryTab('docs')}
                 >
-                  <Text style={[styles.galleryTabText, mediaGalleryTab === 'docs' && styles.galleryTabTextActive]}>
+                  <Text style={[styles.galleryTabText, isDark && { color: '#64748B' }, mediaGalleryTab === 'docs' && (isDark ? { color: '#10B981', fontWeight: '700' } : styles.galleryTabTextActive)]}>
                     Docs ({mediaItems.docs.length})
                   </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.galleryTabBtn, mediaGalleryTab === 'links' && styles.galleryTabBtnActive]}
+                  style={[styles.galleryTabBtn, mediaGalleryTab === 'links' && (isDark ? { borderBottomColor: '#10B981' } : styles.galleryTabBtnActive)]}
                   onPress={() => setMediaGalleryTab('links')}
                 >
-                  <Text style={[styles.galleryTabText, mediaGalleryTab === 'links' && styles.galleryTabTextActive]}>
+                  <Text style={[styles.galleryTabText, isDark && { color: '#64748B' }, mediaGalleryTab === 'links' && (isDark ? { color: '#10B981', fontWeight: '700' } : styles.galleryTabTextActive)]}>
                     Links ({mediaItems.links.length})
                   </Text>
                 </TouchableOpacity>
@@ -732,16 +732,16 @@ export default function ContactProfileModal({
                   mediaItems.photos.length > 0 ? (
                     <View style={styles.galleryGrid}>
                       {mediaItems.photos.map((p) => (
-                        <View key={p.id} style={styles.photoTile}>
-                          <Ionicons name="image" size={28} color="#047857" />
-                          <Text style={styles.photoTileText} numberOfLines={1}>{p.text.replace('📷 Photo: ', '')}</Text>
+                        <View key={p.id} style={[styles.photoTile, isDark && { backgroundColor: '#0A0D12', borderColor: 'rgba(255, 255, 255, 0.08)' }]}>
+                          <Ionicons name="image" size={28} color={isDark ? '#10B981' : '#047857'} />
+                          <Text style={[styles.photoTileText, isDark && { color: '#10B981' }]} numberOfLines={1}>{p.text.replace('📷 Photo: ', '')}</Text>
                           <Text style={styles.photoTileTime}>{p.time}</Text>
                         </View>
                       ))}
                     </View>
                   ) : (
                     <View style={styles.emptyGallery}>
-                      <Ionicons name="images-outline" size={36} color="#94A3B8" />
+                      <Ionicons name="images-outline" size={36} color={isDark ? '#475569' : '#94A3B8'} />
                       <Text style={styles.emptyGalleryText}>No photos shared yet</Text>
                     </View>
                   )
@@ -751,20 +751,20 @@ export default function ContactProfileModal({
                   mediaItems.audios.length > 0 ? (
                     <View>
                       {mediaItems.audios.map((a) => (
-                        <View key={a.id} style={styles.audioListItem}>
-                          <View style={styles.audioListIcon}>
-                            <Ionicons name="play" size={16} color="#FFFFFF" />
+                        <View key={a.id} style={[styles.audioListItem, isDark && { backgroundColor: '#0A0D12', borderColor: 'rgba(255, 255, 255, 0.08)', borderWidth: 1 }]}>
+                          <View style={[styles.audioListIcon, isDark && { backgroundColor: '#10B981' }]}>
+                            <Ionicons name="play" size={16} color="#000000" />
                           </View>
                           <View style={{ flex: 1, marginLeft: 12 }}>
-                            <Text style={styles.audioListTitle}>Voice Note ({a.duration || '0:05'})</Text>
-                            <Text style={styles.audioListSub}>{a.sender === 'me' ? 'Sent by you' : 'Received'} • {a.time}</Text>
+                            <Text style={[styles.audioListTitle, isDark && { color: '#F1F5F9' }]}>Voice Note ({a.duration || '0:05'})</Text>
+                            <Text style={[styles.audioListSub, isDark && { color: '#94A3B8' }]}>{a.sender === 'me' ? 'Sent by you' : 'Received'} • {a.time}</Text>
                           </View>
                         </View>
                       ))}
                     </View>
                   ) : (
                     <View style={styles.emptyGallery}>
-                      <Ionicons name="mic-outline" size={36} color="#94A3B8" />
+                      <Ionicons name="mic-outline" size={36} color={isDark ? '#475569' : '#94A3B8'} />
                       <Text style={styles.emptyGalleryText}>No voice recordings yet</Text>
                     </View>
                   )
@@ -774,18 +774,18 @@ export default function ContactProfileModal({
                   mediaItems.docs.length > 0 ? (
                     <View>
                       {mediaItems.docs.map((d) => (
-                        <View key={d.id} style={styles.docListItem}>
-                          <Ionicons name="document-text" size={24} color="#0284C7" />
+                        <View key={d.id} style={[styles.docListItem, isDark && { backgroundColor: '#0A0D12', borderColor: 'rgba(255, 255, 255, 0.08)', borderWidth: 1 }]}>
+                          <Ionicons name="document-text" size={24} color={isDark ? '#38BDF8' : '#0284C7'} />
                           <View style={{ flex: 1, marginLeft: 12 }}>
-                            <Text style={styles.docListTitle} numberOfLines={1}>{d.text.replace('📎 File: ', '')}</Text>
-                            <Text style={styles.docListSub}>{d.time}</Text>
+                            <Text style={[styles.docListTitle, isDark && { color: '#F1F5F9' }]} numberOfLines={1}>{d.text.replace('📎 File: ', '')}</Text>
+                            <Text style={[styles.docListSub, isDark && { color: '#94A3B8' }]}>{d.time}</Text>
                           </View>
                         </View>
                       ))}
                     </View>
                   ) : (
                     <View style={styles.emptyGallery}>
-                      <Ionicons name="folder-open-outline" size={36} color="#94A3B8" />
+                      <Ionicons name="folder-open-outline" size={36} color={isDark ? '#475569' : '#94A3B8'} />
                       <Text style={styles.emptyGalleryText}>No documents shared</Text>
                     </View>
                   )
@@ -797,20 +797,20 @@ export default function ContactProfileModal({
                       {mediaItems.links.map((l, i) => (
                         <TouchableOpacity
                           key={i}
-                          style={styles.linkListItem}
+                          style={[styles.linkListItem, isDark && { backgroundColor: '#0A0D12', borderColor: 'rgba(255, 255, 255, 0.08)', borderWidth: 1 }]}
                           onPress={() => copyToClipboard(l.url, 'Link')}
                         >
-                          <Ionicons name="link" size={20} color="#8B5CF6" />
+                          <Ionicons name="link" size={20} color={isDark ? '#A78BFA' : '#8B5CF6'} />
                           <View style={{ flex: 1, marginLeft: 12 }}>
-                            <Text style={styles.linkListUrl} numberOfLines={1}>{l.url}</Text>
-                            <Text style={styles.linkListSub}>{l.time} • Tap to copy</Text>
+                            <Text style={[styles.linkListUrl, isDark && { color: '#38BDF8' }]} numberOfLines={1}>{l.url}</Text>
+                            <Text style={[styles.linkListSub, isDark && { color: '#94A3B8' }]}>{l.time} • Tap to copy</Text>
                           </View>
                         </TouchableOpacity>
                       ))}
                     </View>
                   ) : (
                     <View style={styles.emptyGallery}>
-                      <Ionicons name="link-outline" size={36} color="#94A3B8" />
+                      <Ionicons name="link-outline" size={36} color={isDark ? '#475569' : '#94A3B8'} />
                       <Text style={styles.emptyGalleryText}>No links shared</Text>
                     </View>
                   )
@@ -822,35 +822,35 @@ export default function ContactProfileModal({
 
         {/* 2. Security Fingerprint Modal */}
         <Modal visible={showSecurityVerify} transparent animationType="fade" onRequestClose={() => setShowSecurityVerify(false)}>
-          <View style={styles.modalOverlay}>
-            <View style={styles.securityVerifyCard}>
-              <View style={[styles.shieldBigBg, isSecurityVerified && { backgroundColor: '#ECFDF5' }]}>
+          <View style={[styles.modalOverlay, isDark && { backgroundColor: 'rgba(0, 0, 0, 0.85)' }]}>
+            <View style={[styles.securityVerifyCard, isDark && { backgroundColor: '#000000', borderColor: 'rgba(255, 255, 255, 0.08)', borderWidth: 1 }]}>
+              <View style={[styles.shieldBigBg, isDark ? { backgroundColor: 'rgba(16, 185, 129, 0.15)' } : (isSecurityVerified && { backgroundColor: '#ECFDF5' })]}>
                 <MaterialCommunityIcons
                   name={isSecurityVerified ? 'shield-check' : 'shield-lock'}
                   size={32}
-                  color="#047857"
+                  color={isDark ? '#10B981' : '#047857'}
                 />
               </View>
-              <Text style={styles.securityModalTitle}>Verify Security Number</Text>
-              <Text style={styles.securityModalSub}>
+              <Text style={[styles.securityModalTitle, isDark && { color: '#F1F5F9' }]}>Verify Security Number</Text>
+              <Text style={[styles.securityModalSub, isDark && { color: '#94A3B8' }]}>
                 To verify that messages and calls with {displayName} are end-to-end encrypted with Curve25519 & AES-256, compare this code.
               </Text>
 
               <TouchableOpacity
-                style={styles.codeBox}
+                style={[styles.codeBox, isDark && { backgroundColor: '#0A0D12', borderColor: 'rgba(255, 255, 255, 0.08)' }]}
                 onPress={() => copyToClipboard(safetyFingerprint, 'Safety number')}
                 activeOpacity={0.7}
               >
-                <Text style={styles.codeText}>{safetyFingerprint}</Text>
-                <Text style={styles.codeCopyHint}>Tap to copy number</Text>
+                <Text style={[styles.codeText, isDark && { color: '#10B981' }]}>{safetyFingerprint}</Text>
+                <Text style={[styles.codeCopyHint, isDark && { color: '#64748B' }]}>Tap to copy number</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.verifyDoneBtn, isSecurityVerified && { backgroundColor: '#047857' }]}
+                style={[styles.verifyDoneBtn, isDark && { backgroundColor: '#10B981' }, isSecurityVerified && { backgroundColor: isDark ? '#059669' : '#047857' }]}
                 onPress={handleToggleVerified}
                 activeOpacity={0.85}
               >
-                <Text style={styles.verifyDoneBtnText}>
+                <Text style={[styles.verifyDoneBtnText, isDark && { color: '#000000', fontWeight: '800' }]}>
                   {isSecurityVerified ? 'Marked as Verified ✓' : 'Mark as Verified & Safe'}
                 </Text>
               </TouchableOpacity>
@@ -859,7 +859,7 @@ export default function ContactProfileModal({
                 style={{ marginTop: 12, padding: 8 }}
                 onPress={() => setShowSecurityVerify(false)}
               >
-                <Text style={{ color: '#64748B', fontWeight: '600', fontSize: 13 }}>Close</Text>
+                <Text style={{ color: isDark ? '#94A3B8' : '#64748B', fontWeight: '600', fontSize: 13 }}>Close</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -867,22 +867,30 @@ export default function ContactProfileModal({
 
         {/* 3. Disappearing Messages Modal */}
         <Modal visible={showDisappearingModal} transparent animationType="fade" onRequestClose={() => setShowDisappearingModal(false)}>
-          <View style={styles.modalOverlay}>
-            <View style={styles.selectorCard}>
-              <Text style={styles.selectorTitle}>Disappearing Messages</Text>
-              <Text style={styles.selectorSubtitle}>New messages will disappear from this chat after the selected duration.</Text>
+          <View style={[styles.modalOverlay, isDark && { backgroundColor: 'rgba(0, 0, 0, 0.85)' }]}>
+            <View style={[styles.selectorCard, isDark && { backgroundColor: '#000000', borderColor: 'rgba(255, 255, 255, 0.08)', borderWidth: 1 }]}>
+              <Text style={[styles.selectorTitle, isDark && { color: '#F1F5F9' }]}>Disappearing Messages</Text>
+              <Text style={[styles.selectorSubtitle, isDark && { color: '#94A3B8' }]}>New messages will disappear from this chat after the selected duration.</Text>
               {['Off', '24 Hours', '7 Days', '90 Days'].map((t) => (
                 <TouchableOpacity
                   key={t}
-                  style={[styles.selectorRow, disappearingTimer === t && styles.selectorRowActive]}
+                  style={[
+                    styles.selectorRow,
+                    isDark && { backgroundColor: '#0A0D12' },
+                    disappearingTimer === t && (isDark ? { backgroundColor: 'rgba(16, 185, 129, 0.15)', borderWidth: 1, borderColor: '#10B981' } : styles.selectorRowActive)
+                  ]}
                   onPress={() => handleSelectDisappearing(t)}
                 >
-                  <Text style={[styles.selectorRowText, disappearingTimer === t && styles.selectorRowTextActive]}>{t}</Text>
-                  {disappearingTimer === t && <Ionicons name="checkmark-circle" size={20} color="#047857" />}
+                  <Text style={[
+                    styles.selectorRowText,
+                    isDark && { color: '#94A3B8' },
+                    disappearingTimer === t && (isDark ? { color: '#10B981', fontWeight: '700' } : styles.selectorRowTextActive)
+                  ]}>{t}</Text>
+                  {disappearingTimer === t && <Ionicons name="checkmark-circle" size={20} color={isDark ? '#10B981' : '#047857'} />}
                 </TouchableOpacity>
               ))}
-              <TouchableOpacity style={styles.selectorCloseBtn} onPress={() => setShowDisappearingModal(false)}>
-                <Text style={styles.selectorCloseBtnText}>Done</Text>
+              <TouchableOpacity style={[styles.selectorCloseBtn, isDark && { backgroundColor: '#10B981' }]} onPress={() => setShowDisappearingModal(false)}>
+                <Text style={[styles.selectorCloseBtnText, isDark && { color: '#000000' }]}>Done</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -890,33 +898,41 @@ export default function ContactProfileModal({
 
         {/* 4. Chat Theme & Wallpaper Modal */}
         <Modal visible={showWallpaperModal} transparent animationType="fade" onRequestClose={() => setShowWallpaperModal(false)}>
-          <View style={styles.modalOverlay}>
-            <View style={styles.selectorCard}>
-              <Text style={styles.selectorTitle}>Chat Wallpaper & Theme</Text>
-              <Text style={styles.selectorSubtitle}>Choose a background aura for this conversation.</Text>
+          <View style={[styles.modalOverlay, isDark && { backgroundColor: 'rgba(0, 0, 0, 0.85)' }]}>
+            <View style={[styles.selectorCard, isDark && { backgroundColor: '#000000', borderColor: 'rgba(255, 255, 255, 0.08)', borderWidth: 1 }]}>
+              <Text style={[styles.selectorTitle, isDark && { color: '#F1F5F9' }]}>Chat Wallpaper & Theme</Text>
+              <Text style={[styles.selectorSubtitle, isDark && { color: '#94A3B8' }]}>Choose a background aura for this conversation.</Text>
               {[
                 { name: 'Slate Minimalist', color: '#F8FAFC' },
                 { name: 'Emerald Aura', color: '#ECFDF5' },
                 { name: 'Acoustic Violet', color: '#FAF5FF' },
-                { name: 'Midnight Dark', color: '#0F172A' },
+                { name: 'Midnight Dark', color: '#000000' },
                 { name: 'Desert Sand', color: '#FEFCE8' },
               ].map((wp) => (
                 <TouchableOpacity
                   key={wp.name}
-                  style={[styles.selectorRow, currentWallpaper === wp.name && styles.selectorRowActive]}
+                  style={[
+                    styles.selectorRow,
+                    isDark && { backgroundColor: '#0A0D12' },
+                    currentWallpaper === wp.name && (isDark ? { backgroundColor: 'rgba(16, 185, 129, 0.15)', borderWidth: 1, borderColor: '#10B981' } : styles.selectorRowActive)
+                  ]}
                   onPress={() => handleSelectWallpaper(wp.name)}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <View style={[styles.wallpaperColorDot, { backgroundColor: wp.color }]} />
-                    <Text style={[styles.selectorRowText, currentWallpaper === wp.name && styles.selectorRowTextActive]}>
+                    <View style={[styles.wallpaperColorDot, { backgroundColor: wp.color }, isDark && { borderColor: 'rgba(255, 255, 255, 0.15)' }]} />
+                    <Text style={[
+                      styles.selectorRowText,
+                      isDark && { color: '#94A3B8' },
+                      currentWallpaper === wp.name && (isDark ? { color: '#10B981', fontWeight: '700' } : styles.selectorRowTextActive)
+                    ]}>
                       {wp.name}
                     </Text>
                   </View>
-                  {currentWallpaper === wp.name && <Ionicons name="checkmark-circle" size={20} color="#047857" />}
+                  {currentWallpaper === wp.name && <Ionicons name="checkmark-circle" size={20} color={isDark ? '#10B981' : '#047857'} />}
                 </TouchableOpacity>
               ))}
-              <TouchableOpacity style={styles.selectorCloseBtn} onPress={() => setShowWallpaperModal(false)}>
-                <Text style={styles.selectorCloseBtnText}>Done</Text>
+              <TouchableOpacity style={[styles.selectorCloseBtn, isDark && { backgroundColor: '#10B981' }]} onPress={() => setShowWallpaperModal(false)}>
+                <Text style={[styles.selectorCloseBtnText, isDark && { color: '#000000' }]}>Done</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -924,26 +940,26 @@ export default function ContactProfileModal({
 
         {/* 5. Block / Unblock Modal */}
         <Modal visible={showBlockModal} transparent animationType="fade" onRequestClose={() => setShowBlockModal(false)}>
-          <View style={styles.modalOverlay}>
-            <View style={styles.dialogCard}>
-              <View style={[styles.dialogIconBg, { backgroundColor: isBlocked ? '#ECFDF5' : '#FEF2F2' }]}>
-                <Ionicons name={isBlocked ? 'checkmark-circle' : 'ban'} size={28} color={isBlocked ? '#047857' : '#EF4444'} />
+          <View style={[styles.modalOverlay, isDark && { backgroundColor: 'rgba(0, 0, 0, 0.85)' }]}>
+            <View style={[styles.dialogCard, isDark && { backgroundColor: '#000000', borderColor: 'rgba(255, 255, 255, 0.08)', borderWidth: 1 }]}>
+              <View style={[styles.dialogIconBg, { backgroundColor: isBlocked ? (isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5') : (isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2') }]}>
+                <Ionicons name={isBlocked ? 'checkmark-circle' : 'ban'} size={28} color={isBlocked ? (isDark ? '#10B981' : '#047857') : '#EF4444'} />
               </View>
-              <Text style={styles.dialogTitle}>{isBlocked ? `Unblock ${displayName}?` : `Block ${displayName}?`}</Text>
-              <Text style={styles.dialogSubtitle}>
+              <Text style={[styles.dialogTitle, isDark && { color: '#F1F5F9' }]}>{isBlocked ? `Unblock ${displayName}?` : `Block ${displayName}?`}</Text>
+              <Text style={[styles.dialogSubtitle, isDark && { color: '#94A3B8' }]}>
                 {isBlocked
                   ? `You will be able to receive calls and messages from ${displayName} again.`
                   : `Blocked contacts cannot call you or send you messages. They will not be notified.`}
               </Text>
               <View style={styles.dialogBtnRow}>
-                <TouchableOpacity style={styles.dialogCancelBtn} onPress={() => setShowBlockModal(false)}>
-                  <Text style={styles.dialogCancelText}>Cancel</Text>
+                <TouchableOpacity style={[styles.dialogCancelBtn, isDark && { backgroundColor: '#0A0D12', borderColor: 'rgba(255, 255, 255, 0.08)', borderWidth: 1 }]} onPress={() => setShowBlockModal(false)}>
+                  <Text style={[styles.dialogCancelText, isDark && { color: '#94A3B8' }]}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.dialogConfirmBtn, isBlocked && { backgroundColor: '#047857' }]}
+                  style={[styles.dialogConfirmBtn, isBlocked && { backgroundColor: isDark ? '#10B981' : '#047857' }]}
                   onPress={handleToggleBlock}
                 >
-                  <Text style={styles.dialogConfirmText}>{isBlocked ? 'Unblock' : 'Block'}</Text>
+                  <Text style={[styles.dialogConfirmText, isBlocked && isDark && { color: '#000000' }]}>{isBlocked ? 'Unblock' : 'Block'}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -952,30 +968,34 @@ export default function ContactProfileModal({
 
         {/* 6. Report Contact Modal */}
         <Modal visible={showReportModal} transparent animationType="fade" onRequestClose={() => setShowReportModal(false)}>
-          <View style={styles.modalOverlay}>
-            <View style={styles.dialogCard}>
-              <View style={[styles.dialogIconBg, { backgroundColor: '#FEF2F2' }]}>
+          <View style={[styles.modalOverlay, isDark && { backgroundColor: 'rgba(0, 0, 0, 0.85)' }]}>
+            <View style={[styles.dialogCard, isDark && { backgroundColor: '#000000', borderColor: 'rgba(255, 255, 255, 0.08)', borderWidth: 1 }]}>
+              <View style={[styles.dialogIconBg, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2' }]}>
                 <Ionicons name="thumbs-down" size={26} color="#EF4444" />
               </View>
-              <Text style={styles.dialogTitle}>Report {displayName}</Text>
-              <Text style={styles.dialogSubtitle}>Please select the reason for reporting this contact:</Text>
+              <Text style={[styles.dialogTitle, isDark && { color: '#F1F5F9' }]}>Report {displayName}</Text>
+              <Text style={[styles.dialogSubtitle, isDark && { color: '#94A3B8' }]}>Please select the reason for reporting this contact:</Text>
               {['Spam or fraud', 'Harassment or abuse', 'Fake account / impersonation', 'Other'].map((r) => (
                 <TouchableOpacity
                   key={r}
-                  style={[styles.reportRow, selectedReportReason === r && styles.reportRowActive]}
+                  style={[
+                    styles.reportRow,
+                    isDark && { backgroundColor: '#0A0D12' },
+                    selectedReportReason === r && (isDark ? { backgroundColor: 'rgba(16, 185, 129, 0.15)' } : styles.reportRowActive)
+                  ]}
                   onPress={() => setSelectedReportReason(r)}
                 >
-                  <Text style={[styles.reportRowText, selectedReportReason === r && { color: '#0F172A', fontWeight: '700' }]}>{r}</Text>
+                  <Text style={[styles.reportRowText, isDark && { color: '#94A3B8' }, selectedReportReason === r && { color: isDark ? '#10B981' : '#0F172A', fontWeight: '700' }]}>{r}</Text>
                   <Ionicons
                     name={selectedReportReason === r ? 'radio-button-on' : 'radio-button-off'}
                     size={18}
-                    color={selectedReportReason === r ? '#047857' : '#94A3B8'}
+                    color={selectedReportReason === r ? (isDark ? '#10B981' : '#047857') : '#94A3B8'}
                   />
                 </TouchableOpacity>
               ))}
               <View style={styles.dialogBtnRow}>
-                <TouchableOpacity style={styles.dialogCancelBtn} onPress={() => setShowReportModal(false)}>
-                  <Text style={styles.dialogCancelText}>Cancel</Text>
+                <TouchableOpacity style={[styles.dialogCancelBtn, isDark && { backgroundColor: '#0A0D12', borderColor: 'rgba(255, 255, 255, 0.08)', borderWidth: 1 }]} onPress={() => setShowReportModal(false)}>
+                  <Text style={[styles.dialogCancelText, isDark && { color: '#94A3B8' }]}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.dialogConfirmBtn}
@@ -993,18 +1013,18 @@ export default function ContactProfileModal({
 
         {/* 7. Clear Chat Confirm Modal */}
         <Modal visible={showClearConfirmModal} transparent animationType="fade" onRequestClose={() => setShowClearConfirmModal(false)}>
-          <View style={styles.modalOverlay}>
-            <View style={styles.dialogCard}>
-              <View style={[styles.dialogIconBg, { backgroundColor: '#FEF2F2' }]}>
+          <View style={[styles.modalOverlay, isDark && { backgroundColor: 'rgba(0, 0, 0, 0.85)' }]}>
+            <View style={[styles.dialogCard, isDark && { backgroundColor: '#000000', borderColor: 'rgba(255, 255, 255, 0.08)', borderWidth: 1 }]}>
+              <View style={[styles.dialogIconBg, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2' }]}>
                 <Ionicons name="trash" size={26} color="#EF4444" />
               </View>
-              <Text style={styles.dialogTitle}>Clear Chat Messages?</Text>
-              <Text style={styles.dialogSubtitle}>
+              <Text style={[styles.dialogTitle, isDark && { color: '#F1F5F9' }]}>Clear Chat Messages?</Text>
+              <Text style={[styles.dialogSubtitle, isDark && { color: '#94A3B8' }]}>
                 This will permanently delete all messages and media stored for this chat from this device.
               </Text>
               <View style={styles.dialogBtnRow}>
-                <TouchableOpacity style={styles.dialogCancelBtn} onPress={() => setShowClearConfirmModal(false)}>
-                  <Text style={styles.dialogCancelText}>Cancel</Text>
+                <TouchableOpacity style={[styles.dialogCancelBtn, isDark && { backgroundColor: '#0A0D12', borderColor: 'rgba(255, 255, 255, 0.08)', borderWidth: 1 }]} onPress={() => setShowClearConfirmModal(false)}>
+                  <Text style={[styles.dialogCancelText, isDark && { color: '#94A3B8' }]}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.dialogConfirmBtn}
@@ -1023,12 +1043,12 @@ export default function ContactProfileModal({
 
         {/* 8. Edit Nickname Modal */}
         <Modal visible={showEditNicknameModal} transparent animationType="fade" onRequestClose={() => setShowEditNicknameModal(false)}>
-          <View style={styles.modalOverlay}>
-            <View style={styles.dialogCard}>
-              <Text style={styles.dialogTitle}>Edit Contact Nickname</Text>
-              <Text style={styles.dialogSubtitle}>Set a personalized name for this contact.</Text>
+          <View style={[styles.modalOverlay, isDark && { backgroundColor: 'rgba(0, 0, 0, 0.85)' }]}>
+            <View style={[styles.dialogCard, isDark && { backgroundColor: '#000000', borderColor: 'rgba(255, 255, 255, 0.08)', borderWidth: 1 }]}>
+              <Text style={[styles.dialogTitle, isDark && { color: '#F1F5F9' }]}>Edit Contact Nickname</Text>
+              <Text style={[styles.dialogSubtitle, isDark && { color: '#94A3B8' }]}>Set a personalized name for this contact.</Text>
               <TextInput
-                style={styles.nicknameInput}
+                style={[styles.nicknameInput, isDark && { backgroundColor: '#0A0D12', borderColor: 'rgba(255, 255, 255, 0.08)', color: '#F1F5F9' }]}
                 value={inputNickname}
                 onChangeText={setInputNickname}
                 placeholder="Enter nickname..."
@@ -1036,11 +1056,11 @@ export default function ContactProfileModal({
                 autoFocus
               />
               <View style={styles.dialogBtnRow}>
-                <TouchableOpacity style={styles.dialogCancelBtn} onPress={() => setShowEditNicknameModal(false)}>
-                  <Text style={styles.dialogCancelText}>Cancel</Text>
+                <TouchableOpacity style={[styles.dialogCancelBtn, isDark && { backgroundColor: '#0A0D12', borderColor: 'rgba(255, 255, 255, 0.08)', borderWidth: 1 }]} onPress={() => setShowEditNicknameModal(false)}>
+                  <Text style={[styles.dialogCancelText, isDark && { color: '#94A3B8' }]}>Cancel</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.dialogConfirmBtn, { backgroundColor: '#047857' }]} onPress={handleSaveNickname}>
-                  <Text style={styles.dialogConfirmText}>Save</Text>
+                <TouchableOpacity style={[styles.dialogConfirmBtn, { backgroundColor: isDark ? '#10B981' : '#047857' }]} onPress={handleSaveNickname}>
+                  <Text style={[styles.dialogConfirmText, isDark && { color: '#000000', fontWeight: '800' }]}>Save</Text>
                 </TouchableOpacity>
               </View>
             </View>

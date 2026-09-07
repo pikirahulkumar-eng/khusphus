@@ -13,6 +13,7 @@ import SettingsModal from '../components/main/SettingsModal';
 import { SunaoTheme } from '../constants/theme';
 import { ChatStorageService } from '../services/chatStorageService';
 import { RealtimeBridge } from '../services/realtimeBridge';
+import { getBackendUrl } from '../services/firebase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -71,133 +72,28 @@ export default function MainScreen({
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showCameraModal, setShowCameraModal] = useState(false);
 
-  // Initial WhatsApp sample data
-  const initialChats: ChatItemData[] = [
-    {
-      phone: '9876543210',
-      name: 'Rahul Bhai',
-      avatarUri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-      lastMessage: 'Bhai Render pe server 100% live chal raha hai! 🔥',
-      timestamp: '11:42 AM',
-      unreadCount: 2,
-      isPinned: true,
-      hasStatusStory: true,
-      sentByMe: false,
-    },
-    {
-      phone: '9998887776',
-      name: 'Papa',
-      avatarUri: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150',
-      lastMessage: 'Theek hai beta, aate waqt le aana.',
-      timestamp: '10:15 AM',
-      sentByMe: true,
-      messageStatus: 'read',
-    },
-    {
-      phone: '1122334455',
-      name: 'Neha Sharma',
-      avatarUri: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
-      lastMessage: 'Call me when you are free! Important discuss karna hai.',
-      timestamp: '9:30 AM',
-      unreadCount: 1,
-      hasStatusStory: true,
-      sentByMe: false,
-    },
-    {
-      phone: 'grp_sunao_core',
-      name: 'Sunao Core Devs 🚀',
-      lastMessage: 'Amit: Audio aur video call ekdum clear chal raha hai.',
-      timestamp: 'Yesterday',
-      isGroup: true,
-      unreadCount: 4,
-      isPinned: true,
-      sentByMe: false,
-    },
-    {
-      phone: '5566778899',
-      name: 'Amit Patel',
-      avatarUri: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150',
-      lastMessage: 'Photos send kar diye hain mail par.',
-      timestamp: 'Yesterday',
-      sentByMe: true,
-      messageStatus: 'delivered',
-      isMuted: true,
-    },
-    {
-      phone: 'grp_college_gang',
-      name: 'College Gang 2026 🎉',
-      lastMessage: 'Vikram: Sunday cafe me milte hain sab log!',
-      timestamp: '04/09/2026',
-      isGroup: true,
-      sentByMe: false,
-    },
-    {
-      phone: '6677889900',
-      name: 'Priya Verma',
-      avatarUri: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150',
-      lastMessage: 'Thanks a lot for the help! 😊',
-      timestamp: '03/09/2026',
-      sentByMe: true,
-      messageStatus: 'read',
-    },
-  ];
+  // Real dynamic data - No hardcoded dummy users
+  const DUMMY_PHONES = new Set(['9876543210', '9876543211', '6677889900', '9999888877', '1122334455', 'test_123', '12345', 'space_live_room']);
+  const DUMMY_NAMES = new Set(['Rahul Bhai', 'Priya Verma', 'Neha Sharma', 'Amit Patel', 'Vikram Rajput', 'Papa', 'Test Bhai', 'Open Audio Lounge 🎙️']);
+  const isDummyContact = (c: any) => {
+    if (!c) return true;
+    if (c.phone && DUMMY_PHONES.has(String(c.phone).trim())) return true;
+    if (c.name && DUMMY_NAMES.has(String(c.name).trim())) return true;
+    return false;
+  };
 
-  const initialCalls: CallLogItem[] = [
-    {
-      id: 'call_1',
-      phone: '9876543210',
-      name: 'Rahul Bhai',
-      avatarUri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-      type: 'incoming',
-      isVideo: true,
-      time: 'Today, 11:20 AM',
-    },
-    {
-      id: 'call_2',
-      phone: '1122334455',
-      name: 'Neha Sharma',
-      avatarUri: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
-      type: 'missed',
-      isVideo: false,
-      time: 'Today, 9:28 AM',
-      count: 2,
-    },
-    {
-      id: 'call_3',
-      phone: '9998887776',
-      name: 'Papa',
-      avatarUri: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150',
-      type: 'outgoing',
-      isVideo: false,
-      time: 'Yesterday, 8:45 PM',
-    },
-    {
-      id: 'call_4',
-      phone: '5566778899',
-      name: 'Amit Patel',
-      avatarUri: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150',
-      type: 'incoming',
-      isVideo: false,
-      time: 'September 3, 4:10 PM',
-    },
-  ];
+  const initialChats: ChatItemData[] = [];
+  const initialCalls: CallLogItem[] = [];
+  const [contactsList, setContactsList] = useState<Array<{ phone: string; name: string; about?: string; avatarUri?: string }>>([]);
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
 
-  const contactsList = [
-    { phone: '9876543210', name: 'Rahul Bhai', about: 'Building Sunao App 🚀', avatarUri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150' },
-    { phone: '9998887776', name: 'Papa', about: 'Available', avatarUri: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150' },
-    { phone: '1122334455', name: 'Neha Sharma', about: 'Busy at work 🎧', avatarUri: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150' },
-    { phone: '5566778899', name: 'Amit Patel', about: 'Urgent calls only', avatarUri: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150' },
-    { phone: '6677889900', name: 'Priya Verma', about: 'Exploring new horizons ✨', avatarUri: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150' },
-    { phone: '7788990011', name: 'Rohan Gupta', about: 'Coding late night 💻' },
-    { phone: '8899001122', name: 'Sneha Roy', about: 'Living in the moment' },
-  ];
-
-  // Handle Search Input & Turso live search query
+  // Handle Search Input & live search query
   const handleSearchChange = async (text: string) => {
     setSearchQuery(text);
-    if (text.trim().length >= 3) {
+    if (text.trim().length >= 2) {
       try {
-        const res = await fetch(`https://khusphus-epsm.onrender.com/api/search?query=${encodeURIComponent(text)}`);
+        const baseUrl = getBackendUrl();
+        const res = await fetch(`${baseUrl}/api/search?query=${encodeURIComponent(text.trim())}`);
         const data = await res.json();
         if (Array.isArray(data)) {
           setRemoteSearchResults(data);
@@ -210,12 +106,11 @@ export default function MainScreen({
     }
   };
 
-  // Navigation Tab and Filter Handlers with persistence
   const handleNavTabChange = (tab: MainNavTab) => {
     setActiveNavTab(tab);
     AsyncStorage.setItem('@sunao_active_nav_tab', tab).catch(() => {});
     if (Platform.OS === 'web' && typeof window !== 'undefined' && !activeChatPhone) {
-      window.location.hash = `#/${tab.toLowerCase()}`;
+      window.history.replaceState(null, '', `#/${tab.toLowerCase()}`);
     }
   };
 
@@ -232,7 +127,11 @@ export default function MainScreen({
         if (raw) {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed;
+            const clean = parsed.filter((c: any) => !isDummyContact(c));
+            if (clean.length !== parsed.length) {
+              window.localStorage.setItem(`@sunao_recent_${currentUserPhone}`, JSON.stringify(clean));
+            }
+            return clean;
           }
         }
       } catch (e) {}
@@ -240,13 +139,83 @@ export default function MainScreen({
     return initialChats;
   });
 
-  // 1. Load Recent Chats from Local Storage on Mount & User Change
+  const [callsList, setCallsList] = useState<CallLogItem[]>(initialCalls);
+
+  // 1. Load Recent Chats from Local Storage on Mount & User Change + Sync Live Registered Users
   useEffect(() => {
     let isMounted = true;
     const fetchRecentChats = async () => {
       const stored = await ChatStorageService.getRecentChats(currentUserPhone, initialChats);
-      if (isMounted && stored && stored.length > 0) {
-        setChats(stored);
+      const cleanStored = (stored || []).filter((c: any) => !isDummyContact(c));
+      if (isMounted && cleanStored.length > 0) {
+        setChats(cleanStored);
+      }
+
+      // Automatically sync real users from database so registered contacts appear instantly
+      try {
+        const baseUrl = getBackendUrl();
+        const res = await fetch(`${baseUrl}/api/users?excludePhone=${encodeURIComponent(currentUserPhone || '')}`);
+        if (res.ok) {
+          const registeredUsers: Array<{ userId: string; phone: string; name: string }> = await res.json();
+          if (isMounted && Array.isArray(registeredUsers)) {
+            const validRegistered = registeredUsers.filter(
+              (u) => u.phone && u.phone !== currentUserPhone && !isDummyContact(u)
+            );
+            const regPhoneSet = new Set(validRegistered.map((u) => u.phone));
+
+            setContactsList(
+              validRegistered.map((u) => ({
+                phone: u.phone,
+                name: u.name || u.phone,
+                about: 'Available on Sunao 🚀',
+              }))
+            );
+
+            setChats((prev) => {
+              // 1. Purge any dummy contacts or stale non-existent contacts
+              const updated = prev.filter(
+                (c) => !isDummyContact(c) && (regPhoneSet.size === 0 || regPhoneSet.has(c.phone))
+              );
+              // 2. Ensure each valid registered user has an entry
+              validRegistered.forEach((u) => {
+                const idx = updated.findIndex((c) => c.phone === u.phone);
+                if (idx === -1) {
+                  updated.unshift({
+                    phone: u.phone,
+                    name: u.name || u.phone,
+                    lastMessage: 'Tap to call or message 👋',
+                    timestamp: '',
+                    unreadCount: 0,
+                    hasStatusStory: true,
+                  });
+                } else if (u.name && updated[idx].name !== u.name) {
+                  updated[idx] = { ...updated[idx], name: u.name };
+                }
+              });
+              ChatStorageService.saveCleanChats(currentUserPhone, updated).catch(() => {});
+              return updated;
+            });
+
+            setCallsList((prev) => {
+              const updated = prev.filter((c) => !isDummyContact(c));
+              validRegistered.forEach((u, i) => {
+                if (!updated.some((c) => c.phone === u.phone)) {
+                  updated.unshift({
+                    id: `reg_user_${u.phone}_${i}`,
+                    phone: u.phone,
+                    name: u.name || u.phone,
+                    type: 'incoming',
+                    isVideo: false,
+                    time: 'Active Now',
+                  });
+                }
+              });
+              return updated;
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to sync registered users:', e);
       }
     };
     fetchRecentChats();
@@ -260,10 +229,20 @@ export default function MainScreen({
     const unsubscribe = RealtimeBridge.subscribe((event) => {
       if (event.type === 'CHAT_MESSAGE' && event.payload) {
         const p = event.payload;
-        const isIncoming = p.senderId !== currentUserPhone;
-        const peerPhone = isIncoming ? p.senderId : p.receiverId;
+        // STRICT PRIVACY CHECK: Ignore messages that do not involve currentUserPhone
+        const myCleanPhone = String(currentUserPhone || '').trim();
+        const msgReceiver = String(p.receiverId || event.targetUserId || '').trim();
+        const msgSender = String(p.senderId || '').trim();
+        const isForMe = msgReceiver === myCleanPhone;
+        const isByMe = msgSender === myCleanPhone;
+        if (!isForMe && !isByMe) {
+          return;
+        }
+        const isIncoming = !isByMe;
+        const peerPhone = isIncoming ? msgSender : msgReceiver;
         const time = p.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const text = p.type === 'voice' ? '🎤 Voice message' : (p.text || '');
+        const isViewing = activeChatPhone === peerPhone;
 
         setChats((prev) => {
           const list = [...prev];
@@ -274,7 +253,7 @@ export default function MainScreen({
               ...existing,
               lastMessage: text,
               timestamp: time,
-              unreadCount: isIncoming ? (existing.unreadCount || 0) + 1 : 0,
+              unreadCount: isIncoming && !isViewing ? (existing.unreadCount || 0) + 1 : 0,
               sentByMe: !isIncoming,
               messageStatus: isIncoming ? undefined : 'read',
             };
@@ -286,24 +265,72 @@ export default function MainScreen({
               name: peerPhone,
               lastMessage: text,
               timestamp: time,
-              unreadCount: isIncoming ? 1 : 0,
+              unreadCount: isIncoming && !isViewing ? 1 : 0,
               sentByMe: !isIncoming,
               messageStatus: isIncoming ? undefined : 'read',
             });
           }
           return list;
         });
+
+        // Acknowledge delivery to sender (if viewing, ChatScreen sends receipts directly to prevent duplicates)
+        if (isForMe && isIncoming && !isViewing) {
+          RealtimeBridge.sendDeliveredReceipt(peerPhone, p.id);
+        }
+      } else if ((event.type === 'CHAT_READ_SYNC' || event.type === 'MESSAGE_READ') && event.payload) {
+        const peer = event.payload.contactPhone || event.payload.senderId;
+        if (peer) {
+          setChats((prev) =>
+            prev.map((c) => (c.phone === peer ? { ...c, unreadCount: 0 } : c))
+          );
+        }
+      } else if (event.type === 'PRESENCE_UPDATE' && event.payload) {
+        const { userId, isOnline } = event.payload;
+        if (userId) {
+          setOnlineUsers((prev) => {
+            const next = new Set(prev);
+            if (isOnline) {
+              next.add(userId);
+            } else {
+              next.delete(userId);
+            }
+            return next;
+          });
+        }
+      } else if (event.type === 'ONLINE_USERS' && event.payload) {
+        const users = event.payload.users;
+        if (Array.isArray(users)) {
+          setOnlineUsers(new Set(users));
+        }
       }
     });
+
+    // Initial check of online users via HTTP
+    const fetchOnlineUsers = async () => {
+      try {
+        const baseUrl = getBackendUrl();
+        const res = await fetch(`${baseUrl}/api/online-users`);
+        if (res.ok) {
+          const list = await res.json();
+          if (Array.isArray(list)) {
+            setOnlineUsers(new Set(list));
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to fetch online users:', e);
+      }
+    };
+    fetchOnlineUsers();
 
     return () => {
       unsubscribe();
     };
-  }, [currentUserPhone]);
+  }, [currentUserPhone, activeChatPhone]);
 
   // Handle Opening Chat and Clearing Unread Count Locally
   const handleSelectChat = async (chat: ChatItemData) => {
     await ChatStorageService.markAsRead(currentUserPhone, chat.phone);
+    RealtimeBridge.broadcast('CHAT_READ_SYNC', { readerPhone: currentUserPhone, contactPhone: chat.phone }, chat.phone);
     setChats((prev) =>
       prev.map((c) => (c.phone === chat.phone ? { ...c, unreadCount: 0 } : c))
     );
@@ -351,8 +378,11 @@ export default function MainScreen({
       result = result.filter((c) => c.isPinned);
     }
 
-    return result;
-  }, [chats, searchQuery, remoteSearchResults, activeFilter]);
+    return result.map((c) => ({
+      ...c,
+      isOnline: onlineUsers.has(c.phone),
+    }));
+  }, [chats, searchQuery, remoteSearchResults, activeFilter, onlineUsers]);
 
   const totalUnreadCount = useMemo(() => {
     return chats.reduce((acc, c) => acc + (c.unreadCount || 0), 0);
@@ -442,8 +472,8 @@ export default function MainScreen({
 
   const missedCallsCount = useMemo(() => {
     if (hasSeenCalls || activeNavTab === 'Calls') return 0;
-    return initialCalls.filter((c) => c.type === 'missed').length;
-  }, [initialCalls, hasSeenCalls, activeNavTab]);
+    return callsList.filter((c) => c.type === 'missed').length;
+  }, [callsList, hasSeenCalls, activeNavTab]);
 
   const hasUpdatesBadge = useMemo(() => {
     if (hasSeenUpdates || activeNavTab === 'Updates') return false;
@@ -477,6 +507,10 @@ export default function MainScreen({
           onCameraPress={() => setShowCameraModal(true)}
           onOpenNewChat={() => setShowNewChatModal(true)}
           onOpenProfile={() => handleNavTabChange('Profile')}
+          onSelectFilter={(filter) => {
+            if (filter === 'Starred') handleFilterChange('Favourites');
+            else handleFilterChange(filter as any);
+          }}
         />
       )}
 
@@ -504,7 +538,7 @@ export default function MainScreen({
         {/* Calls Tab */}
         {activeNavTab === 'Calls' && (
           <CallsTab
-            calls={initialCalls}
+            calls={callsList}
             onStartCall={(phone, name, isVideo) => onStartCall(phone, name, isVideo)}
           />
         )}
@@ -547,7 +581,10 @@ export default function MainScreen({
       <NewChatModal
         visible={showNewChatModal}
         onClose={() => setShowNewChatModal(false)}
-        onSelectUser={onOpenChat}
+        onSelectUser={(user) => {
+          setShowNewChatModal(false);
+          onOpenChat(user);
+        }}
         contacts={contactsList}
       />
 
@@ -609,19 +646,19 @@ const styles = StyleSheet.create({
   },
   cameraOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
   cameraCard: {
-    backgroundColor: '#0F172A',
+    backgroundColor: '#000000',
     borderRadius: 24,
     padding: 24,
     width: 400,
     maxWidth: '100%',
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   cameraHeader: {
     flexDirection: 'row',
@@ -636,13 +673,13 @@ const styles = StyleSheet.create({
   },
   cameraSurface: {
     height: 200,
-    backgroundColor: '#1E293B',
+    backgroundColor: '#0A0D12',
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
     padding: 16,
   },
   cameraReadyText: {
