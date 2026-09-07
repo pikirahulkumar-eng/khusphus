@@ -80,36 +80,44 @@ function AppMain() {
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width >= 768;
 
+  const DUMMY_PHONES = new Set(['9876543210', '9876543211', '6677889900', '9999888877', '1122334455', 'test_123', '12345', 'space_live_room']);
+  const DUMMY_NAMES = new Set(['Rahul Bhai', 'Priya Verma', 'Neha Sharma', 'Amit Patel', 'Vikram Rajput', 'Papa', 'Test Bhai', 'Open Audio Lounge 🎙️']);
+  const isDummyContact = (c: any) => {
+    if (!c) return true;
+    if (c.phone && DUMMY_PHONES.has(String(c.phone).trim())) return true;
+    if (c.name && DUMMY_NAMES.has(String(c.name).trim())) return true;
+    return false;
+  };
+
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
       const loggedOut = window.localStorage.getItem('@sunao_logged_out');
+      const isVerified = window.localStorage.getItem('@sunao_session_verified_v1');
       const phone = window.localStorage.getItem('user_phone');
-      if (phone && loggedOut !== 'true') return true;
+      if (phone && loggedOut !== 'true' && isVerified === 'true' && !DUMMY_PHONES.has(phone.trim())) return true;
     }
     return false;
   });
   const [currentUserPhone, setCurrentUserPhone] = useState<string>(() => {
     if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
-      return window.localStorage.getItem('user_phone') || '';
+      const isVerified = window.localStorage.getItem('@sunao_session_verified_v1');
+      const phone = window.localStorage.getItem('user_phone');
+      if (isVerified === 'true' && phone && !DUMMY_PHONES.has(phone.trim())) {
+        return phone;
+      }
     }
     return '';
   });
   const [currentUserName, setCurrentUserName] = useState<string>(() => {
     if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
-      return window.localStorage.getItem('@sunao_user_name') || window.localStorage.getItem('user_name') || '';
+      const isVerified = window.localStorage.getItem('@sunao_session_verified_v1');
+      if (isVerified === 'true') {
+        return window.localStorage.getItem('@sunao_user_name') || window.localStorage.getItem('user_name') || '';
+      }
     }
     return '';
   });
-
-const DUMMY_PHONES = new Set(['9876543210', '9876543211', '6677889900', '9999888877', '1122334455', 'test_123', '12345', 'space_live_room']);
-const DUMMY_NAMES = new Set(['Rahul Bhai', 'Priya Verma', 'Neha Sharma', 'Amit Patel', 'Vikram Rajput', 'Papa', 'Test Bhai', 'Open Audio Lounge 🎙️']);
-const isDummyContact = (c: any) => {
-  if (!c) return true;
-  if (c.phone && DUMMY_PHONES.has(String(c.phone).trim())) return true;
-  if (c.name && DUMMY_NAMES.has(String(c.name).trim())) return true;
-  return false;
-};
 
   // Synchronous restoration on web from localStorage only — never read sensitive data from URL
   const [activeChatUser, setActiveChatUser] = useState<any>(() => {
@@ -163,12 +171,36 @@ const isDummyContact = (c: any) => {
   useEffect(() => {
     const restoreAppState = async () => {
       try {
+        const isVerified = await AsyncStorage.getItem('@sunao_session_verified_v1');
         const loggedOut = await AsyncStorage.getItem('@sunao_logged_out');
         const phone = await AsyncStorage.getItem('user_phone');
         const name = (await AsyncStorage.getItem('@sunao_user_name')) || (await AsyncStorage.getItem('user_name'));
         const storedUserId = await AsyncStorage.getItem('@sunao_user_id');
         
-        if (!phone || loggedOut === 'true') {
+        const isDummy = !phone || DUMMY_PHONES.has(phone.trim()) || phone.trim().length < 10;
+
+        // Strictly enforce fresh Sign In if no verified session exists or if dummy data detected
+        if (isDummy || loggedOut === 'true' || isVerified !== 'true') {
+          await AsyncStorage.multiRemove([
+            'user_phone',
+            'user_name',
+            '@sunao_user_name',
+            '@sunao_user_handle',
+            '@sunao_user_id',
+            '@sunao_active_chat_user',
+            '@sunao_session_verified_v1',
+          ]).catch(() => {});
+
+          if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
+            window.localStorage.removeItem('user_phone');
+            window.localStorage.removeItem('user_name');
+            window.localStorage.removeItem('@sunao_user_name');
+            window.localStorage.removeItem('@sunao_user_handle');
+            window.localStorage.removeItem('@sunao_user_id');
+            window.localStorage.removeItem('@sunao_active_chat_user');
+            window.localStorage.removeItem('@sunao_session_verified_v1');
+          }
+
           setIsAuthenticated(false);
           setCurrentUserPhone('');
           setCurrentUserName('');
@@ -290,6 +322,7 @@ const isDummyContact = (c: any) => {
       await AsyncStorage.setItem('user_name', cleanName);
       await AsyncStorage.setItem('@sunao_user_handle', handle);
       await AsyncStorage.setItem('@sunao_user_id', userId);
+      await AsyncStorage.setItem('@sunao_session_verified_v1', 'true');
       await AsyncStorage.removeItem('@sunao_logged_out');
 
       if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
@@ -298,6 +331,7 @@ const isDummyContact = (c: any) => {
         window.localStorage.setItem('user_name', cleanName);
         window.localStorage.setItem('@sunao_user_handle', handle);
         window.localStorage.setItem('@sunao_user_id', userId);
+        window.localStorage.setItem('@sunao_session_verified_v1', 'true');
         window.localStorage.removeItem('@sunao_logged_out');
       }
 
@@ -324,12 +358,15 @@ const isDummyContact = (c: any) => {
 
   const handleLogout = async () => {
     try {
-      await AsyncStorage.removeItem('user_phone');
-      await AsyncStorage.removeItem('user_name');
-      await AsyncStorage.removeItem('@sunao_user_name');
-      await AsyncStorage.removeItem('@sunao_user_handle');
-      await AsyncStorage.removeItem('@sunao_user_id');
-      await AsyncStorage.removeItem('@sunao_active_chat_user');
+      await AsyncStorage.multiRemove([
+        'user_phone',
+        'user_name',
+        '@sunao_user_name',
+        '@sunao_user_handle',
+        '@sunao_user_id',
+        '@sunao_active_chat_user',
+        '@sunao_session_verified_v1',
+      ]);
       await AsyncStorage.setItem('@sunao_logged_out', 'true');
 
       if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
@@ -339,6 +376,7 @@ const isDummyContact = (c: any) => {
         window.localStorage.removeItem('@sunao_user_handle');
         window.localStorage.removeItem('@sunao_user_id');
         window.localStorage.removeItem('@sunao_active_chat_user');
+        window.localStorage.removeItem('@sunao_session_verified_v1');
         window.localStorage.setItem('@sunao_logged_out', 'true');
         window.location.hash = '';
       }
