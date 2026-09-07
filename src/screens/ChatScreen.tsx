@@ -14,6 +14,7 @@ import {
   ScrollView,
   StatusBar,
   BackHandler,
+  Image,
 } from 'react-native';
 import { Ionicons, MaterialIcons, Feather } from '@expo/vector-icons';
 import { KhusPhusTheme } from '../constants/theme';
@@ -21,6 +22,7 @@ import { ChatStorageService, LocalMessage } from '../services/chatStorageService
 import { RealtimeBridge } from '../services/realtimeBridge';
 import { VoiceService } from '../services/voiceRecordingService';
 import VoiceNoteBubble from '../components/chat/VoiceNoteBubble';
+import ContactProfileModal from '../components/chat/ContactProfileModal';
 
 interface ChatScreenProps {
   chatUser?: any;
@@ -51,6 +53,7 @@ export default function ChatScreen({
   const [showEmojiBar, setShowEmojiBar] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
+  const [showContactProfile, setShowContactProfile] = useState(false);
   const typingTimeoutRef = useRef<any>(null);
   const flatListRef = useRef<FlatList>(null);
 
@@ -63,6 +66,10 @@ export default function ChatScreen({
   // Hardware Back Handler (Android): Navigate back to chat list instead of exiting app
   useEffect(() => {
     const onHardwareBack = () => {
+      if (showContactProfile) {
+        setShowContactProfile(false);
+        return true;
+      }
       if (showOptionsMenu) {
         setShowOptionsMenu(false);
         return true;
@@ -81,7 +88,7 @@ export default function ChatScreen({
 
     const backHandler = BackHandler.addEventListener('hardwareBackPress', onHardwareBack);
     return () => backHandler.remove();
-  }, [showOptionsMenu, showAttachmentMenu, showEmojiBar, onBack]);
+  }, [showContactProfile, showOptionsMenu, showAttachmentMenu, showEmojiBar, onBack]);
 
   // 1. Load Local Messages from Offline Storage on Mount
   useEffect(() => {
@@ -369,18 +376,28 @@ export default function ChatScreen({
       <StatusBar backgroundColor="transparent" barStyle="dark-content" translucent />
       {/* Chat Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={onBack}>
+        <TouchableOpacity style={styles.backBtn} onPress={onBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Ionicons name="arrow-back" size={24} color="#0F172A" />
-          <View style={styles.avatar}>
-            <Ionicons name="person" size={18} color="#059669" />
-          </View>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>{contactName}</Text>
-          <Text style={[styles.headerSubtitle, isPeerTyping && styles.headerSubtitleTyping]}>
-            {isPeerTyping ? 'typing...' : 'online'}
-          </Text>
+        <TouchableOpacity
+          style={styles.headerProfileTouchable}
+          onPress={() => setShowContactProfile(true)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.avatar}>
+            {activeUser?.avatarUri ? (
+              <Image source={{ uri: activeUser.avatarUri }} style={styles.avatarImg} />
+            ) : (
+              <Ionicons name="person" size={18} color="#047857" />
+            )}
+          </View>
+          <View style={styles.headerTitleContainer}>
+            <Text style={styles.headerTitle} numberOfLines={1}>{contactName}</Text>
+            <Text style={[styles.headerSubtitle, isPeerTyping && styles.headerSubtitleTyping]}>
+              {isPeerTyping ? 'typing...' : 'online'}
+            </Text>
+          </View>
         </TouchableOpacity>
 
         <View style={styles.headerIcons}>
@@ -388,7 +405,7 @@ export default function ChatScreen({
             <Ionicons name="videocam" size={19} color="#0284C7" />
           </TouchableOpacity>
           <TouchableOpacity onPress={() => triggerCall(false)} style={[styles.icon, styles.iconAudio]}>
-            <Ionicons name="call" size={18} color="#059669" />
+            <Ionicons name="call" size={18} color="#047857" />
           </TouchableOpacity>
           <TouchableOpacity style={styles.icon} onPress={() => setShowOptionsMenu(true)}>
             <Ionicons name="ellipsis-vertical" size={18} color="#64748B" />
@@ -607,6 +624,18 @@ export default function ChatScreen({
           </View>
         </Pressable>
       </Modal>
+
+      {/* Contact Dossier / Profile Fullscreen Modal */}
+      <ContactProfileModal
+        visible={showContactProfile}
+        onClose={() => setShowContactProfile(false)}
+        contactName={contactName}
+        contactPhone={contactPhone}
+        avatarUri={activeUser?.avatarUri}
+        aboutText={activeUser?.about || 'Hey there! Using Sunao for HD voice & crystal clear calling. 🚀'}
+        onStartCall={triggerCall}
+        onClearChat={handleClearChat}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -622,6 +651,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
+  },
+  headerProfileTouchable: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  avatarImg: {
+    width: 38,
+    height: 38,
+    borderRadius: 14,
   },
   backBtn: { flexDirection: 'row', alignItems: 'center' },
   avatar: {

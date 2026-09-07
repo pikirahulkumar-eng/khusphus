@@ -13,6 +13,7 @@ interface SunaoHeaderProps {
   onLogout: () => void;
   onCameraPress?: () => void;
   onOpenNewChat?: () => void;
+  onOpenProfile?: () => void;
 }
 
 export default function SunaoHeader({
@@ -26,6 +27,7 @@ export default function SunaoHeader({
   onLogout,
   onCameraPress,
   onOpenNewChat,
+  onOpenProfile,
 }: SunaoHeaderProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [showSecurityModal, setShowSecurityModal] = useState(false);
@@ -57,9 +59,13 @@ export default function SunaoHeader({
 
   return (
     <View style={styles.headerContainer}>
-      <View style={styles.leftBrand}>
+      <TouchableOpacity
+        style={styles.leftBrand}
+        onPress={onOpenProfile}
+        activeOpacity={0.7}
+      >
         <View style={styles.brandIconWrapper}>
-          <MaterialCommunityIcons name="waveform" size={22} color="#059669" />
+          <MaterialCommunityIcons name="waveform" size={22} color="#047857" />
         </View>
         <View>
           <Text style={styles.brandTitle}>Sunao</Text>
@@ -68,7 +74,7 @@ export default function SunaoHeader({
             <Text style={styles.telemetryText}>Online</Text>
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
 
       <View style={styles.rightActions}>
         {onOpenNewChat && (
@@ -94,6 +100,22 @@ export default function SunaoHeader({
       <Modal visible={showMenu} transparent animationType="fade" onRequestClose={() => setShowMenu(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setShowMenu(false)}>
           <View style={styles.dropdownMenu}>
+            {onOpenProfile && (
+              <>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    setShowMenu(false);
+                    onOpenProfile();
+                  }}
+                >
+                  <Feather name="user" size={16} color="#047857" style={styles.menuItemIcon} />
+                  <Text style={[styles.menuItemText, { fontWeight: '700', color: '#047857' }]}>My Profile</Text>
+                </TouchableOpacity>
+                <View style={styles.menuDivider} />
+              </>
+            )}
+
             {onOpenNewChat && (
               <>
                 <TouchableOpacity

@@ -410,6 +410,7 @@ export default function MainScreen({
           onLogout={onLogout}
           onCameraPress={() => setShowCameraModal(true)}
           onOpenNewChat={() => setShowNewChatModal(true)}
+          onOpenProfile={() => setActiveNavTab('Profile')}
         />
       )}
 
