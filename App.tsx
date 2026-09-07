@@ -277,8 +277,23 @@ function AppMain() {
       setCurrentUserPhone(cleanPhone);
       setCurrentUserName(cleanName);
       setIsAuthenticated(true);
-      // Register with realtime server using opaque UUID, not raw phone number
+      // Register with realtime socket using opaque UUID
       RealtimeBridge.registerUser(userId);
+
+      // Register user profile on server so they are searchable from any device
+      const serverUrl = Platform.OS === 'web'
+        ? (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:10000'
+            : 'https://khusphus-epsm.onrender.com')
+        : 'https://khusphus-epsm.onrender.com';
+
+      fetch(`${serverUrl}/api/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, phone: cleanPhone, name: cleanName }),
+      }).then(r => r.json())
+        .then(d => console.log('[USER_REGISTERED_SERVER]', d))
+        .catch(e => console.warn('[REGISTER_SERVER_WARN]', e));
     } catch (e) {
       console.error('Failed to persist session:', e);
     }

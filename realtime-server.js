@@ -37,21 +37,63 @@ const io = new Server(server, {
   }
 });
 
-// Initialize Turso SQLite Client securely using Environment Variables
+// Initialize Turso SQLite Client — uses env vars on production (Render), falls back to local for dev
 const turso = createClient({
   url: process.env.TURSO_URL || 'libsql://dummy.turso.io',
   authToken: process.env.TURSO_AUTH_TOKEN || 'dummy-token',
 });
 
-// Search API Endpoint
+// Initialize users table on startup (safe — runs every time server boots)
+async function initDb() {
+  try {
+    await turso.execute(`
+      CREATE TABLE IF NOT EXISTS users (
+        userId TEXT PRIMARY KEY,
+        phone  TEXT NOT NULL,
+        name   TEXT NOT NULL,
+        fcm_token TEXT,
+        registered_at INTEGER DEFAULT (strftime('%s','now'))
+      )
+    `);
+    // Ensure legacy rows (phone-keyed) still work — add userId column if missing
+    try { await turso.execute('ALTER TABLE users ADD COLUMN userId TEXT'); } catch (_) {}
+    console.log('[DB] users table ready');
+  } catch (e) {
+    console.error('[DB_INIT_ERR]', e);
+  }
+}
+initDb();
+
+// User Registration Endpoint — called on every login from the app
+app.post('/api/register', async (req, res) => {
+  const { userId, phone, name } = req.body;
+  if (!userId || !phone || !name) {
+    return res.status(400).json({ error: 'userId, phone, name are required' });
+  }
+  try {
+    await turso.execute({
+      sql: `INSERT INTO users (userId, phone, name)
+            VALUES (?, ?, ?)
+            ON CONFLICT(userId) DO UPDATE SET phone=excluded.phone, name=excluded.name`,
+      args: [userId, phone.trim(), name.trim()]
+    });
+    console.log(`[USER_REGISTERED] userId=${userId} phone=${phone} name=${name}`);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[REGISTER_ERR]', error);
+    res.status(500).json({ error: 'Registration failed' });
+  }
+});
+
+// Search API Endpoint — search by name or phone, returns userId for routing
 app.get('/api/search', async (req, res) => {
-  const { query } = req.query; console.log('Search request received for:', query);
+  const { query } = req.query;
+  console.log('Search request received for:', query);
   if (!query) return res.json([]);
 
   try {
-    // Search by phone or name (partial match)
     const result = await turso.execute({
-      sql: 'SELECT phone, name FROM users WHERE phone LIKE ? OR name LIKE ?',
+      sql: 'SELECT userId, phone, name FROM users WHERE phone LIKE ? OR name LIKE ?',
       args: [`%${query}%`, `%${query}%`]
     });
     res.json(result.rows);
