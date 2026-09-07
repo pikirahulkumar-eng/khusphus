@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
   },
   pillActive: {
     backgroundColor: '#ECFDF5',
-    borderColor: '#059669',
+    borderColor: '#10B981',
   },
   pillIcon: {
     marginRight: 6,
@@ -98,21 +98,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   pillTextActive: {
-    color: '#059669',
+    color: '#047857',
     fontWeight: '700',
   },
   countBadge: {
-    backgroundColor: '#059669',
+    backgroundColor: '#E2E8F0',
     borderRadius: 8,
     minWidth: 18,
     height: 18,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 5,
-    marginLeft: 6,
+    paddingHorizontal: 4,
+    marginLeft: 5,
   },
   countBadgeActive: {
-    backgroundColor: '#059669',
+    backgroundColor: '#10B981',
   },
   countBadgeText: {
     fontSize: 10,

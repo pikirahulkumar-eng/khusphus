@@ -6,30 +6,33 @@ import { Platform } from 'react-native';
 export const SunaoTheme = {
   colors: {
     // Brand & Accents
-    primary: '#059669',         // Emerald Green
-    primaryDark: '#047857',     // Deep Emerald
-    primaryLight: '#ECFDF5',    // Soft Emerald Tint
-    accent: '#10B981',          // Light Mint
-    accentHover: '#047857',
+    primary: '#047857',         // Deep Emerald
+    primaryDark: '#065F46',     // Rich Deep Forest
+    primaryLight: '#ECFDF5',    // Soft Mint Glow
+    accent: '#10B981',          // Electric Mint
+    accentHover: '#059669',
+    acoustic: '#6366F1',        // Acoustic Waveform Indigo
 
     // Surfaces & Backgrounds
-    background: '#F8FAFC',      // Soft Slate Canvas
-    surface: '#FFFFFF',         // Crisp White Card
+    background: '#F8FAFC',      // Slate Light Canvas
+    surface: '#FFFFFF',         // Pure White Card
     surfaceLight: '#F1F5F9',
     surfaceSubtle: '#F8FAFC',
     card: '#FFFFFF',
     cardHover: '#F8FAFC',
-    chatBackground: '#F8FAFC',
+    chatBackground: '#F1F5F9',
 
     // Message Bubbles
-    bubbleMe: '#059669',        // Emerald green
-    bubbleMeBorder: '#047857',
+    bubbleMe: '#E8FDF2',        // Ultra-soft mint
+    bubbleMeBorder: '#A7F3D0',  // Mint hairline
+    bubbleMeText: '#064E3B',    // Deep forest readable text
     bubbleThem: '#FFFFFF',      // Crisp white
-    bubbleThemBorder: '#E2E8F0',
-    bubbleTickBlue: '#38BDF8',  // Sky blue double tick
+    bubbleThemBorder: '#E2E8F0',// Subtle hairline
+    bubbleThemText: '#0F172A',  // Obsidian slate
+    bubbleTickBlue: '#0284C7',  // Sky blue double tick
 
     // Typography & Content
-    textPrimary: '#0F172A',     // Deep slate dark
+    textPrimary: '#0F172A',     // Obsidian slate dark
     textSecondary: '#475569',   // Slate gray
     textMuted: '#94A3B8',       // Light slate muted
     textInverse: '#FFFFFF',

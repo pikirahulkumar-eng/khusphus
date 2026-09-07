@@ -42,18 +42,18 @@ export default function ChatsTab({
   onStartCall,
   activeChatPhone,
 }: ChatsTabProps) {
-  // Top Active Contacts / Presence Rail
+  // Sunao Live Presence & Audio Spaces Rail
   const renderActivePresenceHeader = () => {
-    const activeContacts = chats.slice(0, 6);
+    const activeContacts = chats.slice(0, 8);
 
     return (
       <View style={styles.presenceSection}>
         <View style={styles.presenceHeaderRow}>
           <View style={styles.presenceTitleGroup}>
             <View style={styles.activeDot} />
-            <Text style={styles.presenceTitle}>ACTIVE CONTACTS</Text>
+            <Text style={styles.presenceTitle}>SUNAO LIVE</Text>
           </View>
-          <Text style={styles.presenceCount}>{chats.length} Available</Text>
+          <Text style={styles.presenceCount}>{chats.length} Online</Text>
         </View>
 
         <ScrollView
@@ -65,13 +65,27 @@ export default function ChatsTab({
           <TouchableOpacity
             style={styles.presenceCard}
             onPress={onOpenNewChat}
-            activeOpacity={0.7}
+            activeOpacity={0.75}
           >
-            <View style={[styles.presenceAvatarWrapper, styles.newChatPresenceWrapper]}>
-              <Ionicons name="add" size={22} color="#059669" />
+            <View style={styles.newChatPresenceWrapper}>
+              <Ionicons name="add" size={24} color="#047857" />
             </View>
-            <Text style={[styles.presenceName, styles.newChatPresenceText]} numberOfLines={1}>
+            <Text style={styles.presenceName} numberOfLines={1}>
               New Chat
+            </Text>
+          </TouchableOpacity>
+
+          {/* Sunao Audio Lounge Tile */}
+          <TouchableOpacity
+            style={styles.presenceCard}
+            onPress={() => onSelectChat({ phone: 'space_live_room', name: 'Open Audio Lounge 🎙️', lastMessage: 'Live Voice Space', timestamp: 'Live' })}
+            activeOpacity={0.75}
+          >
+            <View style={styles.audioLoungeWrapper}>
+              <Ionicons name="radio" size={20} color="#6366F1" />
+            </View>
+            <Text style={[styles.presenceName, { color: '#6366F1' }]} numberOfLines={1}>
+              Lounge 🎙️
             </Text>
           </TouchableOpacity>
 
@@ -80,7 +94,7 @@ export default function ChatsTab({
               key={c.phone}
               style={styles.presenceCard}
               onPress={() => onSelectChat(c)}
-              activeOpacity={0.7}
+              activeOpacity={0.75}
             >
               <View style={styles.presenceAvatarWrapper}>
                 {c.avatarUri ? (
@@ -116,7 +130,7 @@ export default function ChatsTab({
         onPress={() => onSelectChat(item)}
         activeOpacity={0.75}
       >
-        {/* Squircle Avatar with Status Ring */}
+        {/* Squircle Avatar with Live Dot */}
         <View style={styles.avatarWrapper}>
           {item.avatarUri ? (
             <Image source={{ uri: item.avatarUri }} style={styles.avatarImage} />
@@ -132,9 +146,8 @@ export default function ChatsTab({
           <View style={styles.onlineDot} />
         </View>
 
-        {/* Center Details */}
+        {/* Center Details: Name + Status + Message Preview */}
         <View style={styles.chatCenter}>
-          {/* Top Row: Name + Group Pill + Timestamp */}
           <View style={styles.topRow}>
             <View style={styles.nameGroup}>
               <Text style={[styles.contactName, isUnread && styles.nameUnread]} numberOfLines={1}>
@@ -157,46 +170,49 @@ export default function ChatsTab({
             </View>
           </View>
 
-          {/* Bottom Row: Preview Snippet + Unread Pill */}
           <View style={styles.bottomRow}>
-            <Text
-              style={[styles.messagePreview, isUnread && styles.previewUnread]}
-              numberOfLines={1}
-            >
-              {item.sentByMe && <Text style={styles.youPrefix}>You: </Text>}
-              {item.lastMessage}
-            </Text>
+            <View style={styles.previewContainer}>
+              {item.sentByMe && (
+                <View style={styles.tickBox}>
+                  {item.messageStatus === 'read' ? (
+                    <Ionicons name="checkmark-done" size={15} color="#0284C7" />
+                  ) : item.messageStatus === 'delivered' ? (
+                    <Ionicons name="checkmark-done" size={15} color="#94A3B8" />
+                  ) : (
+                    <Ionicons name="checkmark" size={15} color="#94A3B8" />
+                  )}
+                </View>
+              )}
+              <Text
+                style={[styles.messagePreview, isUnread && styles.previewUnread]}
+                numberOfLines={1}
+              >
+                {item.lastMessage}
+              </Text>
+            </View>
 
             {isUnread && (
               <View style={styles.unreadBadge}>
-                <Text style={styles.unreadBadgeText}>{item.unreadCount}</Text>
+                <Text style={styles.unreadBadgeText}>
+                  {item.unreadCount! > 99 ? '99+' : item.unreadCount}
+                </Text>
               </View>
             )}
           </View>
         </View>
 
-        {/* Right Calling Actions */}
+        {/* Streamlined Quick-Connect Call Action */}
         <View style={styles.actionsRight}>
           <TouchableOpacity
-            style={styles.circleActionBtn}
+            style={styles.quickCallBtn}
             onPress={(e) => {
               e.stopPropagation();
               onStartCall?.(item.phone, item.name, false);
             }}
-            activeOpacity={0.7}
+            activeOpacity={0.75}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="call" size={16} color="#059669" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.circleActionBtn, styles.videoCircleBtn]}
-            onPress={(e) => {
-              e.stopPropagation();
-              onStartCall?.(item.phone, item.name, true);
-            }}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="videocam" size={17} color="#2563EB" />
+            <Ionicons name="call" size={15} color="#047857" />
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
@@ -213,6 +229,15 @@ export default function ChatsTab({
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
       />
+
+      {/* Sunao Signature Quick-Compose FAB */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={onOpenNewChat}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="chatbubble-ellipses" size={24} color="#FFFFFF" />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -434,27 +459,56 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   unreadBadge: {
-    backgroundColor: '#059669',
+    backgroundColor: '#10B981',
     borderRadius: 10,
     minWidth: 20,
     height: 20,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 6,
+    marginLeft: 6,
   },
   unreadBadgeText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '800',
     color: '#FFFFFF',
   },
-  // Calling Action Buttons
-  actionsRight: {
-    flexDirection: 'row',
-    gap: 8,
-    marginLeft: 6,
+  // Quick Action in Sunao Live
+  newChatPresenceWrapper: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1.5,
+    borderColor: '#10B981',
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  circleActionBtn: {
+  audioLoungeWrapper: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#EEF2FF',
+    borderWidth: 1.5,
+    borderColor: '#818CF8',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  previewContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 6,
+  },
+  tickBox: {
+    marginRight: 4,
+  },
+  actionsRight: {
+    marginLeft: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  quickCallBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
@@ -464,26 +518,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  videoCircleBtn: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#BFDBFE',
-  },
-  // Quick Action in Active Contacts
-  newChatPresenceWrapper: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    backgroundColor: '#ECFDF5',
-    borderWidth: 1.5,
-    borderColor: '#059669',
-    borderStyle: 'dashed',
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 20,
+    backgroundColor: '#047857',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  newChatPresenceText: {
-    fontSize: 11,
-    color: '#059669',
-    fontWeight: '700',
-    textAlign: 'center',
+    elevation: 6,
+    shadowColor: '#047857',
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
   },
 });
