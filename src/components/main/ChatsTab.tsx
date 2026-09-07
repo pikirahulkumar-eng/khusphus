@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,8 +7,11 @@ import {
   TouchableOpacity,
   Image,
   ScrollView,
+  Platform,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTheme } from '../../contexts/ThemeContext';
 
 export interface ChatItemData {
   phone: string;
@@ -42,18 +45,35 @@ export default function ChatsTab({
   onStartCall,
   activeChatPhone,
 }: ChatsTabProps) {
+  const { isDark } = useTheme();
+
+  const [readReceipts, setReadReceipts] = useState<boolean>(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
+      const stored = window.localStorage.getItem('@sunao_read_receipts');
+      if (stored !== null) return stored === 'true';
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    AsyncStorage.getItem('@sunao_read_receipts').then((val) => {
+      if (val !== null) {
+        setReadReceipts(val === 'true');
+      }
+    });
+  }, []);
   // Sunao Live Presence & Audio Spaces Rail
   const renderActivePresenceHeader = () => {
     const activeContacts = chats.slice(0, 8);
 
     return (
-      <View style={styles.presenceSection}>
+      <View style={[styles.presenceSection, isDark && { backgroundColor: '#000000', borderBottomColor: 'rgba(255, 255, 255, 0.08)' }]}>
         <View style={styles.presenceHeaderRow}>
           <View style={styles.presenceTitleGroup}>
             <View style={styles.activeDot} />
-            <Text style={styles.presenceTitle}>SUNAO LIVE</Text>
+            <Text style={[styles.presenceTitle, isDark && { color: '#94A3B8' }]}>SUNAO LIVE</Text>
           </View>
-          <Text style={styles.presenceCount}>{chats.length} Online</Text>
+          <Text style={[styles.presenceCount, isDark && { color: '#64748B' }]}>{chats.length} Online</Text>
         </View>
 
         <ScrollView
@@ -67,10 +87,10 @@ export default function ChatsTab({
             onPress={onOpenNewChat}
             activeOpacity={0.75}
           >
-            <View style={styles.newChatPresenceWrapper}>
-              <Ionicons name="add" size={24} color="#047857" />
+            <View style={[styles.newChatPresenceWrapper, isDark && { backgroundColor: '#161B22', borderColor: 'rgba(255, 255, 255, 0.1)' }]}>
+              <Ionicons name="add" size={24} color={isDark ? '#10B981' : '#047857'} />
             </View>
-            <Text style={styles.presenceName} numberOfLines={1}>
+            <Text style={[styles.presenceName, isDark && { color: '#FFFFFF' }]} numberOfLines={1}>
               New Chat
             </Text>
           </TouchableOpacity>
@@ -81,33 +101,34 @@ export default function ChatsTab({
             onPress={() => onSelectChat({ phone: 'space_live_room', name: 'Open Audio Lounge 🎙️', lastMessage: 'Live Voice Space', timestamp: 'Live' })}
             activeOpacity={0.75}
           >
-            <View style={styles.audioLoungeWrapper}>
-              <Ionicons name="radio" size={20} color="#6366F1" />
+            <View style={[styles.audioLoungeWrapper, isDark && { backgroundColor: 'rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99, 102, 241, 0.3)' }]}>
+              <Ionicons name="radio" size={20} color="#818CF8" />
             </View>
-            <Text style={[styles.presenceName, { color: '#6366F1' }]} numberOfLines={1}>
+            <Text style={[styles.presenceName, { color: '#818CF8' }]} numberOfLines={1}>
               Lounge 🎙️
             </Text>
           </TouchableOpacity>
 
-          {activeContacts.map((c) => (
+          {/* Real Contacts Horizontal Stories / Presence Avatars */}
+          {activeContacts.map((contact) => (
             <TouchableOpacity
-              key={c.phone}
+              key={contact.phone}
               style={styles.presenceCard}
-              onPress={() => onSelectChat(c)}
+              onPress={() => onSelectChat(contact)}
               activeOpacity={0.75}
             >
               <View style={styles.presenceAvatarWrapper}>
-                {c.avatarUri ? (
-                  <Image source={{ uri: c.avatarUri }} style={styles.presenceAvatar} />
+                {contact.avatarUri ? (
+                  <Image source={{ uri: contact.avatarUri }} style={styles.presenceAvatar} />
                 ) : (
-                  <View style={[styles.presenceAvatar, styles.presenceFallback]}>
-                    <Text style={styles.avatarInitial}>{c.name.charAt(0)}</Text>
+                  <View style={[styles.presenceAvatar, styles.avatarFallback]}>
+                    <Text style={styles.avatarInitial}>{contact.name.charAt(0)}</Text>
                   </View>
                 )}
-                <View style={styles.activePulseRing} />
+                <View style={[styles.activePulseRing, isDark && { borderColor: '#000000' }]} />
               </View>
-              <Text style={styles.presenceName} numberOfLines={1}>
-                {c.name.split(' ')[0]}
+              <Text style={[styles.presenceName, isDark && { color: '#FFFFFF' }]} numberOfLines={1}>
+                {contact.name.split(' ')[0]}
               </Text>
             </TouchableOpacity>
           ))}
@@ -117,15 +138,16 @@ export default function ChatsTab({
   };
 
   const renderChatItem = ({ item }: { item: ChatItemData }) => {
-    const isUnread = (item.unreadCount ?? 0) > 0;
-    const isSelected = item.phone === activeChatPhone;
+    const isSelected = activeChatPhone === item.phone;
+    const isUnread = (item.unreadCount || 0) > 0;
 
     return (
       <TouchableOpacity
         style={[
           styles.chatCard,
-          isUnread && styles.chatCardUnread,
+          isDark && { backgroundColor: '#000000', borderColor: 'rgba(255, 255, 255, 0.08)' },
           isSelected && styles.chatCardSelected,
+          isSelected && isDark && { backgroundColor: '#161B22' },
         ]}
         onPress={() => onSelectChat(item)}
         activeOpacity={0.75}
@@ -150,7 +172,7 @@ export default function ChatsTab({
         <View style={styles.chatCenter}>
           <View style={styles.topRow}>
             <View style={styles.nameGroup}>
-              <Text style={[styles.contactName, isUnread && styles.nameUnread]} numberOfLines={1}>
+              <Text style={[styles.contactName, isDark && { color: '#FFFFFF' }, isUnread && styles.nameUnread]} numberOfLines={1}>
                 {item.name}
               </Text>
               {item.isGroup && (
@@ -164,7 +186,7 @@ export default function ChatsTab({
               {item.isPinned && (
                 <Ionicons name="pin" size={12} color="#94A3B8" style={{ marginRight: 4 }} />
               )}
-              <Text style={[styles.timestamp, isUnread && styles.timestampUnread]}>
+              <Text style={[styles.timestamp, isDark && { color: '#64748B' }, isUnread && styles.timestampUnread]}>
                 {item.timestamp}
               </Text>
             </View>
@@ -175,7 +197,11 @@ export default function ChatsTab({
               {item.sentByMe && (
                 <View style={styles.tickBox}>
                   {item.messageStatus === 'read' ? (
-                    <Ionicons name="checkmark-done" size={15} color="#0284C7" />
+                    <Ionicons
+                      name="checkmark-done"
+                      size={15}
+                      color={readReceipts ? (isDark ? '#00F2FE' : '#0284C7') : '#94A3B8'}
+                    />
                   ) : item.messageStatus === 'delivered' ? (
                     <Ionicons name="checkmark-done" size={15} color="#94A3B8" />
                   ) : (
@@ -184,7 +210,7 @@ export default function ChatsTab({
                 </View>
               )}
               <Text
-                style={[styles.messagePreview, isUnread && styles.previewUnread]}
+                style={[styles.messagePreview, isDark && { color: '#94A3B8' }, isUnread && styles.previewUnread]}
                 numberOfLines={1}
               >
                 {item.lastMessage}
@@ -204,7 +230,7 @@ export default function ChatsTab({
         {/* Streamlined Quick-Connect Call Action */}
         <View style={styles.actionsRight}>
           <TouchableOpacity
-            style={styles.quickCallBtn}
+            style={[styles.quickCallBtn, isDark && { backgroundColor: 'rgba(16, 185, 129, 0.15)', borderColor: 'rgba(16, 185, 129, 0.3)' }]}
             onPress={(e) => {
               e.stopPropagation();
               onStartCall?.(item.phone, item.name, false);
@@ -212,7 +238,7 @@ export default function ChatsTab({
             activeOpacity={0.75}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="call" size={15} color="#047857" />
+            <Ionicons name="call" size={15} color={isDark ? '#10B981' : '#047857'} />
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
@@ -220,7 +246,7 @@ export default function ChatsTab({
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isDark && { backgroundColor: '#000000' }]}>
       <FlatList
         data={chats}
         keyExtractor={(item) => item.phone}

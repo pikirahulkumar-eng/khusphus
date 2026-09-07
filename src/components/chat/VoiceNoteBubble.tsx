@@ -8,6 +8,8 @@ interface VoiceNoteBubbleProps {
   duration?: string;
   isMe: boolean;
   time: string;
+  status?: 'sent' | 'delivered' | 'read';
+  readReceipts?: boolean;
 }
 
 export default function VoiceNoteBubble({
@@ -15,6 +17,8 @@ export default function VoiceNoteBubble({
   duration = '0:05',
   isMe,
   time,
+  status = 'read',
+  readReceipts = true,
 }: VoiceNoteBubbleProps) {
   const [isPlaying, setIsPlaying] = useState(false);
 
@@ -99,12 +103,15 @@ export default function VoiceNoteBubble({
         <View style={styles.timeAndTick}>
           <Text style={[styles.timeText, isMe && { color: 'rgba(255, 255, 255, 0.75)' }]}>{time}</Text>
           {isMe && (
-            <Ionicons
-              name="checkmark-done"
-              size={14}
-              color="#38BDF8"
-              style={{ marginLeft: 3 }}
-            />
+            status === 'sent' ? (
+              <Ionicons name="checkmark" size={14} color="rgba(255, 255, 255, 0.7)" style={{ marginLeft: 3 }} />
+            ) : status === 'delivered' ? (
+              <Ionicons name="checkmark-done" size={14} color="rgba(255, 255, 255, 0.7)" style={{ marginLeft: 3 }} />
+            ) : status === 'read' && readReceipts ? (
+              <Ionicons name="checkmark-done" size={14} color="#00F2FE" style={{ marginLeft: 3 }} />
+            ) : (
+              <Ionicons name="checkmark-done" size={14} color="rgba(255, 255, 255, 0.7)" style={{ marginLeft: 3 }} />
+            )
           )}
         </View>
       </View>

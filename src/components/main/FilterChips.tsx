@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useTheme } from '../../contexts/ThemeContext';
 
 export type FilterType = 'All' | 'Unread' | 'Favourites' | 'Groups';
 
@@ -15,6 +16,7 @@ export default function FilterChips({
   onSelectFilter,
   unreadCount = 0,
 }: FilterChipsProps) {
+  const { isDark } = useTheme();
   const filterItems: { key: FilterType; label: string; icon: any }[] = [
     { key: 'All', label: 'All', icon: 'message-circle' },
     { key: 'Unread', label: 'Unread', icon: 'inbox' },
@@ -23,7 +25,7 @@ export default function FilterChips({
   ];
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isDark && { backgroundColor: '#000000', borderBottomColor: 'rgba(255, 255, 255, 0.08)' }]}>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -34,17 +36,29 @@ export default function FilterChips({
           return (
             <TouchableOpacity
               key={item.key}
-              style={[styles.pill, isActive && styles.pillActive]}
+              style={[
+                styles.pill,
+                isDark && { backgroundColor: '#161B22', borderColor: 'rgba(255, 255, 255, 0.08)' },
+                isActive && styles.pillActive,
+                isActive && isDark && { backgroundColor: 'rgba(16, 185, 129, 0.2)', borderColor: '#10B981' },
+              ]}
               onPress={() => onSelectFilter(item.key)}
               activeOpacity={0.75}
             >
               <Feather
                 name={item.icon}
                 size={13}
-                color={isActive ? '#059669' : '#64748B'}
+                color={isActive ? (isDark ? '#10B981' : '#059669') : (isDark ? '#94A3B8' : '#64748B')}
                 style={styles.pillIcon}
               />
-              <Text style={[styles.pillText, isActive && styles.pillTextActive]}>
+              <Text
+                style={[
+                  styles.pillText,
+                  isDark && { color: '#94A3B8' },
+                  isActive && styles.pillTextActive,
+                  isActive && isDark && { color: '#10B981' },
+                ]}
+              >
                 {item.label}
               </Text>
               {item.key === 'Unread' && unreadCount > 0 && (

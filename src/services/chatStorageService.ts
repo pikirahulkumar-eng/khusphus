@@ -15,15 +15,29 @@ export interface LocalMessage {
   duration?: string;
 }
 
-const getChatKey = (user1: string, user2: string) => {
+export const getChatKey = (user1: string, user2: string) => {
   // Alphabetically sorted to ensure consistent conversation thread key
   const [first, second] = [user1, user2].sort();
   return `@sunao_msgs_${first}_${second}`;
 };
 
-const getRecentKey = (phone: string) => `@sunao_recent_${phone}`;
+export const getRecentKey = (phone: string) => `@sunao_recent_${phone}`;
 
 export const ChatStorageService = {
+  /**
+   * Check if a conversation thread has ever been created or opened
+   */
+  async hasChatThread(myPhone: string, contactPhone: string): Promise<boolean> {
+    try {
+      const key = getChatKey(myPhone, contactPhone);
+      const raw = await AsyncStorage.getItem(key);
+      if (raw !== null) return true;
+      const legacyRaw = await AsyncStorage.getItem(`@khusphus_msgs_${[myPhone, contactPhone].sort().join('_')}`);
+      return legacyRaw !== null;
+    } catch {
+      return false;
+    }
+  },
   /**
    * Load local messages for a 1-on-1 chat
    */
@@ -107,7 +121,8 @@ export const ChatStorageService = {
     contactName: string,
     lastMessage: string,
     time: string,
-    isIncoming: boolean = false
+    isIncoming: boolean = false,
+    messageStatus?: 'sent' | 'delivered' | 'read'
   ): Promise<ChatItemData[]> {
     try {
       const key = getRecentKey(myPhone);
@@ -115,6 +130,8 @@ export const ChatStorageService = {
       let list: ChatItemData[] = raw ? JSON.parse(raw) : [];
 
       const existingIndex = list.findIndex((c) => c.phone === contactPhone);
+      const computedStatus = isIncoming ? undefined : (messageStatus || 'sent');
+
       if (existingIndex >= 0) {
         const existing = list[existingIndex];
         const updatedChat: ChatItemData = {
@@ -123,7 +140,7 @@ export const ChatStorageService = {
           timestamp: time,
           unreadCount: isIncoming ? (existing.unreadCount || 0) + 1 : 0,
           sentByMe: !isIncoming,
-          messageStatus: isIncoming ? undefined : 'read',
+          messageStatus: computedStatus,
         };
 
         // Move to top of the list
@@ -138,7 +155,7 @@ export const ChatStorageService = {
           timestamp: time,
           unreadCount: isIncoming ? 1 : 0,
           sentByMe: !isIncoming,
-          messageStatus: isIncoming ? undefined : 'read',
+          messageStatus: computedStatus,
         });
       }
 
@@ -172,12 +189,95 @@ export const ChatStorageService = {
   },
 
   /**
+   * Update a specific message status (sent -> delivered -> read)
+   */
+  async updateMessageStatus(
+    myPhone: string,
+    contactPhone: string,
+    messageId: string,
+    status: 'sent' | 'delivered' | 'read'
+  ): Promise<LocalMessage[]> {
+    try {
+      const key = getChatKey(myPhone, contactPhone);
+      const messages = await this.getMessages(myPhone, contactPhone);
+      let changed = false;
+      const updated = messages.map((m) => {
+        if (m.id === messageId) {
+          changed = true;
+          return { ...m, status };
+        }
+        return m;
+      });
+      if (changed) {
+        await AsyncStorage.setItem(key, JSON.stringify(updated));
+        try {
+          const recentKey = getRecentKey(myPhone);
+          const raw = await AsyncStorage.getItem(recentKey);
+          if (raw) {
+            let list: ChatItemData[] = JSON.parse(raw);
+            const chatIdx = list.findIndex((c) => c.phone === contactPhone);
+            if (chatIdx >= 0 && list[chatIdx].sentByMe) {
+              list[chatIdx].messageStatus = status;
+              await AsyncStorage.setItem(recentKey, JSON.stringify(list));
+            }
+          }
+        } catch (_) {}
+      }
+      return updated;
+    } catch (e) {
+      console.warn('[STORAGE] Error updating message status:', e);
+      return [];
+    }
+  },
+
+  /**
+   * Mark all messages sent by 'me' in a thread as 'read' or 'delivered'
+   */
+  async updateAllSentStatus(
+    myPhone: string,
+    contactPhone: string,
+    status: 'delivered' | 'read'
+  ): Promise<LocalMessage[]> {
+    try {
+      const key = getChatKey(myPhone, contactPhone);
+      const messages = await this.getMessages(myPhone, contactPhone);
+      let changed = false;
+      const updated = messages.map((m) => {
+        if (m.sender === 'me' && (status === 'read' || m.status !== 'read')) {
+          changed = true;
+          return { ...m, status };
+        }
+        return m;
+      });
+      if (changed) {
+        await AsyncStorage.setItem(key, JSON.stringify(updated));
+        try {
+          const recentKey = getRecentKey(myPhone);
+          const raw = await AsyncStorage.getItem(recentKey);
+          if (raw) {
+            let list: ChatItemData[] = JSON.parse(raw);
+            const chatIdx = list.findIndex((c) => c.phone === contactPhone);
+            if (chatIdx >= 0 && list[chatIdx].sentByMe) {
+              list[chatIdx].messageStatus = status;
+              await AsyncStorage.setItem(recentKey, JSON.stringify(list));
+            }
+          }
+        } catch (_) {}
+      }
+      return updated;
+    } catch (e) {
+      console.warn('[STORAGE] Error updating all sent status:', e);
+      return [];
+    }
+  },
+
+  /**
    * Clear all messages in a chat thread
    */
   async clearMessages(myPhone: string, contactPhone: string): Promise<void> {
     try {
       const key = getChatKey(myPhone, contactPhone);
-      await AsyncStorage.removeItem(key);
+      await AsyncStorage.setItem(key, JSON.stringify([]));
       await AsyncStorage.removeItem(`@khusphus_msgs_${[myPhone, contactPhone].sort().join('_')}`);
     } catch (e) {
       console.warn('[STORAGE] Error clearing messages:', e);

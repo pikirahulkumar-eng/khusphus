@@ -9,6 +9,8 @@ import CallModal from './src/components/CallModal';
 import { WebRTCService } from './src/services/webrtcService';
 import { RealtimeBridge } from './src/services/realtimeBridge';
 
+import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
+
 // Inject global desktop CSS for cursor pointer and desktop feel
 if (Platform.OS === 'web' && typeof document !== 'undefined') {
   const styleId = 'sunao-global-desktop-styles';
@@ -30,25 +32,25 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
   }
 }
 
-const DesktopWelcomePlaceholder = () => (
-  <View style={styles.welcomeContainer}>
-    <View style={styles.welcomeCard}>
-      <View style={styles.welcomeIconContainer}>
-        <Ionicons name="chatbubbles" size={48} color="#059669" />
+const DesktopWelcomePlaceholder = ({ isDark }: { isDark: boolean }) => (
+  <View style={[styles.welcomeContainer, isDark && { backgroundColor: '#000000' }]}>
+    <View style={[styles.welcomeCard, isDark && { backgroundColor: '#0D1117', borderColor: 'rgba(255, 255, 255, 0.12)' }]}>
+      <View style={[styles.welcomeIconContainer, isDark && { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
+        <Ionicons name="chatbubbles" size={48} color="#10B981" />
       </View>
-      <Text style={styles.welcomeTitle}>Sunao for Web & Desktop</Text>
-      <Text style={styles.welcomeSubtitle}>
+      <Text style={[styles.welcomeTitle, isDark && { color: '#FFFFFF' }]}>Sunao for Web & Desktop</Text>
+      <Text style={[styles.welcomeSubtitle, isDark && { color: '#94A3B8' }]}>
         Send and receive end-to-end encrypted messages and start instant HD audio & video calls in realtime.
       </Text>
-      <View style={styles.encryptionBadge}>
-        <Ionicons name="lock-closed" size={14} color="#059669" />
-        <Text style={styles.encryptionText}>End-to-end encrypted</Text>
+      <View style={[styles.encryptionBadge, isDark && { backgroundColor: 'rgba(16, 185, 129, 0.15)', borderColor: 'rgba(16, 185, 129, 0.3)' }]}>
+        <Ionicons name="lock-closed" size={14} color="#10B981" />
+        <Text style={[styles.encryptionText, isDark && { color: '#10B981' }]}>End-to-end encrypted</Text>
       </View>
     </View>
   </View>
 );
 
-const RootWrapper = ({ children }: any) => (
+const RootWrapper = ({ children, isDark }: any) => (
   <View
     style={[
       { flex: 1 },
@@ -60,11 +62,11 @@ const RootWrapper = ({ children }: any) => (
         overflow: 'hidden',
         borderLeftWidth: 1,
         borderRightWidth: 1,
-        borderColor: '#E2E8F0',
-        backgroundColor: '#F8FAFC',
-        shadowColor: '#0F172A',
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
+        borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : '#E2E8F0',
+        backgroundColor: isDark ? '#000000' : '#F8FAFC',
+        shadowColor: isDark ? '#000000' : '#0F172A',
+        shadowOpacity: isDark ? 0.35 : 0.08,
+        shadowRadius: 16,
       },
     ]}
   >
@@ -72,35 +74,147 @@ const RootWrapper = ({ children }: any) => (
   </View>
 );
 
-export default function App() {
+function AppMain() {
+  const { isDark, colors } = useTheme();
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width >= 768;
 
-  const [isCheckingAuth, setIsCheckingAuth] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(true);
-  const [currentUserPhone, setCurrentUserPhone] = useState('9876543210');
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
+      const loggedOut = window.localStorage.getItem('@sunao_logged_out');
+      const phone = window.localStorage.getItem('user_phone');
+      if (phone && loggedOut !== 'true') return true;
+    }
+    return false;
+  });
+  const [currentUserPhone, setCurrentUserPhone] = useState<string>(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
+      return window.localStorage.getItem('user_phone') || '';
+    }
+    return '';
+  });
+  const [currentUserName, setCurrentUserName] = useState<string>(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
+      return window.localStorage.getItem('@sunao_user_name') || window.localStorage.getItem('user_name') || '';
+    }
+    return '';
+  });
 
-  const [activeChatUser, setActiveChatUser] = useState<any>(null);
+  // Synchronous restoration on web from localStorage only — never read sensitive data from URL
+  const [activeChatUser, setActiveChatUser] = useState<any>(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      try {
+        if (window.localStorage) {
+          // Restore from localStorage; hash just tells us IF a chat was active
+          const hash = window.location.hash || '';
+          const raw = window.localStorage.getItem('@sunao_active_chat_user');
+          if (raw && hash.startsWith('#/chat')) {
+            const parsed = JSON.parse(raw);
+            if (parsed && parsed.phone) return parsed;
+          }
+        }
+      } catch (e) {}
+    }
+    return null;
+  });
 
   // WebRTC Call Session
   const [callSession, setCallSession] = useState<any>(null);
 
+  const handleOpenChat = (user: any) => {
+    setActiveChatUser(user);
+    if (user && user.phone) {
+      AsyncStorage.setItem('@sunao_active_chat_user', JSON.stringify(user)).catch(() => {});
+      // Use opaque #/chat — never expose phone number or name in URL
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.location.hash = '#/chat';
+      }
+    } else {
+      AsyncStorage.removeItem('@sunao_active_chat_user').catch(() => {});
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.location.hash = '';
+      }
+    }
+  };
+
+  const handleCloseChat = () => {
+    handleOpenChat(null);
+  };
+
   useEffect(() => {
-    const checkAuth = async () => {
+    const restoreAppState = async () => {
       try {
+        const loggedOut = await AsyncStorage.getItem('@sunao_logged_out');
         const phone = await AsyncStorage.getItem('user_phone');
-        const activePhone = phone || '9876543210';
-        setCurrentUserPhone(activePhone);
-        setIsAuthenticated(true);
-        RealtimeBridge.registerUser(activePhone);
+        const name = (await AsyncStorage.getItem('@sunao_user_name')) || (await AsyncStorage.getItem('user_name'));
+        const storedUserId = await AsyncStorage.getItem('@sunao_user_id');
+        
+        if (!phone || loggedOut === 'true') {
+          setIsAuthenticated(false);
+          setCurrentUserPhone('');
+          setCurrentUserName('');
+        } else {
+          const activePhone = phone.trim();
+          const activeName = (name && name.trim()) || 'Sunao User';
+          setCurrentUserPhone(activePhone);
+          setCurrentUserName(activeName);
+          setIsAuthenticated(true);
+          // Use opaque UUID for realtime registration, not raw phone number
+          const registerId = (storedUserId && storedUserId.trim()) || activePhone;
+          RealtimeBridge.registerUser(registerId);
+        }
+
+        // Restore active chat user if not already in state
+        const savedChat = await AsyncStorage.getItem('@sunao_active_chat_user');
+        if (savedChat) {
+          try {
+            const parsed = JSON.parse(savedChat);
+            if (parsed && parsed.phone) {
+              setActiveChatUser((curr: any) => curr || parsed);
+            }
+          } catch (e) {}
+        }
       } catch (e) {
-        console.warn('Auth check error:', e);
+        console.warn('App state restoration error:', e);
       } finally {
         setIsCheckingAuth(false);
       }
     };
-    checkAuth();
+    restoreAppState();
   }, []);
+
+  // Web Hash Route Sync (Browser Back / Forward Buttons)
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const onHashChange = async () => {
+        const hash = window.location.hash || '';
+        if (hash.startsWith('#/chat')) {
+          // Restore active chat from localStorage only — URL never contains phone/name
+          if (!activeChatUser) {
+            try {
+              const raw = await AsyncStorage.getItem('@sunao_active_chat_user');
+              if (raw) {
+                const parsed = JSON.parse(raw);
+                if (parsed && parsed.phone) {
+                  setActiveChatUser(parsed);
+                  return;
+                }
+              }
+            } catch (e) {}
+          }
+        } else if (hash === '#' || hash === '' || hash === '#/' || hash === '#/chats' || hash === '#/calls' || hash === '#/profile' || hash === '#/updates') {
+          if (activeChatUser) {
+            setActiveChatUser(null);
+            AsyncStorage.removeItem('@sunao_active_chat_user').catch(() => {});
+          }
+        }
+      };
+
+      window.addEventListener('hashchange', onHashChange);
+      return () => window.removeEventListener('hashchange', onHashChange);
+    }
+  }, [activeChatUser]);
 
   useEffect(() => {
     const unsubscribe = WebRTCService.subscribe((session) => {
@@ -113,7 +227,7 @@ export default function App() {
   useEffect(() => {
     const handleBack = () => {
       if (activeChatUser) {
-        setActiveChatUser(null);
+        handleCloseChat();
         return true;
       }
       return false;
@@ -122,12 +236,49 @@ export default function App() {
     return () => sub.remove();
   }, [activeChatUser]);
 
-  const handleLoginSuccess = async (phone: string) => {
+  const handleLoginSuccess = async (phone: string, name: string) => {
     try {
-      await AsyncStorage.setItem('user_phone', phone);
-      setCurrentUserPhone(phone);
+      const cleanPhone = phone.trim();
+      const cleanName = (name && name.trim()) || 'Sunao User';
+      const handle = `@${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'user'}`;
+
+      // Generate a permanent opaque user ID — only once, never derived from phone/name
+      let userId = '';
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
+        userId = window.localStorage.getItem('@sunao_user_id') || '';
+      }
+      if (!userId) {
+        try { userId = await AsyncStorage.getItem('@sunao_user_id') || ''; } catch (_) {}
+      }
+      if (!userId) {
+        // Cryptographically random 12-char hex ID, prefixed with 'sun_'
+        const rand = Array.from({ length: 12 }, () =>
+          Math.floor(Math.random() * 16).toString(16)
+        ).join('');
+        userId = `sun_${rand}`;
+      }
+
+      await AsyncStorage.setItem('user_phone', cleanPhone);
+      await AsyncStorage.setItem('@sunao_user_name', cleanName);
+      await AsyncStorage.setItem('user_name', cleanName);
+      await AsyncStorage.setItem('@sunao_user_handle', handle);
+      await AsyncStorage.setItem('@sunao_user_id', userId);
+      await AsyncStorage.removeItem('@sunao_logged_out');
+
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem('user_phone', cleanPhone);
+        window.localStorage.setItem('@sunao_user_name', cleanName);
+        window.localStorage.setItem('user_name', cleanName);
+        window.localStorage.setItem('@sunao_user_handle', handle);
+        window.localStorage.setItem('@sunao_user_id', userId);
+        window.localStorage.removeItem('@sunao_logged_out');
+      }
+
+      setCurrentUserPhone(cleanPhone);
+      setCurrentUserName(cleanName);
       setIsAuthenticated(true);
-      RealtimeBridge.registerUser(phone);
+      // Register with realtime server using opaque UUID, not raw phone number
+      RealtimeBridge.registerUser(userId);
     } catch (e) {
       console.error('Failed to persist session:', e);
     }
@@ -136,8 +287,27 @@ export default function App() {
   const handleLogout = async () => {
     try {
       await AsyncStorage.removeItem('user_phone');
+      await AsyncStorage.removeItem('user_name');
+      await AsyncStorage.removeItem('@sunao_user_name');
+      await AsyncStorage.removeItem('@sunao_user_handle');
+      await AsyncStorage.removeItem('@sunao_user_id');
+      await AsyncStorage.removeItem('@sunao_active_chat_user');
+      await AsyncStorage.setItem('@sunao_logged_out', 'true');
+
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.removeItem('user_phone');
+        window.localStorage.removeItem('user_name');
+        window.localStorage.removeItem('@sunao_user_name');
+        window.localStorage.removeItem('@sunao_user_handle');
+        window.localStorage.removeItem('@sunao_user_id');
+        window.localStorage.removeItem('@sunao_active_chat_user');
+        window.localStorage.setItem('@sunao_logged_out', 'true');
+        window.location.hash = '';
+      }
+
       setIsAuthenticated(false);
       setCurrentUserPhone('');
+      setCurrentUserName('');
       setActiveChatUser(null);
     } catch (e) {
       console.error('Logout error:', e);
@@ -146,7 +316,7 @@ export default function App() {
 
   const startCall = (userId: string, userName: string, isVideo: boolean) => {
     WebRTCService.startCall({
-      callerUser: { id: currentUserPhone || 'my_id', name: 'You', phone: currentUserPhone },
+      callerUser: { id: currentUserPhone || 'my_id', name: currentUserName || 'You', phone: currentUserPhone },
       targetUser: { id: userId, name: userName, phone: userId },
       type: isVideo ? 'video' : 'audio',
     });
@@ -154,8 +324,8 @@ export default function App() {
 
   if (isCheckingAuth) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF' }}>
-        <ActivityIndicator size="large" color="#008069" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: isDark ? '#000000' : '#FFFFFF' }}>
+        <ActivityIndicator size="large" color="#10B981" />
       </View>
     );
   }
@@ -167,31 +337,32 @@ export default function App() {
   // 1. Desktop Responsive Dual-Pane View (Width >= 768px on Web/Desktop)
   if (isDesktop) {
     return (
-      <View style={styles.desktopContainer}>
+      <View style={[styles.desktopContainer, isDark && { backgroundColor: '#000000' }]}>
         {/* Left Pane: Main Navigation & Chat/Call Lists */}
-        <View style={styles.desktopSidebar}>
+        <View style={[styles.desktopSidebar, isDark && { backgroundColor: '#000000', borderRightColor: 'rgba(255, 255, 255, 0.08)' }]}>
           <MainScreen
             currentUserPhone={currentUserPhone}
+            currentUserName={currentUserName}
             activeChatPhone={activeChatUser?.phone}
-            onOpenChat={(user) => setActiveChatUser(user)}
+            onOpenChat={handleOpenChat}
             onStartCall={(phone, name, isVideo) => startCall(phone, name, isVideo)}
             onLogout={handleLogout}
           />
         </View>
 
         {/* Right Pane: Active Chat Conversation or Welcome Banner */}
-        <View style={styles.desktopMainContent}>
+        <View style={[styles.desktopMainContent, isDark && { backgroundColor: '#000000' }]}>
           {activeChatUser ? (
             <ChatScreen
               chatUser={activeChatUser}
               user={activeChatUser}
               currentUserPhone={currentUserPhone}
-              onBack={() => setActiveChatUser(null)}
+              onBack={handleCloseChat}
               onStartCall={(isVideo: boolean) => startCall(activeChatUser.phone, activeChatUser.name, isVideo)}
               onCall={(isVideo: boolean) => startCall(activeChatUser.phone, activeChatUser.name, isVideo)}
             />
           ) : (
-            <DesktopWelcomePlaceholder />
+            <DesktopWelcomePlaceholder isDark={isDark} />
           )}
         </View>
 
@@ -213,12 +384,12 @@ export default function App() {
   // 2. Mobile View (< 768px)
   if (activeChatUser) {
     return (
-      <RootWrapper>
+      <RootWrapper isDark={isDark}>
         <ChatScreen
           chatUser={activeChatUser}
           user={activeChatUser}
           currentUserPhone={currentUserPhone}
-          onBack={() => setActiveChatUser(null)}
+          onBack={handleCloseChat}
           onStartCall={(isVideo: boolean) => startCall(activeChatUser.phone, activeChatUser.name, isVideo)}
           onCall={(isVideo: boolean) => startCall(activeChatUser.phone, activeChatUser.name, isVideo)}
         />
@@ -238,10 +409,11 @@ export default function App() {
   }
 
   return (
-    <RootWrapper>
+    <RootWrapper isDark={isDark}>
       <MainScreen
         currentUserPhone={currentUserPhone}
-        onOpenChat={(user) => setActiveChatUser(user)}
+        currentUserName={currentUserName}
+        onOpenChat={handleOpenChat}
         onStartCall={(phone, name, isVideo) => startCall(phone, name, isVideo)}
         onLogout={handleLogout}
       />
@@ -257,6 +429,14 @@ export default function App() {
         />
       )}
     </RootWrapper>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AppMain />
+    </ThemeProvider>
   );
 }
 

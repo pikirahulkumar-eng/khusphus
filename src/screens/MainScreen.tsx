@@ -14,10 +14,12 @@ import { SunaoTheme } from '../constants/theme';
 import { ChatStorageService } from '../services/chatStorageService';
 import { RealtimeBridge } from '../services/realtimeBridge';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface MainScreenProps {
   currentUserPhone: string;
-  onOpenChat: (user: { phone: string; name: string }) => void;
+  currentUserName?: string;
+  onOpenChat: (user: { phone: string; name: string; avatarUri?: string; about?: string }) => void;
   onStartCall: (phone: string, name: string, isVideo: boolean) => void;
   onLogout: () => void;
   activeChatPhone?: string;
@@ -25,13 +27,41 @@ interface MainScreenProps {
 
 export default function MainScreen({
   currentUserPhone,
+  currentUserName,
   onOpenChat,
   onStartCall,
   onLogout,
   activeChatPhone,
 }: MainScreenProps) {
-  const [activeNavTab, setActiveNavTab] = useState<MainNavTab>('Chats');
-  const [activeFilter, setActiveFilter] = useState<FilterType>('All');
+  const { isDark, colors } = useTheme();
+  const [activeNavTab, setActiveNavTab] = useState<MainNavTab>(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const h = (window.location.hash || '').toLowerCase();
+      if (h.includes('calls')) return 'Calls';
+      if (h.includes('profile')) return 'Profile';
+      if (h.includes('updates') || h.includes('moments')) return 'Updates';
+      if (h.includes('chats')) return 'Chats';
+
+      if (window.localStorage) {
+        const saved = window.localStorage.getItem('@sunao_active_nav_tab');
+        if (saved && ['Chats', 'Updates', 'Calls', 'Profile'].includes(saved)) {
+          return saved as MainNavTab;
+        }
+      }
+    }
+    return 'Chats';
+  });
+
+  const [activeFilter, setActiveFilter] = useState<FilterType>(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
+      const saved = window.localStorage.getItem('@sunao_active_filter');
+      if (saved && ['All', 'Unread', 'Favourites', 'Groups'].includes(saved)) {
+        return saved as FilterType;
+      }
+    }
+    return 'All';
+  });
+
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [remoteSearchResults, setRemoteSearchResults] = useState<any[]>([]);
@@ -180,8 +210,35 @@ export default function MainScreen({
     }
   };
 
-  // Chats state loaded from local-first storage
-  const [chats, setChats] = useState<ChatItemData[]>(initialChats);
+  // Navigation Tab and Filter Handlers with persistence
+  const handleNavTabChange = (tab: MainNavTab) => {
+    setActiveNavTab(tab);
+    AsyncStorage.setItem('@sunao_active_nav_tab', tab).catch(() => {});
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && !activeChatPhone) {
+      window.location.hash = `#/${tab.toLowerCase()}`;
+    }
+  };
+
+  const handleFilterChange = (filter: FilterType) => {
+    setActiveFilter(filter);
+    AsyncStorage.setItem('@sunao_active_filter', filter).catch(() => {});
+  };
+
+  // Chats state loaded from local-first storage (synchronous on web to eliminate refresh flicker)
+  const [chats, setChats] = useState<ChatItemData[]>(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const raw = window.localStorage.getItem(`@sunao_recent_${currentUserPhone}`);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
+        }
+      } catch (e) {}
+    }
+    return initialChats;
+  });
 
   // 1. Load Recent Chats from Local Storage on Mount & User Change
   useEffect(() => {
@@ -250,7 +307,12 @@ export default function MainScreen({
     setChats((prev) =>
       prev.map((c) => (c.phone === chat.phone ? { ...c, unreadCount: 0 } : c))
     );
-    onOpenChat({ phone: chat.phone, name: chat.name });
+    onOpenChat({
+      phone: chat.phone,
+      name: chat.name,
+      avatarUri: chat.avatarUri,
+      about: (chat as any).about,
+    });
   };
 
   // Filtered Chats based on chips & search
@@ -389,9 +451,13 @@ export default function MainScreen({
   }, [hasSeenUpdates, activeNavTab]);
 
   return (
-    <View style={styles.rootContainer}>
-      <SafeAreaView style={styles.topBarSafe} />
-      <StatusBar backgroundColor="transparent" barStyle="dark-content" translucent />
+    <View style={[styles.rootContainer, isDark && { backgroundColor: '#000000' }]}>
+      <SafeAreaView style={[styles.topBarSafe, isDark && { backgroundColor: '#000000' }]} />
+      <StatusBar
+        backgroundColor="transparent"
+        barStyle={isDark ? 'light-content' : 'dark-content'}
+        translucent
+      />
 
       {/* Modern Sunao Header (Chats, Calls, Updates) */}
       {activeNavTab !== 'Profile' && (
@@ -410,7 +476,7 @@ export default function MainScreen({
           onLogout={onLogout}
           onCameraPress={() => setShowCameraModal(true)}
           onOpenNewChat={() => setShowNewChatModal(true)}
-          onOpenProfile={() => setActiveNavTab('Profile')}
+          onOpenProfile={() => handleNavTabChange('Profile')}
         />
       )}
 
@@ -418,13 +484,13 @@ export default function MainScreen({
       {activeNavTab === 'Chats' && !isSearching && (
         <FilterChips
           activeFilter={activeFilter}
-          onSelectFilter={setActiveFilter}
+          onSelectFilter={handleFilterChange}
           unreadCount={totalUnreadCount}
         />
       )}
 
       {/* Tab Contents */}
-      <View style={styles.body}>
+      <View style={[styles.body, isDark && { backgroundColor: '#000000' }]}>
         {activeNavTab === 'Chats' && (
           <ChatsTab
             chats={filteredChats}
@@ -452,6 +518,7 @@ export default function MainScreen({
         {activeNavTab === 'Profile' && (
           <ProfileTab
             currentUserPhone={currentUserPhone}
+            currentUserName={currentUserName}
             onLogout={onLogout}
           />
         )}
@@ -461,7 +528,7 @@ export default function MainScreen({
       <SunaoBottomNav
         activeTab={activeNavTab}
         onTabChange={(tab) => {
-          setActiveNavTab(tab);
+          handleNavTabChange(tab);
           if (tab === 'Calls') markCallsSeen();
           if (tab === 'Updates') markUpdatesSeen();
           if (isSearching) {
@@ -474,7 +541,7 @@ export default function MainScreen({
         hasUpdatesBadge={hasUpdatesBadge}
       />
 
-      <SafeAreaView style={styles.bottomBarSafe} />
+      <SafeAreaView style={[styles.bottomBarSafe, isDark && { backgroundColor: '#000000' }]} />
 
       {/* New Chat Contact Picker Modal */}
       <NewChatModal
@@ -489,6 +556,7 @@ export default function MainScreen({
         visible={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}
         currentUserPhone={currentUserPhone}
+        currentUserName={currentUserName}
         onLogout={onLogout}
       />
 

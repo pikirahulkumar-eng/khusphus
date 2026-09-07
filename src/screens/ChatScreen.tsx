@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -17,12 +17,14 @@ import {
   Image,
 } from 'react-native';
 import { Ionicons, MaterialIcons, Feather } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { KhusPhusTheme } from '../constants/theme';
-import { ChatStorageService, LocalMessage } from '../services/chatStorageService';
+import { ChatStorageService, LocalMessage, getChatKey } from '../services/chatStorageService';
 import { RealtimeBridge } from '../services/realtimeBridge';
 import { VoiceService } from '../services/voiceRecordingService';
 import VoiceNoteBubble from '../components/chat/VoiceNoteBubble';
 import ContactProfileModal from '../components/chat/ContactProfileModal';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface ChatScreenProps {
   chatUser?: any;
@@ -35,6 +37,14 @@ interface ChatScreenProps {
 
 const QUICK_EMOJIS = ['😀', '😂', '😍', '🔥', '👍', '🙏', '🎉', '❤️', '👏', '🚀', '💯', '✨'];
 
+const WALLPAPER_COLORS: Record<string, string> = {
+  'Slate Minimalist': '#F8FAFC',
+  'Emerald Aura': '#ECFDF5',
+  'Acoustic Violet': '#FAF5FF',
+  'Midnight Dark': '#0F172A',
+  'Desert Sand': '#FEFCE8',
+};
+
 export default function ChatScreen({
   chatUser,
   user,
@@ -43,17 +53,46 @@ export default function ChatScreen({
   onStartCall,
   onCall,
 }: ChatScreenProps) {
+  const { isDark } = useTheme();
   const activeUser = chatUser || user;
   const contactPhone = activeUser?.phone || '1122334455';
   const contactName = activeUser?.name || activeUser?.phone || 'Contact';
 
-  const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState<LocalMessage[]>([]);
+  const draftKey = `@sunao_draft_${currentUserPhone}_${contactPhone}`;
+
+  const [message, setMessage] = useState(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
+      return window.localStorage.getItem(`@sunao_draft_${currentUserPhone}_${contactPhone}`) || '';
+    }
+    return '';
+  });
+
+  const [messages, setMessages] = useState<LocalMessage[]>(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const key = getChatKey(currentUserPhone, contactPhone);
+        const raw = window.localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch (e) {}
+    }
+    return [];
+  });
+
   const [isPeerTyping, setIsPeerTyping] = useState(false);
   const [showEmojiBar, setShowEmojiBar] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [showContactProfile, setShowContactProfile] = useState(false);
+
+  // In-Chat Search & Customization States
+  const [isSearchingMessages, setIsSearchingMessages] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [wallpaperTheme, setWallpaperTheme] = useState('Slate Minimalist');
+
   const typingTimeoutRef = useRef<any>(null);
   const flatListRef = useRef<FlatList>(null);
 
@@ -63,9 +102,50 @@ export default function ChatScreen({
   const timerIntervalRef = useRef<any>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
+  // Read Receipts preference (@sunao_read_receipts)
+  const [readReceiptsEnabled, setReadReceiptsEnabled] = useState<boolean>(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
+      const stored = window.localStorage.getItem('@sunao_read_receipts');
+      if (stored !== null) return stored === 'true';
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    AsyncStorage.getItem('@sunao_read_receipts').then((val) => {
+      if (val !== null) {
+        setReadReceiptsEnabled(val === 'true');
+      }
+    });
+  }, []);
+
+  // Restore Blocked Status and Wallpaper
+  useEffect(() => {
+    AsyncStorage.getItem(`@sunao_blocked_${contactPhone}`).then((val) => {
+      setIsBlocked(val === 'true');
+    });
+    AsyncStorage.getItem(`@sunao_wallpaper_${contactPhone}`).then((val) => {
+      if (val) setWallpaperTheme(val);
+    });
+  }, [contactPhone, showContactProfile]);
+
+  // Restore Draft on Mount (AsyncStorage)
+  useEffect(() => {
+    AsyncStorage.getItem(draftKey).then((savedDraft) => {
+      if (savedDraft && !message) {
+        setMessage(savedDraft);
+      }
+    });
+  }, [draftKey]);
+
   // Hardware Back Handler (Android): Navigate back to chat list instead of exiting app
   useEffect(() => {
     const onHardwareBack = () => {
+      if (isSearchingMessages) {
+        setIsSearchingMessages(false);
+        setSearchQuery('');
+        return true;
+      }
       if (showContactProfile) {
         setShowContactProfile(false);
         return true;
@@ -88,55 +168,63 @@ export default function ChatScreen({
 
     const backHandler = BackHandler.addEventListener('hardwareBackPress', onHardwareBack);
     return () => backHandler.remove();
-  }, [showContactProfile, showOptionsMenu, showAttachmentMenu, showEmojiBar, onBack]);
+  }, [isSearchingMessages, showContactProfile, showOptionsMenu, showAttachmentMenu, showEmojiBar, onBack]);
 
   // 1. Load Local Messages from Offline Storage on Mount
   useEffect(() => {
     let isMounted = true;
     const loadChatHistory = async () => {
-      const stored = await ChatStorageService.getMessages(currentUserPhone, contactPhone);
-      if (isMounted) {
-        if (stored && stored.length > 0) {
+      const threadExists = await ChatStorageService.hasChatThread(currentUserPhone, contactPhone);
+      if (threadExists) {
+        const stored = await ChatStorageService.getMessages(currentUserPhone, contactPhone);
+        if (isMounted && stored) {
           setMessages(stored);
-        } else {
-          // Default initial icebreaker message if completely new
-          const initialMsgs: LocalMessage[] = [
-            {
-              id: 'init_1',
-              senderId: contactPhone,
-              receiverId: currentUserPhone,
-              text: 'Hey! Sunao par video aur voice calling try karein? 🔥',
-              time: '10:30 AM',
-              timestamp: Date.now() - 60000,
-              sender: 'them',
-              status: 'read',
-            },
-            {
-              id: 'init_2',
-              senderId: currentUserPhone,
-              receiverId: contactPhone,
-              text: 'Haan bilkul, aawaz ekdum saaf aur instant aa rahi hai! 🚀',
-              time: '10:31 AM',
-              timestamp: Date.now() - 30000,
-              sender: 'me',
-              status: 'read',
-            },
-          ];
+        }
+      } else {
+        // Default initial icebreaker message if completely new
+        const initialMsgs: LocalMessage[] = [
+          {
+            id: 'init_1',
+            senderId: contactPhone,
+            receiverId: currentUserPhone,
+            text: 'Hey! Sunao par video aur voice calling try karein? 🔥',
+            time: '10:30 AM',
+            timestamp: Date.now() - 60000,
+            sender: 'them',
+            status: 'read',
+          },
+          {
+            id: 'init_2',
+            senderId: currentUserPhone,
+            receiverId: contactPhone,
+            text: 'Haan bilkul, aawaz ekdum saaf aur instant aa rahi hai! 🚀',
+            time: '10:31 AM',
+            timestamp: Date.now() - 30000,
+            sender: 'me',
+            status: 'read',
+          },
+        ];
+        if (isMounted) {
           setMessages(initialMsgs);
-          initialMsgs.forEach((m) => ChatStorageService.saveMessage(currentUserPhone, contactPhone, m));
+        }
+        for (const m of initialMsgs) {
+          await ChatStorageService.saveMessage(currentUserPhone, contactPhone, m);
         }
       }
       // Mark as read in recent chats list
       await ChatStorageService.markAsRead(currentUserPhone, contactPhone);
+      if (readReceiptsEnabled) {
+        RealtimeBridge.sendReadReceipt(contactPhone);
+      }
     };
 
     loadChatHistory();
     return () => {
       isMounted = false;
     };
-  }, [currentUserPhone, contactPhone]);
+  }, [currentUserPhone, contactPhone, readReceiptsEnabled]);
 
-  // 2. Listen for Real-Time Incoming Messages and Typing via Socket
+  // 2. Listen for Real-Time Incoming Messages, Receipts, and Typing via Socket
   useEffect(() => {
     const unsubscribe = RealtimeBridge.subscribe((event) => {
       if (event.type === 'CHAT_MESSAGE' && event.payload) {
@@ -164,6 +252,47 @@ export default function ChatScreen({
             true
           );
           setIsPeerTyping(false);
+
+          // Acknowledge delivery back to sender
+          RealtimeBridge.sendDeliveredReceipt(contactPhone, newIncoming.id);
+          // Acknowledge read back to sender if read receipts enabled
+          if (readReceiptsEnabled) {
+            RealtimeBridge.sendReadReceipt(contactPhone, newIncoming.id);
+          }
+        }
+      } else if (event.type === 'MESSAGE_DELIVERED' && event.payload) {
+        if (event.payload.senderId === contactPhone) {
+          const targetMsgId = event.payload.messageId;
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (m.sender === 'me' && (targetMsgId ? m.id === targetMsgId : m.status === 'sent')) {
+                return { ...m, status: 'delivered' };
+              }
+              return m;
+            })
+          );
+          if (targetMsgId) {
+            ChatStorageService.updateMessageStatus(currentUserPhone, contactPhone, targetMsgId, 'delivered');
+          } else {
+            ChatStorageService.updateAllSentStatus(currentUserPhone, contactPhone, 'delivered');
+          }
+        }
+      } else if (event.type === 'MESSAGE_READ' && event.payload) {
+        if (event.payload.senderId === contactPhone) {
+          const targetMsgId = event.payload.messageId;
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (m.sender === 'me' && (targetMsgId ? m.id === targetMsgId : true)) {
+                return { ...m, status: 'read' };
+              }
+              return m;
+            })
+          );
+          if (targetMsgId) {
+            ChatStorageService.updateMessageStatus(currentUserPhone, contactPhone, targetMsgId, 'read');
+          } else {
+            ChatStorageService.updateAllSentStatus(currentUserPhone, contactPhone, 'read');
+          }
         }
       } else if (event.type === 'USER_TYPING' && event.payload) {
         if (event.payload.senderId === contactPhone) {
@@ -180,12 +309,15 @@ export default function ChatScreen({
       unsubscribe();
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
-  }, [currentUserPhone, contactPhone, contactName]);
+  }, [currentUserPhone, contactPhone, contactName, readReceiptsEnabled]);
 
   const handleTextChange = (text: string) => {
     setMessage(text);
     if (text.length > 0) {
+      AsyncStorage.setItem(draftKey, text).catch(() => {});
       RealtimeBridge.sendTyping(contactPhone, true);
+    } else {
+      AsyncStorage.removeItem(draftKey).catch(() => {});
     }
   };
 
@@ -196,7 +328,11 @@ export default function ChatScreen({
   };
 
   const handleAddEmoji = (emoji: string) => {
-    setMessage((prev) => prev + emoji);
+    setMessage((prev) => {
+      const updated = prev + emoji;
+      AsyncStorage.setItem(draftKey, updated).catch(() => {});
+      return updated;
+    });
   };
 
   const handleClearChat = async () => {
@@ -226,12 +362,28 @@ export default function ChatScreen({
             time: formattedTime,
             timestamp: Date.now(),
             sender: 'me',
-            status: 'read',
+            status: 'sent',
           };
           setMessages((prev) => [...prev, newMsg]);
           ChatStorageService.saveMessage(currentUserPhone, contactPhone, newMsg);
-          ChatStorageService.updateRecentChat(currentUserPhone, contactPhone, contactName, fileMsgText, formattedTime, false);
+          ChatStorageService.updateRecentChat(currentUserPhone, contactPhone, contactName, fileMsgText, formattedTime, false, 'sent');
           RealtimeBridge.sendChatMessage(contactPhone, newMsg);
+
+          // Simulated receipt progression for single-device verification
+          setTimeout(async () => {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === newMsg.id && m.status === 'sent' ? { ...m, status: 'delivered' } : m))
+            );
+            await ChatStorageService.updateMessageStatus(currentUserPhone, contactPhone, newMsg.id, 'delivered');
+          }, 600);
+
+          setTimeout(async () => {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === newMsg.id && m.status === 'delivered' ? { ...m, status: 'read' } : m))
+            );
+            await ChatStorageService.updateMessageStatus(currentUserPhone, contactPhone, newMsg.id, 'read');
+          }, 1600);
+
           setTimeout(() => {
             flatListRef.current?.scrollToEnd({ animated: true });
           }, 100);
@@ -255,12 +407,13 @@ export default function ChatScreen({
       time: formattedTime,
       timestamp: Date.now(),
       sender: 'me',
-      status: 'read',
+      status: 'sent',
     };
 
     // Update UI immediately (Optimistic Update)
     setMessages((prev) => [...prev, newMsg]);
     setMessage('');
+    AsyncStorage.removeItem(draftKey).catch(() => {});
     RealtimeBridge.sendTyping(contactPhone, false);
 
     // Persist to Phone's Local Storage
@@ -271,11 +424,27 @@ export default function ChatScreen({
       contactName,
       trimmed,
       formattedTime,
-      false
+      false,
+      'sent'
     );
 
     // Emit live to peer via Socket.IO
     RealtimeBridge.sendChatMessage(contactPhone, newMsg);
+
+    // Simulated receipt progression for single-device verification
+    setTimeout(async () => {
+      setMessages((prev) =>
+        prev.map((m) => (m.id === newMsg.id && m.status === 'sent' ? { ...m, status: 'delivered' } : m))
+      );
+      await ChatStorageService.updateMessageStatus(currentUserPhone, contactPhone, newMsg.id, 'delivered');
+    }, 600);
+
+    setTimeout(async () => {
+      setMessages((prev) =>
+        prev.map((m) => (m.id === newMsg.id && m.status === 'delivered' ? { ...m, status: 'read' } : m))
+      );
+      await ChatStorageService.updateMessageStatus(currentUserPhone, contactPhone, newMsg.id, 'read');
+    }, 1600);
 
     setTimeout(() => {
       flatListRef.current?.scrollToEnd({ animated: true });
@@ -348,7 +517,7 @@ export default function ChatScreen({
         time: formattedTime,
         timestamp: Date.now(),
         sender: 'me',
-        status: 'read',
+        status: 'sent',
       };
 
       setMessages((prev) => [...prev, newVoiceMsg]);
@@ -359,10 +528,26 @@ export default function ChatScreen({
         contactName,
         '🎤 Voice message',
         formattedTime,
-        false
+        false,
+        'sent'
       );
 
       RealtimeBridge.sendChatMessage(contactPhone, newVoiceMsg);
+
+      // Simulated receipt progression for single-device verification
+      setTimeout(async () => {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === newVoiceMsg.id && m.status === 'sent' ? { ...m, status: 'delivered' } : m))
+        );
+        await ChatStorageService.updateMessageStatus(currentUserPhone, contactPhone, newVoiceMsg.id, 'delivered');
+      }, 600);
+
+      setTimeout(async () => {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === newVoiceMsg.id && m.status === 'delivered' ? { ...m, status: 'read' } : m))
+        );
+        await ChatStorageService.updateMessageStatus(currentUserPhone, contactPhone, newVoiceMsg.id, 'read');
+      }, 1600);
 
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
@@ -371,56 +556,180 @@ export default function ChatScreen({
     setRecordSeconds(0);
   };
 
+  const displayMessages = useMemo(() => {
+    if (!isSearchingMessages || !searchQuery.trim()) return messages;
+    const q = searchQuery.trim().toLowerCase();
+    return messages.filter((m) => (m.text || '').toLowerCase().includes(q));
+  }, [messages, isSearchingMessages, searchQuery]);
+
+  const chatBgColor = isDark
+    ? wallpaperTheme === 'Slate Minimalist'
+      ? '#000000'
+      : WALLPAPER_COLORS[wallpaperTheme] || '#000000'
+    : WALLPAPER_COLORS[wallpaperTheme] || '#F8FAFC';
+
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <StatusBar backgroundColor="transparent" barStyle="dark-content" translucent />
-      {/* Chat Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={onBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Ionicons name="arrow-back" size={24} color="#0F172A" />
-        </TouchableOpacity>
+    <KeyboardAvoidingView
+      style={[styles.container, isDark && { backgroundColor: '#000000' }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <StatusBar
+        backgroundColor="transparent"
+        barStyle={isDark ? 'light-content' : 'dark-content'}
+        translucent
+      />
 
-        <TouchableOpacity
-          style={styles.headerProfileTouchable}
-          onPress={() => setShowContactProfile(true)}
-          activeOpacity={0.7}
+      {/* Chat Header or In-Chat Search Header */}
+      {isSearchingMessages ? (
+        <View
+          style={[
+            styles.searchHeader,
+            isDark && {
+              backgroundColor: '#000000',
+              borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+            },
+          ]}
         >
-          <View style={styles.avatar}>
-            {activeUser?.avatarUri ? (
-              <Image source={{ uri: activeUser.avatarUri }} style={styles.avatarImg} />
-            ) : (
-              <Ionicons name="person" size={18} color="#047857" />
-            )}
-          </View>
-          <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle} numberOfLines={1}>{contactName}</Text>
-            <Text style={[styles.headerSubtitle, isPeerTyping && styles.headerSubtitleTyping]}>
-              {isPeerTyping ? 'typing...' : 'online'}
-            </Text>
-          </View>
-        </TouchableOpacity>
-
-        <View style={styles.headerIcons}>
-          <TouchableOpacity onPress={() => triggerCall(true)} style={[styles.icon, styles.iconVideo]}>
-            <Ionicons name="videocam" size={19} color="#0284C7" />
+          <TouchableOpacity
+            style={styles.searchBackBtn}
+            onPress={() => {
+              setIsSearchingMessages(false);
+              setSearchQuery('');
+            }}
+          >
+            <Ionicons name="arrow-back" size={24} color={isDark ? '#FFFFFF' : '#0F172A'} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => triggerCall(false)} style={[styles.icon, styles.iconAudio]}>
-            <Ionicons name="call" size={18} color="#047857" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.icon} onPress={() => setShowOptionsMenu(true)}>
-            <Ionicons name="ellipsis-vertical" size={18} color="#64748B" />
-          </TouchableOpacity>
+          <TextInput
+            style={[styles.searchHeaderInput, isDark && { color: '#FFFFFF' }]}
+            placeholder="Search messages in this chat..."
+            placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoFocus
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')} style={{ padding: 6 }}>
+              <Ionicons name="close-circle" size={20} color={isDark ? '#94A3B8' : '#94A3B8'} />
+            </TouchableOpacity>
+          )}
         </View>
-      </View>
+      ) : (
+        <View
+          style={[
+            styles.header,
+            isDark && {
+              backgroundColor: '#000000',
+              borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+            },
+          ]}
+        >
+          <TouchableOpacity style={styles.backBtn} onPress={onBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="arrow-back" size={24} color={isDark ? '#FFFFFF' : '#0F172A'} />
+          </TouchableOpacity>
 
-      {/* Chat Body */}
-      <View style={styles.chatBody}>
+          <TouchableOpacity
+            style={styles.headerProfileTouchable}
+            onPress={() => setShowContactProfile(true)}
+            activeOpacity={0.7}
+          >
+            <View
+              style={[
+                styles.avatar,
+                isDark && {
+                  backgroundColor: '#161B22',
+                  borderColor: 'rgba(255, 255, 255, 0.08)',
+                },
+              ]}
+            >
+              {activeUser?.avatarUri ? (
+                <Image source={{ uri: activeUser.avatarUri }} style={styles.avatarImg} />
+              ) : (
+                <Ionicons name="person" size={18} color={isDark ? '#10B981' : '#047857'} />
+              )}
+            </View>
+            <View style={styles.headerTitleContainer}>
+              <Text
+                style={[styles.headerTitle, isDark && { color: '#FFFFFF' }]}
+                numberOfLines={1}
+              >
+                {contactName}
+              </Text>
+              <Text
+                style={[
+                  styles.headerSubtitle,
+                  isDark && { color: '#94A3B8' },
+                  isPeerTyping && styles.headerSubtitleTyping,
+                ]}
+              >
+                {isPeerTyping ? 'typing...' : 'online'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          <View style={styles.headerIcons}>
+            <TouchableOpacity
+              onPress={() => triggerCall(true)}
+              style={[
+                styles.icon,
+                styles.iconVideo,
+                isDark && {
+                  backgroundColor: 'rgba(2, 132, 199, 0.15)',
+                  borderColor: 'rgba(2, 132, 199, 0.3)',
+                },
+              ]}
+            >
+              <Ionicons name="videocam" size={19} color={isDark ? '#38BDF8' : '#0284C7'} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => triggerCall(false)}
+              style={[
+                styles.icon,
+                styles.iconAudio,
+                isDark && {
+                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                  borderColor: 'rgba(16, 185, 129, 0.3)',
+                },
+              ]}
+            >
+              <Ionicons name="call" size={18} color={isDark ? '#10B981' : '#047857'} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.icon,
+                isDark && {
+                  backgroundColor: '#161B22',
+                  borderColor: 'rgba(255, 255, 255, 0.08)',
+                },
+              ]}
+              onPress={() => setShowOptionsMenu(true)}
+            >
+              <Ionicons name="ellipsis-vertical" size={18} color={isDark ? '#94A3B8' : '#64748B'} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Chat Body with Selected Wallpaper Aura */}
+      <View style={[styles.chatBody, { backgroundColor: chatBgColor }]}>
         <FlatList
           ref={flatListRef}
-          data={messages}
+          data={displayMessages}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ padding: 16 }}
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+          onContentSizeChange={() => {
+            if (!isSearchingMessages) flatListRef.current?.scrollToEnd({ animated: false });
+          }}
+          ListEmptyComponent={
+            isSearchingMessages && searchQuery.trim().length > 0 ? (
+              <View style={styles.emptySearchContainer}>
+                <Ionicons name="search-outline" size={38} color="#94A3B8" />
+                <Text style={[styles.emptySearchTitle, isDark && { color: '#FFFFFF' }]}>
+                  No messages found
+                </Text>
+                <Text style={styles.emptySearchSubtitle}>No results matching "{searchQuery}"</Text>
+              </View>
+            ) : null
+          }
           renderItem={({ item }) => {
             const isMe = item.sender === 'me';
             return (
@@ -431,23 +740,62 @@ export default function ChatScreen({
                     duration={item.duration}
                     isMe={isMe}
                     time={item.time}
+                    status={item.status}
+                    readReceipts={readReceiptsEnabled}
                   />
                 ) : (
-                  <View style={[styles.messageBubble, isMe ? styles.messageBubbleMe : styles.messageBubbleThem]}>
-                    <Text style={[styles.messageText, isMe ? styles.messageTextMe : styles.messageTextThem]}>
+                  <View
+                    style={[
+                      styles.messageBubble,
+                      isMe ? styles.messageBubbleMe : styles.messageBubbleThem,
+                      !isMe && isDark && {
+                        backgroundColor: '#161B22',
+                        borderColor: 'rgba(255, 255, 255, 0.08)',
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.messageText,
+                        isMe ? styles.messageTextMe : styles.messageTextThem,
+                        !isMe && isDark && { color: '#FFFFFF' },
+                      ]}
+                    >
                       {item.text}
                     </Text>
                     <View style={styles.messageMetaRow}>
-                      <Text style={[styles.messageTime, isMe ? styles.messageTimeMe : styles.messageTimeThem]}>
+                      <Text
+                        style={[
+                          styles.messageTime,
+                          isMe ? styles.messageTimeMe : styles.messageTimeThem,
+                          !isMe && isDark && { color: '#94A3B8' },
+                        ]}
+                      >
                         {item.time}
                       </Text>
                       {isMe && (
-                        <Ionicons
-                          name="checkmark-done"
-                          size={15}
-                          color="#38BDF8"
-                          style={{ marginLeft: 4 }}
-                        />
+                        item.status === 'read' ? (
+                          <Ionicons
+                            name="checkmark-done"
+                            size={15}
+                            color={readReceiptsEnabled ? (isDark ? '#00F2FE' : '#38BDF8') : '#94A3B8'}
+                            style={{ marginLeft: 4 }}
+                          />
+                        ) : item.status === 'delivered' ? (
+                          <Ionicons
+                            name="checkmark-done"
+                            size={15}
+                            color="#94A3B8"
+                            style={{ marginLeft: 4 }}
+                          />
+                        ) : (
+                          <Ionicons
+                            name="checkmark"
+                            size={15}
+                            color="#94A3B8"
+                            style={{ marginLeft: 4 }}
+                          />
+                        )
                       )}
                     </View>
                   </View>
@@ -459,13 +807,24 @@ export default function ChatScreen({
       </View>
 
       {/* Quick Emoji Strip */}
-      {showEmojiBar && (
-        <View style={styles.emojiBar}>
+      {showEmojiBar && !isBlocked && (
+        <View
+          style={[
+            styles.emojiBar,
+            isDark && {
+              backgroundColor: '#000000',
+              borderTopColor: 'rgba(255, 255, 255, 0.08)',
+            },
+          ]}
+        >
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.emojiScroll}>
             {QUICK_EMOJIS.map((em) => (
               <TouchableOpacity
                 key={em}
-                style={styles.emojiBtn}
+                style={[
+                  styles.emojiBtn,
+                  isDark && { backgroundColor: '#161B22' },
+                ]}
                 onPress={() => handleAddEmoji(em)}
                 activeOpacity={0.65}
               >
@@ -476,107 +835,231 @@ export default function ChatScreen({
         </View>
       )}
 
-      {/* Chat Input Footer */}
-      <View style={styles.footer}>
-        {isRecordingVoice ? (
-          <View style={styles.recordingContainer}>
-            <View style={styles.recordingIndicatorRow}>
-              <Animated.View style={[styles.recordingDot, { opacity: pulseAnim }]} />
-              <Text style={styles.recordingTimer}>
-                0:{recordSeconds < 10 ? '0' : ''}{recordSeconds}
-              </Text>
-              <Text style={styles.recordingHint}>Recording voice note...</Text>
+      {/* Blocked Contact Warning Bar or Chat Input Footer */}
+      {isBlocked ? (
+        <View
+          style={[
+            styles.blockedBar,
+            isDark && {
+              backgroundColor: '#161B22',
+              borderTopColor: 'rgba(255, 255, 255, 0.08)',
+            },
+          ]}
+        >
+          <Ionicons name="ban" size={20} color="#EF4444" style={{ marginRight: 8 }} />
+          <Text style={[styles.blockedBarText, isDark && { color: '#94A3B8' }]}>
+            This contact is blocked.
+          </Text>
+          <TouchableOpacity
+            style={styles.unblockActionBtn}
+            onPress={async () => {
+              await AsyncStorage.setItem(`@sunao_blocked_${contactPhone}`, 'false');
+              setIsBlocked(false);
+            }}
+          >
+            <Text style={styles.unblockActionText}>Unblock</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View
+          style={[
+            styles.footer,
+            isDark && {
+              backgroundColor: '#000000',
+              borderTopColor: 'rgba(255, 255, 255, 0.08)',
+            },
+          ]}
+        >
+          {isRecordingVoice ? (
+            <View
+              style={[
+                styles.recordingContainer,
+                isDark && {
+                  backgroundColor: '#161B22',
+                  borderColor: 'rgba(239, 68, 68, 0.4)',
+                },
+              ]}
+            >
+              <View style={styles.recordingIndicatorRow}>
+                <Animated.View style={[styles.recordingDot, { opacity: pulseAnim }]} />
+                <Text
+                  style={[
+                    styles.recordingTimer,
+                    isDark && { color: '#FFFFFF' },
+                  ]}
+                >
+                  0:{recordSeconds < 10 ? '0' : ''}{recordSeconds}
+                </Text>
+                <Text
+                  style={[
+                    styles.recordingHint,
+                    isDark && { color: '#94A3B8' },
+                  ]}
+                >
+                  Recording voice note...
+                </Text>
+              </View>
+
+              <View style={styles.recordingButtonsRow}>
+                <TouchableOpacity style={styles.cancelRecBtn} onPress={cancelVoiceRecording}>
+                  <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.sendRecBtn} onPress={sendVoiceRecording}>
+                  <Ionicons name="send" size={16} color="#FFFFFF" style={{ marginLeft: 2 }} />
+                </TouchableOpacity>
+              </View>
             </View>
-
-            <View style={styles.recordingButtonsRow}>
-              <TouchableOpacity style={styles.cancelRecBtn} onPress={cancelVoiceRecording}>
-                <Ionicons name="trash-outline" size={20} color="#EF4444" />
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.sendRecBtn} onPress={sendVoiceRecording}>
-                <Ionicons name="send" size={16} color="#FFFFFF" style={{ marginLeft: 2 }} />
-              </TouchableOpacity>
-            </View>
-          </View>
-        ) : (
-          <>
-            <View style={styles.inputContainer}>
-              <TouchableOpacity
-                style={styles.inputIcon}
-                onPress={() => setShowEmojiBar(!showEmojiBar)}
-                activeOpacity={0.7}
+          ) : (
+            <>
+              <View
+                style={[
+                  styles.inputContainer,
+                  isDark && {
+                    backgroundColor: '#161B22',
+                    borderColor: 'rgba(255, 255, 255, 0.08)',
+                  },
+                ]}
               >
-                <MaterialIcons name="emoji-emotions" size={24} color={showEmojiBar ? '#059669' : '#64748B'} />
-              </TouchableOpacity>
-
-              <TextInput
-                style={styles.textInput}
-                placeholder="Message..."
-                placeholderTextColor="#94A3B8"
-                value={message}
-                onChangeText={handleTextChange}
-                multiline
-                onKeyPress={(e: any) => {
-                  if (Platform.OS === 'web' && e.nativeEvent?.key === 'Enter' && !e.nativeEvent?.shiftKey) {
-                    e.preventDefault?.();
-                    sendMessage();
-                  }
-                }}
-              />
-
-              <TouchableOpacity
-                style={styles.inputIcon}
-                onPress={() => setShowAttachmentMenu(true)}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="attach" size={24} color="#64748B" style={{ transform: [{ rotate: '-45deg' }] }} />
-              </TouchableOpacity>
-
-              {message.length === 0 && (
                 <TouchableOpacity
                   style={styles.inputIcon}
-                  onPress={() => handlePickFile('image/*')}
+                  onPress={() => setShowEmojiBar(!showEmojiBar)}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="camera" size={22} color="#64748B" />
+                  <MaterialIcons
+                    name="emoji-emotions"
+                    size={24}
+                    color={showEmojiBar ? '#10B981' : isDark ? '#94A3B8' : '#64748B'}
+                  />
                 </TouchableOpacity>
-              )}
-            </View>
 
-            <TouchableOpacity
-              style={styles.sendButton}
-              onPress={message.trim().length > 0 ? sendMessage : startVoiceRecording}
-              activeOpacity={0.8}
-            >
-              {message.trim().length > 0 ? (
-                <Ionicons name="send" size={17} color="#FFFFFF" style={{ marginLeft: 2 }} />
-              ) : (
-                <Ionicons name="mic" size={20} color="#FFFFFF" />
-              )}
-            </TouchableOpacity>
-          </>
-        )}
-      </View>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    isDark && { color: '#FFFFFF' },
+                  ]}
+                  placeholder="Message..."
+                  placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
+                  value={message}
+                  onChangeText={handleTextChange}
+                  multiline
+                  onKeyPress={(e: any) => {
+                    if (Platform.OS === 'web' && e.nativeEvent?.key === 'Enter' && !e.nativeEvent?.shiftKey) {
+                      e.preventDefault?.();
+                      sendMessage();
+                    }
+                  }}
+                />
+
+                <TouchableOpacity
+                  style={styles.inputIcon}
+                  onPress={() => setShowAttachmentMenu(true)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="attach"
+                    size={24}
+                    color={isDark ? '#94A3B8' : '#64748B'}
+                    style={{ transform: [{ rotate: '-45deg' }] }}
+                  />
+                </TouchableOpacity>
+
+                {message.length === 0 && (
+                  <TouchableOpacity
+                    style={styles.inputIcon}
+                    onPress={() => handlePickFile('image/*')}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="camera" size={22} color={isDark ? '#94A3B8' : '#64748B'} />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <TouchableOpacity
+                style={[
+                  styles.sendButton,
+                  isDark && { backgroundColor: '#10B981' },
+                ]}
+                onPress={message.trim().length > 0 ? sendMessage : startVoiceRecording}
+                activeOpacity={0.8}
+              >
+                {message.trim().length > 0 ? (
+                  <Ionicons name="send" size={17} color="#FFFFFF" style={{ marginLeft: 2 }} />
+                ) : (
+                  <Ionicons name="mic" size={20} color="#FFFFFF" />
+                )}
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      )}
 
       {/* Header Options Dropdown Menu */}
       <Modal visible={showOptionsMenu} transparent animationType="fade" onRequestClose={() => setShowOptionsMenu(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setShowOptionsMenu(false)}>
-          <View style={styles.dropdownMenu}>
+          <View
+            style={[
+              styles.dropdownMenu,
+              isDark && {
+                backgroundColor: '#0D1117',
+                borderColor: 'rgba(255, 255, 255, 0.1)',
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setShowOptionsMenu(false);
+                setShowContactProfile(true);
+              }}
+            >
+              <Ionicons name="person-circle-outline" size={17} color={isDark ? '#10B981' : '#047857'} style={styles.menuItemIcon} />
+              <Text style={[styles.menuItemText, { fontWeight: '700', color: isDark ? '#10B981' : '#047857' }]}>
+                Contact Info
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setShowOptionsMenu(false);
+                setIsSearchingMessages(true);
+              }}
+            >
+              <Ionicons name="search-outline" size={17} color={isDark ? '#94A3B8' : '#334155'} style={styles.menuItemIcon} />
+              <Text style={[styles.menuItemText, isDark && { color: '#FFFFFF' }]}>Search in Chat</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity style={styles.menuItem} onPress={() => triggerCall(false)}>
-              <Ionicons name="call" size={16} color="#059669" style={styles.menuItemIcon} />
-              <Text style={styles.menuItemText}>Voice Call</Text>
+              <Ionicons name="call-outline" size={16} color={isDark ? '#10B981' : '#059669'} style={styles.menuItemIcon} />
+              <Text style={[styles.menuItemText, isDark && { color: '#FFFFFF' }]}>Voice Call</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.menuItem} onPress={() => triggerCall(true)}>
-              <Ionicons name="videocam" size={16} color="#0284C7" style={styles.menuItemIcon} />
-              <Text style={styles.menuItemText}>Video Call</Text>
+              <Ionicons name="videocam-outline" size={16} color={isDark ? '#38BDF8' : '#0284C7'} style={styles.menuItemIcon} />
+              <Text style={[styles.menuItemText, isDark && { color: '#FFFFFF' }]}>Video Call</Text>
             </TouchableOpacity>
 
-            <View style={styles.menuDivider} />
+            <View style={[styles.menuDivider, isDark && { backgroundColor: 'rgba(255, 255, 255, 0.08)' }]} />
 
             <TouchableOpacity style={styles.menuItem} onPress={handleClearChat}>
               <Ionicons name="trash-outline" size={16} color="#EF4444" style={styles.menuItemIcon} />
               <Text style={[styles.menuItemText, { color: '#EF4444' }]}>Clear History</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={async () => {
+                setShowOptionsMenu(false);
+                const next = !isBlocked;
+                setIsBlocked(next);
+                await AsyncStorage.setItem(`@sunao_blocked_${contactPhone}`, next ? 'true' : 'false');
+              }}
+            >
+              <Ionicons name="ban-outline" size={16} color={isBlocked ? '#10B981' : '#EF4444'} style={styles.menuItemIcon} />
+              <Text style={[styles.menuItemText, { color: isBlocked ? '#10B981' : '#EF4444' }]}>
+                {isBlocked ? 'Unblock Contact' : 'Block Contact'}
+              </Text>
             </TouchableOpacity>
           </View>
         </Pressable>
@@ -585,18 +1068,34 @@ export default function ChatScreen({
       {/* Attachment Options Modal */}
       <Modal visible={showAttachmentMenu} transparent animationType="fade" onRequestClose={() => setShowAttachmentMenu(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setShowAttachmentMenu(false)}>
-          <View style={styles.attachmentSheet}>
-            <Text style={styles.attachmentTitle}>Share Content</Text>
+          <View
+            style={[
+              styles.attachmentSheet,
+              isDark && {
+                backgroundColor: '#0D1117',
+                borderTopColor: 'rgba(255, 255, 255, 0.1)',
+                borderWidth: 1,
+              },
+            ]}
+          >
+            <Text style={[styles.attachmentTitle, isDark && { color: '#FFFFFF' }]}>Share Content</Text>
             <View style={styles.attachmentGrid}>
               <TouchableOpacity
                 style={styles.attachTile}
                 onPress={() => handlePickFile('image/*')}
                 activeOpacity={0.75}
               >
-                <View style={[styles.attachIconBg, { backgroundColor: '#ECFDF5' }]}>
-                  <Ionicons name="image" size={22} color="#059669" />
+                <View
+                  style={[
+                    styles.attachIconBg,
+                    {
+                      backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5',
+                    },
+                  ]}
+                >
+                  <Ionicons name="image" size={22} color={isDark ? '#10B981' : '#059669'} />
                 </View>
-                <Text style={styles.attachTileLabel}>Photo</Text>
+                <Text style={[styles.attachTileLabel, isDark && { color: '#94A3B8' }]}>Photo</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -604,10 +1103,17 @@ export default function ChatScreen({
                 onPress={() => handlePickFile('.pdf,.doc,.docx,.txt')}
                 activeOpacity={0.75}
               >
-                <View style={[styles.attachIconBg, { backgroundColor: '#EFF6FF' }]}>
-                  <Ionicons name="document-text" size={22} color="#0284C7" />
+                <View
+                  style={[
+                    styles.attachIconBg,
+                    {
+                      backgroundColor: isDark ? 'rgba(2, 132, 199, 0.15)' : '#EFF6FF',
+                    },
+                  ]}
+                >
+                  <Ionicons name="document-text" size={22} color={isDark ? '#38BDF8' : '#0284C7'} />
                 </View>
-                <Text style={styles.attachTileLabel}>Document</Text>
+                <Text style={[styles.attachTileLabel, isDark && { color: '#94A3B8' }]}>Document</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -615,10 +1121,17 @@ export default function ChatScreen({
                 onPress={() => handlePickFile('audio/*')}
                 activeOpacity={0.75}
               >
-                <View style={[styles.attachIconBg, { backgroundColor: '#FAF5FF' }]}>
-                  <Ionicons name="musical-notes" size={22} color="#A855F7" />
+                <View
+                  style={[
+                    styles.attachIconBg,
+                    {
+                      backgroundColor: isDark ? 'rgba(168, 85, 247, 0.15)' : '#FAF5FF',
+                    },
+                  ]}
+                >
+                  <Ionicons name="musical-notes" size={22} color={isDark ? '#C084FC' : '#A855F7'} />
                 </View>
-                <Text style={styles.attachTileLabel}>Audio</Text>
+                <Text style={[styles.attachTileLabel, isDark && { color: '#94A3B8' }]}>Audio</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -628,13 +1141,27 @@ export default function ChatScreen({
       {/* Contact Dossier / Profile Fullscreen Modal */}
       <ContactProfileModal
         visible={showContactProfile}
-        onClose={() => setShowContactProfile(false)}
+        onClose={() => {
+          setShowContactProfile(false);
+          AsyncStorage.getItem(`@sunao_blocked_${contactPhone}`).then((val) => {
+            setIsBlocked(val === 'true');
+          });
+          AsyncStorage.getItem(`@sunao_wallpaper_${contactPhone}`).then((val) => {
+            if (val) setWallpaperTheme(val);
+          });
+        }}
         contactName={contactName}
         contactPhone={contactPhone}
+        currentUserPhone={currentUserPhone}
         avatarUri={activeUser?.avatarUri}
         aboutText={activeUser?.about || 'Hey there! Using Sunao for HD voice & crystal clear calling. 🚀'}
         onStartCall={triggerCall}
         onClearChat={handleClearChat}
+        onOpenSearch={() => {
+          setShowContactProfile(false);
+          setIsSearchingMessages(true);
+        }}
+        onThemeChange={(theme) => setWallpaperTheme(theme)}
       />
     </KeyboardAvoidingView>
   );
@@ -940,5 +1467,71 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#334155',
+  },
+  searchHeader: {
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: Platform.OS === 'ios' ? 48 : ((StatusBar.currentHeight || 24) + 10),
+    paddingBottom: 12,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  searchBackBtn: {
+    padding: 6,
+    marginRight: 6,
+  },
+  searchHeaderInput: {
+    flex: 1,
+    fontSize: 15,
+    color: '#0F172A',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 10,
+  },
+  emptySearchContainer: {
+    paddingTop: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptySearchTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#334155',
+    marginTop: 12,
+  },
+  emptySearchSubtitle: {
+    fontSize: 13,
+    color: '#94A3B8',
+    marginTop: 4,
+  },
+  blockedBar: {
+    backgroundColor: '#FEF2F2',
+    borderTopWidth: 1,
+    borderTopColor: '#FECDD3',
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  blockedBarText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#991B1B',
+  },
+  unblockActionBtn: {
+    marginLeft: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#EF4444',
+    borderRadius: 8,
+  },
+  unblockActionText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

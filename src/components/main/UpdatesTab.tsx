@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialIcons, Feather } from '@expo/vector-icons';
 import { SunaoTheme } from '../../constants/theme';
+import { useTheme } from '../../contexts/ThemeContext';
 
 export interface StatusUpdateData {
   id: string;
@@ -51,6 +52,7 @@ interface UpdatesTabProps {
 }
 
 export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProps) {
+  const { isDark } = useTheme();
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
   const [selectedMoment, setSelectedMoment] = useState<StatusUpdateData | null>(null);
   const [showCreateMomentModal, setShowCreateMomentModal] = useState(false);
@@ -207,27 +209,43 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isDark && { backgroundColor: '#000000' }]}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Section 1: Moments Horizontal Tray */}
         <View style={styles.sectionHeader}>
           <View style={styles.sectionTitleRow}>
-            <Text style={styles.sectionTitle}>Moments</Text>
-            <View style={styles.newPill}>
-              <Text style={styles.newPillText}>24h Stories</Text>
+            <Text style={[styles.sectionTitle, isDark && { color: '#FFFFFF' }]}>Moments</Text>
+            <View
+              style={[
+                styles.newPill,
+                isDark && {
+                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                  borderColor: 'rgba(16, 185, 129, 0.3)',
+                },
+              ]}
+            >
+              <Text style={[styles.newPillText, isDark && { color: '#10B981' }]}>24h Stories</Text>
             </View>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <TouchableOpacity
-              style={styles.textStatusPillBtn}
+              style={[
+                styles.textStatusPillBtn,
+                isDark && {
+                  backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                  borderColor: 'rgba(16, 185, 129, 0.3)',
+                },
+              ]}
               onPress={() => {
                 if (onAddStatus) onAddStatus();
                 setShowCreateMomentModal(true);
               }}
               activeOpacity={0.7}
             >
-              <Feather name="edit-2" size={11} color="#059669" />
-              <Text style={styles.textStatusPillText}>Text Status</Text>
+              <Feather name="edit-2" size={11} color={isDark ? '#10B981' : '#059669'} />
+              <Text style={[styles.textStatusPillText, isDark && { color: '#10B981' }]}>
+                Text Status
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -237,7 +255,7 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
               }}
               activeOpacity={0.7}
             >
-              <Text style={styles.actionText}>+ Share</Text>
+              <Text style={[styles.actionText, isDark && { color: '#10B981' }]}>+ Share</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -249,7 +267,13 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
         >
           {/* Add Moment Card */}
           <TouchableOpacity
-            style={styles.addMomentCard}
+            style={[
+              styles.addMomentCard,
+              isDark && {
+                backgroundColor: '#0D1117',
+                borderColor: 'rgba(255, 255, 255, 0.15)',
+              },
+            ]}
             onPress={() => {
               if (onAddStatus) onAddStatus();
               setShowCreateMomentModal(true);
@@ -261,37 +285,65 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
                 source={{ uri: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150' }}
                 style={styles.addMomentAvatar}
               />
-              <View style={styles.addPlusBadge}>
+              <View
+                style={[
+                  styles.addPlusBadge,
+                  isDark && { borderColor: '#0D1117', backgroundColor: '#10B981' },
+                ]}
+              >
                 <Ionicons name="add" size={14} color="#FFF" />
               </View>
             </View>
-            <Text style={styles.addMomentName}>Your Moment</Text>
-            <Text style={styles.addMomentSub}>Voice or photo</Text>
+            <Text style={[styles.addMomentName, isDark && { color: '#FFFFFF' }]}>Your Moment</Text>
+            <Text style={[styles.addMomentSub, isDark && { color: '#94A3B8' }]}>Voice or photo</Text>
           </TouchableOpacity>
 
           {/* Friends Moments Cards */}
           {momentsList.map((item) => (
             <TouchableOpacity
               key={item.id}
-              style={styles.momentStoryCard}
+              style={[
+                styles.momentStoryCard,
+                isDark && {
+                  backgroundColor: '#0D1117',
+                  borderColor: 'rgba(255, 255, 255, 0.08)',
+                },
+              ]}
               onPress={() => {
                 if (onViewStatus) onViewStatus(item);
                 setSelectedMoment(item);
               }}
               activeOpacity={0.85}
             >
-              <View style={[styles.momentRing, item.isViewed ? styles.ringViewed : styles.ringUnread]}>
+              <View
+                style={[
+                  styles.momentRing,
+                  item.isViewed ? styles.ringViewed : styles.ringUnread,
+                  isDark &&
+                    (item.isViewed
+                      ? { borderColor: 'rgba(255, 255, 255, 0.15)' }
+                      : { borderColor: '#10B981' }),
+                ]}
+              >
                 <Image source={{ uri: item.avatarUri }} style={styles.momentAvatar} />
                 {item.type === 'voice' && (
-                  <View style={styles.voiceStoryBadge}>
+                  <View
+                    style={[
+                      styles.voiceStoryBadge,
+                      isDark && { borderColor: '#0D1117' },
+                    ]}
+                  >
                     <Ionicons name="mic" size={10} color="#FFF" />
                   </View>
                 )}
               </View>
-              <Text style={styles.momentName} numberOfLines={1}>
+              <Text
+                style={[styles.momentName, isDark && { color: '#FFFFFF' }]}
+                numberOfLines={1}
+              >
                 {item.name}
               </Text>
-              <Text style={styles.momentTime}>{item.time}</Text>
+              <Text style={[styles.momentTime, isDark && { color: '#94A3B8' }]}>{item.time}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -300,10 +352,12 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
         <View style={styles.sectionHeader}>
           <View style={styles.sectionTitleRow}>
             <View style={styles.liveRedDot} />
-            <Text style={styles.sectionTitle}>Live Audio Spaces</Text>
+            <Text style={[styles.sectionTitle, isDark && { color: '#FFFFFF' }]}>
+              Live Audio Spaces
+            </Text>
           </View>
           <TouchableOpacity onPress={() => setShowCreateSpaceModal(true)}>
-            <Text style={styles.actionText}>+ Start Space</Text>
+            <Text style={[styles.actionText, isDark && { color: '#10B981' }]}>+ Start Space</Text>
           </TouchableOpacity>
         </View>
 
@@ -311,41 +365,115 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
           {liveSpaces.map((space) => {
             const isTunedIn = activeSpaceId === space.id;
             return (
-              <View key={space.id} style={[styles.spaceCard, isTunedIn && styles.spaceCardActive]}>
+              <View
+                key={space.id}
+                style={[
+                  styles.spaceCard,
+                  isDark && {
+                    backgroundColor: '#0D1117',
+                    borderColor: 'rgba(255, 255, 255, 0.08)',
+                  },
+                  isTunedIn && [
+                    styles.spaceCardActive,
+                    isDark && {
+                      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                      borderColor: '#10B981',
+                    },
+                  ],
+                ]}
+              >
                 <View style={styles.spaceTopRow}>
-                  <View style={styles.topicBadge}>
-                    <Text style={styles.topicText}>{space.topicTag}</Text>
+                  <View
+                    style={[
+                      styles.topicBadge,
+                      isDark && { backgroundColor: '#161B22' },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.topicText,
+                        isDark && { color: '#94A3B8' },
+                      ]}
+                    >
+                      {space.topicTag}
+                    </Text>
                   </View>
-                  <View style={styles.listenerBadge}>
+                  <View
+                    style={[
+                      styles.listenerBadge,
+                      isDark && {
+                        backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                        borderColor: 'rgba(16, 185, 129, 0.3)',
+                      },
+                    ]}
+                  >
                     <Ionicons name="people" size={13} color="#10B981" />
                     <Text style={styles.listenerText}>{space.listenersCount} listening</Text>
                   </View>
                 </View>
 
-                <Text style={styles.spaceTitle}>{space.title}</Text>
+                <Text
+                  style={[
+                    styles.spaceTitle,
+                    isDark && { color: '#FFFFFF' },
+                  ]}
+                >
+                  {space.title}
+                </Text>
 
                 <View style={styles.spaceBottomRow}>
                   <View style={styles.hostInfoRow}>
                     <Image source={{ uri: space.hostAvatar }} style={styles.hostAvatar} />
                     <View>
-                      <Text style={styles.hostName}>Hosted by {space.hostName}</Text>
-                      <Text style={styles.speakersList}>
+                      <Text
+                        style={[
+                          styles.hostName,
+                          isDark && { color: '#FFFFFF' },
+                        ]}
+                      >
+                        Hosted by {space.hostName}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.speakersList,
+                          isDark && { color: '#94A3B8' },
+                        ]}
+                      >
                         Speakers: {space.speakers.join(', ')}
                       </Text>
                     </View>
                   </View>
 
                   <TouchableOpacity
-                    style={[styles.tuneInBtn, isTunedIn && styles.tunedInBtnActive]}
+                    style={[
+                      styles.tuneInBtn,
+                      isDark && {
+                        backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                        borderColor: 'rgba(16, 185, 129, 0.3)',
+                      },
+                      isTunedIn && [
+                        styles.tunedInBtnActive,
+                        isDark && { backgroundColor: '#10B981', borderColor: '#059669' },
+                      ],
+                    ]}
                     onPress={() => handleTuneIntoSpace(space)}
                     activeOpacity={0.8}
                   >
                     <Ionicons
                       name={isTunedIn ? 'radio' : 'volume-high'}
                       size={15}
-                      color={isTunedIn ? '#FFF' : '#10B981'}
+                      color={isTunedIn ? '#FFF' : isDark ? '#10B981' : '#059669'}
                     />
-                    <Text style={[styles.tuneInText, isTunedIn && styles.tunedInTextActive]}>
+                    <Text
+                      style={[
+                        styles.tuneInText,
+                        isDark && { color: '#10B981' },
+                        isTunedIn && [
+                          styles.tunedInTextActive,
+                          isDark && { color: '#FFFFFF' },
+                        ],
+                      ]}
+                    >
                       {isTunedIn ? 'Listening' : 'Tune In'}
                     </Text>
                   </TouchableOpacity>
@@ -358,36 +486,89 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
         {/* Section 3: Verified Channels */}
         <View style={styles.sectionHeader}>
           <View style={styles.sectionTitleRow}>
-            <Text style={styles.sectionTitle}>Broadcast Channels</Text>
+            <Text style={[styles.sectionTitle, isDark && { color: '#FFFFFF' }]}>
+              Broadcast Channels
+            </Text>
           </View>
           <TouchableOpacity onPress={() => toggleFollow('c2')}>
-            <Text style={styles.actionText}>Channels</Text>
+            <Text style={[styles.actionText, isDark && { color: '#10B981' }]}>Channels</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.channelsContainer}>
           {channels.map((ch) => (
-            <View key={ch.id} style={styles.channelCard}>
+            <View
+              key={ch.id}
+              style={[
+                styles.channelCard,
+                isDark && {
+                  backgroundColor: '#0D1117',
+                  borderColor: 'rgba(255, 255, 255, 0.08)',
+                },
+              ]}
+            >
               <Image source={{ uri: ch.avatarUri }} style={styles.channelAvatar} />
               <View style={styles.channelCenter}>
                 <View style={styles.channelTitleRow}>
-                  <Text style={styles.channelName}>{ch.name}</Text>
+                  <Text
+                    style={[
+                      styles.channelName,
+                      isDark && { color: '#FFFFFF' },
+                    ]}
+                  >
+                    {ch.name}
+                  </Text>
                   {ch.isVerified && (
                     <MaterialIcons name="verified" size={15} color="#10B981" style={{ marginLeft: 4 }} />
                   )}
                 </View>
-                <Text style={styles.channelDesc} numberOfLines={1}>
+                <Text
+                  style={[
+                    styles.channelDesc,
+                    isDark && { color: '#94A3B8' },
+                  ]}
+                  numberOfLines={1}
+                >
                   {ch.description}
                 </Text>
-                <Text style={styles.channelFollowers}>{ch.followers}</Text>
+                <Text
+                  style={[
+                    styles.channelFollowers,
+                    isDark && { color: '#64748B' },
+                  ]}
+                >
+                  {ch.followers}
+                </Text>
               </View>
 
               <TouchableOpacity
-                style={[styles.followBtn, ch.isFollowing && styles.followingBtn]}
+                style={[
+                  styles.followBtn,
+                  isDark && {
+                    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                    borderColor: 'rgba(16, 185, 129, 0.3)',
+                  },
+                  ch.isFollowing && [
+                    styles.followingBtn,
+                    isDark && {
+                      backgroundColor: '#161B22',
+                      borderColor: 'rgba(255, 255, 255, 0.08)',
+                    },
+                  ],
+                ]}
                 onPress={() => toggleFollow(ch.id)}
                 activeOpacity={0.75}
               >
-                <Text style={[styles.followText, ch.isFollowing && styles.followingText]}>
+                <Text
+                  style={[
+                    styles.followText,
+                    isDark && { color: '#10B981' },
+                    ch.isFollowing && [
+                      styles.followingText,
+                      isDark && { color: '#94A3B8' },
+                    ],
+                  ]}
+                >
                   {ch.isFollowing ? 'Following' : 'Follow'}
                 </Text>
               </TouchableOpacity>
@@ -437,18 +618,34 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
       {/* 2. Create New Moment Modal */}
       <Modal visible={showCreateMomentModal} transparent animationType="slide" onRequestClose={() => setShowCreateMomentModal(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setShowCreateMomentModal(false)}>
-          <View style={styles.createModalCard}>
+          <View
+            style={[
+              styles.createModalCard,
+              isDark && {
+                backgroundColor: '#0D1117',
+                borderColor: 'rgba(255, 255, 255, 0.1)',
+                borderWidth: 1,
+              },
+            ]}
+          >
             <View style={styles.createModalHeader}>
-              <Text style={styles.createModalTitle}>Share a Moment</Text>
+              <Text style={[styles.createModalTitle, isDark && { color: '#FFFFFF' }]}>Share a Moment</Text>
               <TouchableOpacity onPress={() => setShowCreateMomentModal(false)}>
-                <Ionicons name="close" size={22} color="#64748B" />
+                <Ionicons name="close" size={22} color={isDark ? '#94A3B8' : '#64748B'} />
               </TouchableOpacity>
             </View>
 
             <TextInput
-              style={styles.createInput}
+              style={[
+                styles.createInput,
+                isDark && {
+                  backgroundColor: '#161B22',
+                  borderColor: 'rgba(255, 255, 255, 0.1)',
+                  color: '#FFFFFF',
+                },
+              ]}
               placeholder="What's happening right now? Type status..."
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
               value={newMomentText}
               onChangeText={setNewMomentText}
               multiline
@@ -460,7 +657,13 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
               {['💬', '🔥', '☕', '🚀', '🏖️', '🎧', '✨', '💪', '🎉', '📸', '⚡', '💻'].map((em) => (
                 <TouchableOpacity
                   key={em}
-                  style={styles.quickEmojiBubble}
+                  style={[
+                    styles.quickEmojiBubble,
+                    isDark && {
+                      backgroundColor: '#161B22',
+                      borderColor: 'rgba(255, 255, 255, 0.08)',
+                    },
+                  ]}
                   onPress={() => setNewMomentText((prev) => prev + (prev ? ' ' : '') + em)}
                   activeOpacity={0.7}
                 >
@@ -470,7 +673,11 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
             </ScrollView>
 
             <TouchableOpacity
-              style={[styles.createSubmitBtn, !newMomentText.trim() && styles.createSubmitBtnDisabled]}
+              style={[
+                styles.createSubmitBtn,
+                isDark && { backgroundColor: '#10B981' },
+                !newMomentText.trim() && styles.createSubmitBtnDisabled,
+              ]}
               onPress={handleCreateMoment}
               disabled={!newMomentText.trim()}
               activeOpacity={0.8}
@@ -484,25 +691,45 @@ export default function UpdatesTab({ onAddStatus, onViewStatus }: UpdatesTabProp
       {/* 3. Create Audio Space Modal */}
       <Modal visible={showCreateSpaceModal} transparent animationType="slide" onRequestClose={() => setShowCreateSpaceModal(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setShowCreateSpaceModal(false)}>
-          <View style={styles.createModalCard}>
+          <View
+            style={[
+              styles.createModalCard,
+              isDark && {
+                backgroundColor: '#0D1117',
+                borderColor: 'rgba(255, 255, 255, 0.1)',
+                borderWidth: 1,
+              },
+            ]}
+          >
             <View style={styles.createModalHeader}>
-              <Text style={styles.createModalTitle}>Start Live Audio Room</Text>
+              <Text style={[styles.createModalTitle, isDark && { color: '#FFFFFF' }]}>Start Live Audio Room</Text>
               <TouchableOpacity onPress={() => setShowCreateSpaceModal(false)}>
-                <Ionicons name="close" size={22} color="#64748B" />
+                <Ionicons name="close" size={22} color={isDark ? '#94A3B8' : '#64748B'} />
               </TouchableOpacity>
             </View>
 
             <TextInput
-              style={styles.createInput}
+              style={[
+                styles.createInput,
+                isDark && {
+                  backgroundColor: '#161B22',
+                  borderColor: 'rgba(255, 255, 255, 0.1)',
+                  color: '#FFFFFF',
+                },
+              ]}
               placeholder="Room topic (e.g. Weekend Tech Talk)"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
               value={newSpaceTitle}
               onChangeText={setNewSpaceTitle}
               autoFocus
             />
 
             <TouchableOpacity
-              style={[styles.createSubmitBtn, !newSpaceTitle.trim() && styles.createSubmitBtnDisabled]}
+              style={[
+                styles.createSubmitBtn,
+                isDark && { backgroundColor: '#10B981' },
+                !newSpaceTitle.trim() && styles.createSubmitBtnDisabled,
+              ]}
               onPress={handleCreateSpace}
               disabled={!newSpaceTitle.trim()}
               activeOpacity={0.8}

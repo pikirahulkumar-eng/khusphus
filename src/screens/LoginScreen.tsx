@@ -12,27 +12,31 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { SunaoTheme } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function LoginScreen({
   onLoginSuccess,
 }: {
-  onLoginSuccess: (phone: string) => void;
+  onLoginSuccess: (phone: string, name: string) => void;
 }) {
-  const [step, setStep] = useState<'PHONE' | 'OTP'>('PHONE');
+  const { isDark } = useTheme();
+  const [step, setStep] = useState<'DETAILS' | 'OTP'>('DETAILS');
+  const [name, setName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const isDetailsValid = name.trim().length >= 2 && phoneNumber.trim().length >= 10;
+
   const handleSendOtp = async () => {
-    if (phoneNumber.length < 10) return;
+    if (!isDetailsValid) return;
     setLoading(true);
 
     // Fast seamless OTP simulation for zero friction
     setTimeout(() => {
       setLoading(false);
       setStep('OTP');
-    }, 600);
+    }, 500);
   };
 
   const handleVerifyOtp = async () => {
@@ -42,59 +46,90 @@ export default function LoginScreen({
     setTimeout(() => {
       setLoading(false);
       if (otp === '123456' || otp.length === 6) {
-        onLoginSuccess(phoneNumber);
+        onLoginSuccess(phoneNumber.trim(), name.trim());
       } else {
         Alert.alert('Invalid OTP', 'Please enter 123456 or any 6-digit code for testing.');
       }
-    }, 600);
+    }, 500);
   };
 
   if (step === 'OTP') {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, isDark && { backgroundColor: '#000000' }]}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.inner}
         >
           {/* Header Card */}
-          <View style={styles.logoBadge}>
-            <Ionicons name="shield-checkmark" size={28} color="#059669" />
+          <View
+            style={[
+              styles.logoBadge,
+              isDark && {
+                backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                borderColor: 'rgba(16, 185, 129, 0.3)',
+              },
+            ]}
+          >
+            <Ionicons name="shield-checkmark" size={28} color={isDark ? '#10B981' : '#059669'} />
           </View>
 
-          <Text style={styles.title}>Confirm Your Code</Text>
-          <Text style={styles.subtitle}>
-            We've sent a 6-digit verification code to{' '}
-            <Text style={styles.phoneHighlight}>+91 {phoneNumber}</Text>
+          <Text style={[styles.title, isDark && { color: '#FFFFFF' }]}>Confirm Your Code</Text>
+          <Text style={[styles.subtitle, isDark && { color: '#94A3B8' }]}>
+            We've sent a 6-digit verification code for{' '}
+            <Text style={[styles.phoneHighlight, isDark && { color: '#00F2FE' }]}>{name.trim()}</Text> to{' '}
+            <Text style={[styles.phoneHighlight, isDark && { color: '#10B981' }]}>+91 {phoneNumber}</Text>
           </Text>
 
           <TouchableOpacity
             style={styles.changePhoneBtn}
             onPress={() => {
-              setStep('PHONE');
+              setStep('DETAILS');
               setOtp('');
             }}
             activeOpacity={0.7}
           >
-            <Ionicons name="create-outline" size={14} color="#059669" style={{ marginRight: 4 }} />
-            <Text style={styles.changePhoneText}>Change number</Text>
+            <Ionicons name="create-outline" size={14} color={isDark ? '#10B981' : '#059669'} style={{ marginRight: 4 }} />
+            <Text style={[styles.changePhoneText, isDark && { color: '#10B981' }]}>Edit name or number</Text>
           </TouchableOpacity>
 
           {/* OTP Box */}
-          <View style={styles.cardBox}>
+          <View
+            style={[
+              styles.cardBox,
+              isDark && {
+                backgroundColor: '#0D1117',
+                borderColor: 'rgba(255, 255, 255, 0.1)',
+                shadowColor: '#000000',
+              },
+            ]}
+          >
             <TextInput
-              style={styles.otpInput}
+              style={[
+                styles.otpInput,
+                isDark && {
+                  backgroundColor: '#161B22',
+                  borderColor: 'rgba(255, 255, 255, 0.12)',
+                  color: '#FFFFFF',
+                },
+              ]}
               keyboardType="number-pad"
               maxLength={6}
               placeholder="123456"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
               value={otp}
               onChangeText={setOtp}
               autoFocus
             />
-            <Text style={styles.otpHelpText}>Enter the 6-digit code (Test OTP: 123456)</Text>
+            <Text style={[styles.otpHelpText, isDark && { color: '#64748B' }]}>
+              Enter the 6-digit code (Demo OTP: 123456)
+            </Text>
 
             <TouchableOpacity
-              style={[styles.primaryBtn, (loading || otp.length < 6) && styles.btnDisabled]}
+              style={[
+                styles.primaryBtn,
+                (loading || otp.length < 6) && styles.btnDisabled,
+                isDark && { backgroundColor: '#10B981' },
+              ]}
               onPress={handleVerifyOtp}
               disabled={loading || otp.length < 6}
               activeOpacity={0.8}
@@ -115,69 +150,130 @@ export default function LoginScreen({
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, isDark && { backgroundColor: '#000000' }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.inner}
       >
         {/* Brand Header */}
         <View style={styles.brandHero}>
-          <View style={styles.logoBadge}>
-            <Ionicons name="radio" size={32} color="#059669" />
+          <View
+            style={[
+              styles.logoBadge,
+              isDark && {
+                backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                borderColor: 'rgba(16, 185, 129, 0.3)',
+              },
+            ]}
+          >
+            <Ionicons name="radio" size={32} color={isDark ? '#10B981' : '#059669'} />
           </View>
-          <Text style={styles.brandTitle}>Sunao</Text>
-          <Text style={styles.brandSubtitle}>
+          <Text style={[styles.brandTitle, isDark && { color: '#FFFFFF' }]}>Sunao</Text>
+          <Text style={[styles.brandSubtitle, isDark && { color: '#94A3B8' }]}>
             Direct Calls & Instant Chats • 100% Private
           </Text>
         </View>
 
         {/* Auth Input Card */}
-        <View style={styles.cardBox}>
-          <Text style={styles.inputLabel}>Enter Phone Number</Text>
-          <Text style={styles.inputHelp}>
-            Connect with friends and family with instant calls and chats.
+        <View
+          style={[
+            styles.cardBox,
+            isDark && {
+              backgroundColor: '#0D1117',
+              borderColor: 'rgba(255, 255, 255, 0.1)',
+              shadowColor: '#000000',
+            },
+          ]}
+        >
+          <Text style={[styles.inputHeading, isDark && { color: '#FFFFFF' }]}>Create Your Account</Text>
+          <Text style={[styles.inputHelp, isDark && { color: '#94A3B8' }]}>
+            Enter your name and mobile number to start chatting and calling.
           </Text>
 
-          <View style={styles.phoneInputRow}>
-            <View style={styles.countryCodeBox}>
-              <Text style={styles.countryFlag}>🇮🇳</Text>
-              <Text style={styles.countryCodeText}>+91</Text>
+          {/* 1. Full Name Input */}
+          <Text style={[styles.inputLabel, isDark && { color: '#E2E8F0' }]}>Your Full Name</Text>
+          <View
+            style={[
+              styles.inputRow,
+              isDark && {
+                backgroundColor: '#161B22',
+                borderColor: 'rgba(255, 255, 255, 0.12)',
+              },
+            ]}
+          >
+            <View style={styles.inputIconBox}>
+              <Ionicons name="person-outline" size={18} color={isDark ? '#10B981' : '#059669'} />
             </View>
             <TextInput
-              style={styles.phoneInput}
+              style={[styles.textInput, isDark && { color: '#FFFFFF' }]}
+              placeholder="e.g. Rahul Sharma"
+              placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
+              value={name}
+              onChangeText={setName}
+              autoCapitalize="words"
+              autoCorrect={false}
+              autoFocus
+            />
+          </View>
+
+          {/* 2. Phone Number Input */}
+          <Text style={[styles.inputLabel, isDark && { color: '#E2E8F0' }]}>Phone Number</Text>
+          <View
+            style={[
+              styles.phoneInputRow,
+              isDark && {
+                backgroundColor: '#161B22',
+                borderColor: 'rgba(255, 255, 255, 0.12)',
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.countryCodeBox,
+                isDark && {
+                  backgroundColor: '#0D1117',
+                  borderRightColor: 'rgba(255, 255, 255, 0.12)',
+                },
+              ]}
+            >
+              <Text style={styles.countryFlag}>🇮🇳</Text>
+              <Text style={[styles.countryCodeText, isDark && { color: '#FFFFFF' }]}>+91</Text>
+            </View>
+            <TextInput
+              style={[styles.phoneInput, isDark && { color: '#FFFFFF' }]}
               keyboardType="phone-pad"
               placeholder="98765 43210"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
               maxLength={10}
               value={phoneNumber}
               onChangeText={setPhoneNumber}
-              autoFocus
             />
           </View>
 
           <TouchableOpacity
             style={[
               styles.primaryBtn,
-              (loading || phoneNumber.length < 10) && styles.btnDisabled,
+              (!isDetailsValid || loading) && styles.btnDisabled,
+              isDark && { backgroundColor: '#10B981' },
             ]}
             onPress={handleSendOtp}
-            disabled={loading || phoneNumber.length < 10}
+            disabled={!isDetailsValid || loading}
             activeOpacity={0.8}
           >
             {loading ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
               <>
-                <Text style={styles.primaryBtnText}>Continue</Text>
+                <Text style={styles.primaryBtnText}>Continue to Verify</Text>
                 <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
               </>
             )}
           </TouchableOpacity>
 
           <View style={styles.encryptionNote}>
-            <Ionicons name="lock-closed" size={13} color="#059669" style={{ marginRight: 6 }} />
-            <Text style={styles.encryptionNoteText}>
-              Private & Secure • Zero logs saved
+            <Ionicons name="lock-closed" size={13} color={isDark ? '#10B981' : '#059669'} style={{ marginRight: 6 }} />
+            <Text style={[styles.encryptionNoteText, isDark && { color: '#94A3B8' }]}>
+              Private & Secure • Zero Cloud Logs
             </Text>
           </View>
         </View>
@@ -237,8 +333,8 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
   },
-  inputLabel: {
-    fontSize: 16,
+  inputHeading: {
+    fontSize: 18,
     fontWeight: '800',
     color: '#0F172A',
     marginBottom: 4,
@@ -249,6 +345,34 @@ const styles = StyleSheet.create({
     marginBottom: 18,
     lineHeight: 17,
   },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#334155',
+    marginBottom: 6,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 16,
+    paddingHorizontal: 12,
+  },
+  inputIconBox: {
+    marginRight: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  textInput: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0F172A',
+    paddingVertical: 12,
+  },
   phoneInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -256,7 +380,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    marginBottom: 18,
+    marginBottom: 20,
     overflow: 'hidden',
   },
   countryCodeBox: {

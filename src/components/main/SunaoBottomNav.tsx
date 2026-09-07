@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../../contexts/ThemeContext';
 
 export type MainNavTab = 'Chats' | 'Calls' | 'Updates' | 'Profile';
 
@@ -19,6 +20,8 @@ export default function SunaoBottomNav({
   missedCallsCount = 0,
   hasUpdatesBadge = true,
 }: SunaoBottomNavProps) {
+  const { isDark } = useTheme();
+
   const tabs: {
     key: MainNavTab;
     label: string;
@@ -57,7 +60,15 @@ export default function SunaoBottomNav({
   ];
 
   return (
-    <View style={styles.navBar}>
+    <View
+      style={[
+        styles.navBar,
+        isDark && {
+          backgroundColor: '#000000',
+          borderTopColor: 'rgba(255, 255, 255, 0.08)',
+        },
+      ]}
+    >
       {tabs.map((tab) => {
         const isActive = activeTab === tab.key;
 
@@ -68,15 +79,34 @@ export default function SunaoBottomNav({
             onPress={() => onTabChange(tab.key)}
             activeOpacity={0.65}
           >
-            <View style={[styles.iconWrapper, isActive && styles.iconWrapperActive]}>
+            <View
+              style={[
+                styles.iconWrapper,
+                isActive && [
+                  styles.iconWrapperActive,
+                  isDark && { backgroundColor: 'rgba(16, 185, 129, 0.15)' },
+                ],
+              ]}
+            >
               <Ionicons
                 name={isActive ? tab.activeIcon : tab.inactiveIcon}
                 size={22}
-                color={isActive ? '#059669' : '#64748B'}
+                color={
+                  isActive
+                    ? '#10B981'
+                    : isDark
+                    ? '#64748B'
+                    : '#64748B'
+                }
               />
 
               {Boolean(tab.badgeCount && tab.badgeCount > 0 && !isActive) && (
-                <View style={styles.badge}>
+                <View
+                  style={[
+                    styles.badge,
+                    isDark && { borderColor: '#000000' },
+                  ]}
+                >
                   <Text style={styles.badgeText}>
                     {tab.badgeCount! > 99 ? '99+' : tab.badgeCount}
                   </Text>
@@ -84,11 +114,25 @@ export default function SunaoBottomNav({
               )}
 
               {!tab.badgeCount && tab.showDot && !isActive && (
-                <View style={styles.dotBadge} />
+                <View
+                  style={[
+                    styles.dotBadge,
+                    isDark && { borderColor: '#000000' },
+                  ]}
+                />
               )}
             </View>
 
-            <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>
+            <Text
+              style={[
+                styles.navLabel,
+                isDark && { color: '#64748B' },
+                isActive && [
+                  styles.navLabelActive,
+                  isDark && { color: '#10B981' },
+                ],
+              ]}
+            >
               {tab.label}
             </Text>
           </TouchableOpacity>

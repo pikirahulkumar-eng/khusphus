@@ -40,3 +40,15 @@ yarn-error.*
 /ios
 
 firebase-service-account.json
+
+# APK builds (local only)
+*.apk
+
+# Test screenshots (local only)
+*.png
+phone_screen*.png
+sunao_*.png
+screen_app.png
+
+# Scratch / debug scripts
+scratch_*.js

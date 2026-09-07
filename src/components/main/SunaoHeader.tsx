@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Modal, Pressable, Platform, StatusBar } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface SunaoHeaderProps {
   activeTab: string;
@@ -29,20 +30,21 @@ export default function SunaoHeader({
   onOpenNewChat,
   onOpenProfile,
 }: SunaoHeaderProps) {
+  const { isDark, toggleTheme } = useTheme();
   const [showMenu, setShowMenu] = useState(false);
   const [showSecurityModal, setShowSecurityModal] = useState(false);
 
   if (isSearching) {
     return (
-      <View style={styles.searchContainer}>
-        <View style={styles.searchBar}>
+      <View style={[styles.searchContainer, isDark && { backgroundColor: '#000000', borderBottomColor: 'rgba(255, 255, 255, 0.08)' }]}>
+        <View style={[styles.searchBar, isDark && { backgroundColor: '#161B22', borderColor: 'rgba(255, 255, 255, 0.1)' }]}>
           <TouchableOpacity onPress={onCloseSearch} style={styles.searchBackBtn}>
-            <Feather name="arrow-left" size={20} color="#059669" />
+            <Feather name="arrow-left" size={20} color={isDark ? '#10B981' : '#059669'} />
           </TouchableOpacity>
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, isDark && { color: '#FFFFFF' }]}
             placeholder="Search conversations, contacts..."
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
             value={searchQuery}
             onChangeText={onSearchChange}
             autoFocus
@@ -58,20 +60,20 @@ export default function SunaoHeader({
   }
 
   return (
-    <View style={styles.headerContainer}>
+    <View style={[styles.headerContainer, isDark && { backgroundColor: '#000000', borderBottomColor: 'rgba(255, 255, 255, 0.08)' }]}>
       <TouchableOpacity
         style={styles.leftBrand}
         onPress={onOpenProfile}
         activeOpacity={0.7}
       >
-        <View style={styles.brandIconWrapper}>
-          <MaterialCommunityIcons name="waveform" size={22} color="#047857" />
+        <View style={[styles.brandIconWrapper, isDark && { backgroundColor: 'rgba(16, 185, 129, 0.15)', borderColor: 'rgba(16, 185, 129, 0.3)' }]}>
+          <MaterialCommunityIcons name="waveform" size={22} color={isDark ? '#10B981' : '#047857'} />
         </View>
         <View>
-          <Text style={styles.brandTitle}>Sunao</Text>
-          <View style={styles.telemetryTag}>
+          <Text style={[styles.brandTitle, isDark && { color: '#FFFFFF' }]}>Sunao</Text>
+          <View style={[styles.telemetryTag, isDark && { backgroundColor: 'rgba(16, 185, 129, 0.15)', borderColor: 'rgba(16, 185, 129, 0.3)' }]}>
             <View style={styles.liveDot} />
-            <Text style={styles.telemetryText}>Online</Text>
+            <Text style={[styles.telemetryText, isDark && { color: '#10B981' }]}>Online</Text>
           </View>
         </View>
       </TouchableOpacity>
@@ -87,19 +89,25 @@ export default function SunaoHeader({
           </TouchableOpacity>
         )}
 
-        <TouchableOpacity style={styles.iconCircle} onPress={onOpenSearch}>
-          <Feather name="search" size={17} color="#475569" />
+        <TouchableOpacity
+          style={[styles.iconCircle, isDark && { backgroundColor: '#161B22', borderColor: 'rgba(255, 255, 255, 0.1)' }]}
+          onPress={onOpenSearch}
+        >
+          <Feather name="search" size={17} color={isDark ? '#94A3B8' : '#475569'} />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.iconCircle} onPress={() => setShowMenu(true)}>
-          <Feather name="more-vertical" size={17} color="#475569" />
+        <TouchableOpacity
+          style={[styles.iconCircle, isDark && { backgroundColor: '#161B22', borderColor: 'rgba(255, 255, 255, 0.1)' }]}
+          onPress={() => setShowMenu(true)}
+        >
+          <Feather name="more-vertical" size={17} color={isDark ? '#94A3B8' : '#475569'} />
         </TouchableOpacity>
       </View>
 
       {/* Modern Popover Menu */}
       <Modal visible={showMenu} transparent animationType="fade" onRequestClose={() => setShowMenu(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setShowMenu(false)}>
-          <View style={styles.dropdownMenu}>
+          <View style={[styles.dropdownMenu, isDark && { backgroundColor: '#0D1117', borderColor: 'rgba(255, 255, 255, 0.12)' }]}>
             {onOpenProfile && (
               <>
                 <TouchableOpacity
@@ -110,9 +118,9 @@ export default function SunaoHeader({
                   }}
                 >
                   <Feather name="user" size={16} color="#047857" style={styles.menuItemIcon} />
-                  <Text style={[styles.menuItemText, { fontWeight: '700', color: '#047857' }]}>My Profile</Text>
+                  <Text style={[styles.menuItemText, { fontWeight: '700', color: isDark ? '#10B981' : '#047857' }]}>My Profile</Text>
                 </TouchableOpacity>
-                <View style={styles.menuDivider} />
+                <View style={[styles.menuDivider, isDark && { backgroundColor: 'rgba(255, 255, 255, 0.08)' }]} />
               </>
             )}
 
@@ -126,9 +134,9 @@ export default function SunaoHeader({
                   }}
                 >
                   <Feather name="plus-circle" size={16} color="#059669" style={styles.menuItemIcon} />
-                  <Text style={[styles.menuItemText, { fontWeight: '700', color: '#059669' }]}>New Chat</Text>
+                  <Text style={[styles.menuItemText, { fontWeight: '700', color: isDark ? '#10B981' : '#059669' }]}>New Chat</Text>
                 </TouchableOpacity>
-                <View style={styles.menuDivider} />
+                <View style={[styles.menuDivider, isDark && { backgroundColor: 'rgba(255, 255, 255, 0.08)' }]} />
               </>
             )}
 
@@ -139,8 +147,21 @@ export default function SunaoHeader({
                 onOpenSettings();
               }}
             >
-              <Feather name="settings" size={16} color="#64748B" style={styles.menuItemIcon} />
-              <Text style={styles.menuItemText}>Preferences</Text>
+              <Feather name="settings" size={16} color={isDark ? '#94A3B8' : '#64748B'} style={styles.menuItemIcon} />
+              <Text style={[styles.menuItemText, isDark && { color: '#FFFFFF' }]}>Preferences</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setShowMenu(false);
+                toggleTheme();
+              }}
+            >
+              <Ionicons name={isDark ? 'moon' : 'sunny'} size={16} color={isDark ? '#A855F7' : '#D97706'} style={styles.menuItemIcon} />
+              <Text style={[styles.menuItemText, isDark && { color: '#FFFFFF' }]}>
+                {isDark ? 'Dark Mode: ON' : 'Dark Mode: OFF'}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -150,11 +171,11 @@ export default function SunaoHeader({
                 setShowSecurityModal(true);
               }}
             >
-              <Feather name="shield" size={16} color="#059669" style={styles.menuItemIcon} />
-              <Text style={styles.menuItemText}>Security Keys</Text>
+              <Feather name="shield" size={16} color={isDark ? '#10B981' : '#059669'} style={styles.menuItemIcon} />
+              <Text style={[styles.menuItemText, isDark && { color: '#FFFFFF' }]}>Security Keys</Text>
             </TouchableOpacity>
 
-            <View style={styles.menuDivider} />
+            <View style={[styles.menuDivider, isDark && { backgroundColor: 'rgba(255, 255, 255, 0.08)' }]} />
 
             <TouchableOpacity
               style={styles.menuItem}

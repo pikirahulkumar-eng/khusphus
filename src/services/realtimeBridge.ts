@@ -124,6 +124,14 @@ class RealtimeBridgeManager {
     this.broadcast('CHAT_MESSAGE', message, targetUserId);
   }
 
+  public sendDeliveredReceipt(targetUserId: string, messageId?: string) {
+    this.broadcast('MESSAGE_DELIVERED', { senderId: this.registeredUserId, messageId, timestamp: Date.now() }, targetUserId);
+  }
+
+  public sendReadReceipt(targetUserId: string, messageId?: string) {
+    this.broadcast('MESSAGE_READ', { senderId: this.registeredUserId, messageId, timestamp: Date.now() }, targetUserId);
+  }
+
   public sendTyping(targetUserId: string, isTyping: boolean) {
     this.broadcast('USER_TYPING', { senderId: this.registeredUserId, isTyping }, targetUserId);
   }

@@ -12,6 +12,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { useTheme } from '../../contexts/ThemeContext';
 
 export interface CallLogItem {
   id: string;
@@ -37,6 +38,7 @@ export default function CallsTab({
   onCreateCallLink,
   onOpenCallDialer,
 }: CallsTabProps) {
+  const { isDark } = useTheme();
   const [filter, setFilter] = useState<'all' | 'missed' | 'video'>('all');
   const [showDialer, setShowDialer] = useState(false);
   const [dialNumber, setDialNumber] = useState('');
@@ -117,39 +119,92 @@ export default function CallsTab({
     const isMissed = item.type === 'missed';
 
     return (
-      <View style={styles.callCard}>
+      <View
+        style={[
+          styles.callCard,
+          isDark && { backgroundColor: '#0D1117', borderColor: 'rgba(255, 255, 255, 0.08)' },
+        ]}
+      >
         {/* Squircle Avatar with Presence Indicator */}
         <View style={styles.avatarWrapper}>
           {item.avatarUri ? (
             <Image source={{ uri: item.avatarUri }} style={styles.avatarImg} />
           ) : (
-            <View style={styles.avatarFallback}>
-              <Ionicons name="person" size={24} color="#64748B" />
+            <View
+              style={[
+                styles.avatarFallback,
+                isDark && { backgroundColor: '#161B22' },
+              ]}
+            >
+              <Ionicons name="person" size={24} color={isDark ? '#94A3B8' : '#64748B'} />
             </View>
           )}
-          <View style={[styles.presenceDot, isMissed ? styles.dotMissed : styles.dotActive]} />
+          <View
+            style={[
+              styles.presenceDot,
+              isMissed ? styles.dotMissed : styles.dotActive,
+              isDark && { borderColor: '#0D1117' },
+            ]}
+          />
         </View>
 
         {/* Contact Info & Meta */}
         <View style={styles.cardCenter}>
           <View style={styles.nameRow}>
-            <Text style={styles.contactName} numberOfLines={1}>
+            <Text
+              style={[
+                styles.contactName,
+                isDark && { color: '#FFFFFF' },
+              ]}
+              numberOfLines={1}
+            >
               {item.name}
             </Text>
             {item.count && item.count > 1 ? (
-              <View style={styles.countPill}>
-                <Text style={styles.countPillText}>{item.count}</Text>
+              <View
+                style={[
+                  styles.countPill,
+                  isDark && { backgroundColor: '#161B22' },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.countPillText,
+                    isDark && { color: '#94A3B8' },
+                  ]}
+                >
+                  {item.count}
+                </Text>
               </View>
             ) : null}
           </View>
 
           <View style={styles.metaRow}>
             {renderDirectionBadge(item.type)}
-            <Text style={styles.callTime}>{item.time}</Text>
+            <Text
+              style={[
+                styles.callTime,
+                isDark && { color: '#94A3B8' },
+              ]}
+            >
+              {item.time}
+            </Text>
             {item.isVideo && (
-              <View style={styles.videoBadge}>
-                <Ionicons name="videocam" size={12} color="#0284C7" />
-                <Text style={styles.videoBadgeText}>Video</Text>
+              <View
+                style={[
+                  styles.videoBadge,
+                  isDark && { backgroundColor: 'rgba(2, 132, 199, 0.15)' },
+                ]}
+              >
+                <Ionicons name="videocam" size={12} color={isDark ? '#38BDF8' : '#0284C7'} />
+                <Text
+                  style={[
+                    styles.videoBadgeText,
+                    isDark && { color: '#38BDF8' },
+                  ]}
+                >
+                  Video
+                </Text>
               </View>
             )}
           </View>
@@ -158,19 +213,32 @@ export default function CallsTab({
         {/* Action Buttons: 1-Tap Voice or Video Call */}
         <View style={styles.actionsRight}>
           <TouchableOpacity
-            style={styles.circleActionBtn}
+            style={[
+              styles.circleActionBtn,
+              isDark && {
+                backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                borderColor: 'rgba(16, 185, 129, 0.3)',
+              },
+            ]}
             onPress={() => onStartCall(item.phone, item.name, false)}
             activeOpacity={0.7}
           >
-            <Ionicons name="call" size={16} color="#059669" />
+            <Ionicons name="call" size={16} color={isDark ? '#10B981' : '#059669'} />
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.circleActionBtn, styles.videoCircleBtn]}
+            style={[
+              styles.circleActionBtn,
+              styles.videoCircleBtn,
+              isDark && {
+                backgroundColor: 'rgba(2, 132, 199, 0.12)',
+                borderColor: 'rgba(2, 132, 199, 0.3)',
+              },
+            ]}
             onPress={() => onStartCall(item.phone, item.name, true)}
             activeOpacity={0.7}
           >
-            <Ionicons name="videocam" size={17} color="#0284C7" />
+            <Ionicons name="videocam" size={17} color={isDark ? '#38BDF8' : '#0284C7'} />
           </TouchableOpacity>
         </View>
       </View>
@@ -178,7 +246,7 @@ export default function CallsTab({
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isDark && { backgroundColor: '#000000' }]}>
       <FlatList
         data={filteredCalls}
         keyExtractor={(item) => item.id}
@@ -190,64 +258,197 @@ export default function CallsTab({
             <View style={styles.quickTilesRow}>
               {/* Tile 1: Create Shareable Call Link */}
               <TouchableOpacity
-                style={styles.quickTile}
+                style={[
+                  styles.quickTile,
+                  isDark && {
+                    backgroundColor: '#0D1117',
+                    borderColor: 'rgba(255, 255, 255, 0.08)',
+                  },
+                ]}
                 onPress={handleCopyCallLink}
                 activeOpacity={0.75}
               >
-                <View style={[styles.tileIconBg, { backgroundColor: '#ECFDF5' }]}>
-                  <Ionicons name={copiedLink ? 'checkmark' : 'link'} size={20} color="#059669" />
+                <View
+                  style={[
+                    styles.tileIconBg,
+                    {
+                      backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5',
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name={copiedLink ? 'checkmark' : 'link'}
+                    size={20}
+                    color={isDark ? '#10B981' : '#059669'}
+                  />
                 </View>
                 <View style={styles.tileTextCol}>
-                  <Text style={styles.tileTitle}>
+                  <Text
+                    style={[
+                      styles.tileTitle,
+                      isDark && { color: '#FFFFFF' },
+                    ]}
+                  >
                     {copiedLink ? 'Link Copied!' : 'New Call Link'}
                   </Text>
-                  <Text style={styles.tileSub}>Share link to invite</Text>
+                  <Text
+                    style={[
+                      styles.tileSub,
+                      isDark && { color: '#94A3B8' },
+                    ]}
+                  >
+                    Share link to invite
+                  </Text>
                 </View>
               </TouchableOpacity>
 
               {/* Tile 2: Open Keypad / Direct Dial */}
               <TouchableOpacity
-                style={styles.quickTile}
+                style={[
+                  styles.quickTile,
+                  isDark && {
+                    backgroundColor: '#0D1117',
+                    borderColor: 'rgba(255, 255, 255, 0.08)',
+                  },
+                ]}
                 onPress={() => setShowDialer(true)}
                 activeOpacity={0.75}
               >
-                <View style={[styles.tileIconBg, { backgroundColor: '#EFF6FF' }]}>
-                  <Ionicons name="keypad" size={20} color="#0284C7" />
+                <View
+                  style={[
+                    styles.tileIconBg,
+                    {
+                      backgroundColor: isDark ? 'rgba(2, 132, 199, 0.15)' : '#EFF6FF',
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name="keypad"
+                    size={20}
+                    color={isDark ? '#38BDF8' : '#0284C7'}
+                  />
                 </View>
                 <View style={styles.tileTextCol}>
-                  <Text style={styles.tileTitle}>Keypad</Text>
-                  <Text style={styles.tileSub}>Dial any number</Text>
+                  <Text
+                    style={[
+                      styles.tileTitle,
+                      isDark && { color: '#FFFFFF' },
+                    ]}
+                  >
+                    Keypad
+                  </Text>
+                  <Text
+                    style={[
+                      styles.tileSub,
+                      isDark && { color: '#94A3B8' },
+                    ]}
+                  >
+                    Dial any number
+                  </Text>
                 </View>
               </TouchableOpacity>
             </View>
 
             {/* Segmented Filter Pills */}
             <View style={styles.filterRow}>
-              <Text style={styles.sectionHeading}>Call History</Text>
+              <Text
+                style={[
+                  styles.sectionHeading,
+                  isDark && { color: '#FFFFFF' },
+                ]}
+              >
+                Call History
+              </Text>
               <View style={styles.filterPills}>
                 <TouchableOpacity
-                  style={[styles.pillBtn, filter === 'all' && styles.pillActive]}
+                  style={[
+                    styles.pillBtn,
+                    isDark && {
+                      backgroundColor: '#161B22',
+                      borderColor: 'rgba(255, 255, 255, 0.08)',
+                    },
+                    filter === 'all' && [
+                      styles.pillActive,
+                      isDark && {
+                        backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                        borderColor: '#10B981',
+                      },
+                    ],
+                  ]}
                   onPress={() => setFilter('all')}
                 >
-                  <Text style={[styles.pillText, filter === 'all' && styles.pillTextActive]}>
+                  <Text
+                    style={[
+                      styles.pillText,
+                      isDark && { color: '#94A3B8' },
+                      filter === 'all' && [
+                        styles.pillTextActive,
+                        isDark && { color: '#10B981' },
+                      ],
+                    ]}
+                  >
                     All ({calls.length})
                   </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.pillBtn, filter === 'missed' && styles.pillActive]}
+                  style={[
+                    styles.pillBtn,
+                    isDark && {
+                      backgroundColor: '#161B22',
+                      borderColor: 'rgba(255, 255, 255, 0.08)',
+                    },
+                    filter === 'missed' && [
+                      styles.pillActive,
+                      isDark && {
+                        backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                        borderColor: '#10B981',
+                      },
+                    ],
+                  ]}
                   onPress={() => setFilter('missed')}
                 >
-                  <Text style={[styles.pillText, filter === 'missed' && styles.pillTextActive]}>
+                  <Text
+                    style={[
+                      styles.pillText,
+                      isDark && { color: '#94A3B8' },
+                      filter === 'missed' && [
+                        styles.pillTextActive,
+                        isDark && { color: '#10B981' },
+                      ],
+                    ]}
+                  >
                     Missed
                   </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.pillBtn, filter === 'video' && styles.pillActive]}
+                  style={[
+                    styles.pillBtn,
+                    isDark && {
+                      backgroundColor: '#161B22',
+                      borderColor: 'rgba(255, 255, 255, 0.08)',
+                    },
+                    filter === 'video' && [
+                      styles.pillActive,
+                      isDark && {
+                        backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                        borderColor: '#10B981',
+                      },
+                    ],
+                  ]}
                   onPress={() => setFilter('video')}
                 >
-                  <Text style={[styles.pillText, filter === 'video' && styles.pillTextActive]}>
+                  <Text
+                    style={[
+                      styles.pillText,
+                      isDark && { color: '#94A3B8' },
+                      filter === 'video' && [
+                        styles.pillTextActive,
+                        isDark && { color: '#10B981' },
+                      ],
+                    ]}
+                  >
                     Video
                   </Text>
                 </TouchableOpacity>
@@ -256,16 +457,44 @@ export default function CallsTab({
           </View>
         }
         ListEmptyComponent={
-          <View style={styles.emptyCard}>
-            <View style={styles.emptyIconBg}>
-              <Ionicons name="call-outline" size={40} color="#94A3B8" />
+          <View
+            style={[
+              styles.emptyCard,
+              isDark && {
+                backgroundColor: '#0D1117',
+                borderColor: 'rgba(255, 255, 255, 0.08)',
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.emptyIconBg,
+                isDark && { backgroundColor: '#161B22' },
+              ]}
+            >
+              <Ionicons name="call-outline" size={40} color={isDark ? '#64748B' : '#94A3B8'} />
             </View>
-            <Text style={styles.emptyTitle}>No call records</Text>
-            <Text style={styles.emptySubtitle}>
+            <Text
+              style={[
+                styles.emptyTitle,
+                isDark && { color: '#FFFFFF' },
+              ]}
+            >
+              No call records
+            </Text>
+            <Text
+              style={[
+                styles.emptySubtitle,
+                isDark && { color: '#94A3B8' },
+              ]}
+            >
               Make free voice and video calls with your friends and family.
             </Text>
             <TouchableOpacity
-              style={styles.emptyDialBtn}
+              style={[
+                styles.emptyDialBtn,
+                isDark && { backgroundColor: '#10B981' },
+              ]}
               onPress={() => setShowDialer(true)}
               activeOpacity={0.8}
             >
@@ -287,36 +516,48 @@ export default function CallsTab({
 
       {/* Interactive Dialpad Modal */}
       <Modal visible={showDialer} animationType="slide" transparent>
-        <View style={styles.dialerModalBackdrop}>
-          <View style={styles.dialerCard}>
+        <View style={[styles.dialerModalBackdrop, isDark && { backgroundColor: 'rgba(0, 0, 0, 0.75)' }]}>
+          <View style={[styles.dialerCard, isDark && { backgroundColor: '#0D1117', borderColor: 'rgba(255, 255, 255, 0.1)', borderWidth: 1 }]}>
             {/* Header */}
             <View style={styles.dialerHeader}>
-              <Text style={styles.dialerTitle}>Keypad</Text>
+              <Text style={[styles.dialerTitle, isDark && { color: '#FFFFFF' }]}>Keypad</Text>
               <TouchableOpacity
                 onPress={() => setShowDialer(false)}
                 style={styles.closeDialerBtn}
               >
-                <Ionicons name="close" size={22} color="#64748B" />
+                <Ionicons name="close" size={22} color={isDark ? '#94A3B8' : '#64748B'} />
               </TouchableOpacity>
             </View>
 
             {/* Number Display */}
-            <View style={[styles.displayContainer, Boolean(dialError) && styles.displayContainerError]}>
+            <View
+              style={[
+                styles.displayContainer,
+                isDark && {
+                  backgroundColor: '#161B22',
+                  borderColor: 'rgba(255, 255, 255, 0.1)',
+                },
+                Boolean(dialError) && styles.displayContainerError,
+              ]}
+            >
               <TextInput
-                style={styles.numberInput}
+                style={[
+                  styles.numberInput,
+                  isDark && { color: '#FFFFFF' },
+                ]}
                 value={dialNumber}
                 onChangeText={(val) => {
                   setDialError('');
                   setDialNumber(val.replace(/[^0-9*#+]/g, ''));
                 }}
                 placeholder="Enter phone number..."
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
                 keyboardType="phone-pad"
                 autoFocus
               />
               {dialNumber.length > 0 && (
                 <TouchableOpacity onPress={handleBackspace} style={styles.backspaceBtn}>
-                  <Ionicons name="backspace-outline" size={24} color="#64748B" />
+                  <Ionicons name="backspace-outline" size={24} color={isDark ? '#94A3B8' : '#64748B'} />
                 </TouchableOpacity>
               )}
             </View>
@@ -337,11 +578,14 @@ export default function CallsTab({
                   {row.map((digit) => (
                     <TouchableOpacity
                       key={digit}
-                      style={styles.keyBtn}
+                      style={[
+                        styles.keyBtn,
+                        isDark && { backgroundColor: '#161B22' },
+                      ]}
                       onPress={() => handleDialPress(digit)}
                       activeOpacity={0.6}
                     >
-                      <Text style={styles.keyDigit}>{digit}</Text>
+                      <Text style={[styles.keyDigit, isDark && { color: '#FFFFFF' }]}>{digit}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
