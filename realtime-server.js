@@ -1,3 +1,10 @@
+process.on('uncaughtException', (err) => {
+  console.error('[UNCAUGHT_EXCEPTION]', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[UNHANDLED_REJECTION]', reason);
+});
+
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -367,6 +374,6 @@ if (fs.existsSync(distPath)) {
 }
 
 const PORT = process.env.PORT || 10000;
-server.listen(PORT, () => {
-  console.log(`Sunao Signaling Server running on port ${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Sunao Signaling Server running on 0.0.0.0:${PORT}`);
 });
