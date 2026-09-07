@@ -55,8 +55,9 @@
     "build:web": "expo export -p web",
     "web:serve": "node realtime-server.js",
     "desktop:build": "electron-builder --win --x64",
-    "server": "node realtime-server.js",
-    "build": "echo 'Render build completed'"
+    "build": "echo 'Render build completed'",
+    "eas:build:apk": "eas build -p android --profile preview",
+    "eas:build:prod": "eas build -p android --profile production"
   },
   "engines": {
     "node": ">=18.0.0"
