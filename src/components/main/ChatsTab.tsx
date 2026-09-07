@@ -6,8 +6,9 @@ import {
   FlatList,
   TouchableOpacity,
   Image,
+  ScrollView,
 } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 
 export interface ChatItemData {
   phone: string;
@@ -38,25 +39,66 @@ export default function ChatsTab({
   chats,
   onSelectChat,
   onOpenNewChat,
-  onArchivedPress,
-  archivedCount = 0,
+  onStartCall,
   activeChatPhone,
 }: ChatsTabProps) {
-  const renderArchivedHeader = () => {
+  // Top Active Contacts / Presence Rail
+  const renderActivePresenceHeader = () => {
+    const activeContacts = chats.slice(0, 6);
+
     return (
-      <TouchableOpacity
-        style={styles.archivedRow}
-        onPress={onArchivedPress || onOpenNewChat}
-        activeOpacity={0.7}
-      >
-        <View style={styles.archivedLeft}>
-          <Ionicons name="archive-outline" size={20} color="#54656F" style={styles.archivedIcon} />
-          <Text style={styles.archivedText}>Archived</Text>
+      <View style={styles.presenceSection}>
+        <View style={styles.presenceHeaderRow}>
+          <View style={styles.presenceTitleGroup}>
+            <View style={styles.activeDot} />
+            <Text style={styles.presenceTitle}>ACTIVE CONTACTS</Text>
+          </View>
+          <Text style={styles.presenceCount}>{chats.length} Available</Text>
         </View>
-        {archivedCount > 0 && (
-          <Text style={styles.archivedCount}>{archivedCount}</Text>
-        )}
-      </TouchableOpacity>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.presenceScroll}
+        >
+          {/* Quick New Conversation action tile */}
+          <TouchableOpacity
+            style={styles.presenceCard}
+            onPress={onOpenNewChat}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.presenceAvatarWrapper, styles.newChatPresenceWrapper]}>
+              <Ionicons name="add" size={22} color="#059669" />
+            </View>
+            <Text style={[styles.presenceName, styles.newChatPresenceText]} numberOfLines={1}>
+              New Chat
+            </Text>
+          </TouchableOpacity>
+
+          {activeContacts.map((c) => (
+            <TouchableOpacity
+              key={c.phone}
+              style={styles.presenceCard}
+              onPress={() => onSelectChat(c)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.presenceAvatarWrapper}>
+                {c.avatarUri ? (
+                  <Image source={{ uri: c.avatarUri }} style={styles.presenceAvatar} />
+                ) : (
+                  <View style={[styles.presenceAvatar, styles.presenceFallback]}>
+                    <Text style={styles.avatarInitial}>{c.name.charAt(0)}</Text>
+                  </View>
+                )}
+                <View style={styles.activePulseRing} />
+              </View>
+              <Text style={styles.presenceName} numberOfLines={1}>
+                {c.name.split(' ')[0]}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
     );
   };
 
@@ -67,101 +109,95 @@ export default function ChatsTab({
     return (
       <TouchableOpacity
         style={[
-          styles.chatRow,
-          isSelected && styles.chatRowSelected,
+          styles.chatCard,
+          isUnread && styles.chatCardUnread,
+          isSelected && styles.chatCardSelected,
         ]}
         onPress={() => onSelectChat(item)}
-        activeOpacity={0.7}
+        activeOpacity={0.75}
       >
-        {/* Avatar with optional Status Story Ring */}
-        <View style={[styles.avatarWrapper, item.hasStatusStory && styles.statusRing]}>
+        {/* Squircle Avatar with Status Ring */}
+        <View style={styles.avatarWrapper}>
           {item.avatarUri ? (
-            <Image source={{ uri: item.avatarUri }} style={styles.avatar} />
+            <Image source={{ uri: item.avatarUri }} style={styles.avatarImage} />
           ) : (
-            <View style={[styles.avatar, styles.avatarFallback]}>
+            <View style={[styles.avatarImage, styles.avatarFallback]}>
               {item.isGroup ? (
-                <Ionicons name="people" size={24} color="#667781" />
+                <Ionicons name="people" size={22} color="#64748B" />
               ) : (
-                <Text style={styles.avatarInitial}>{item.name.charAt(0).toUpperCase()}</Text>
+                <Text style={styles.avatarInitialLarge}>{item.name.charAt(0)}</Text>
               )}
             </View>
           )}
+          <View style={styles.onlineDot} />
         </View>
 
-        {/* Chat Details Area with Hairline Divider */}
-        <View style={styles.chatDetails}>
-          {/* Top Line: Contact Name & Timestamp */}
-          <View style={styles.topLine}>
-            <View style={styles.nameContainer}>
-              <Text
-                style={[styles.nameText, isUnread && styles.nameUnread]}
-                numberOfLines={1}
-              >
+        {/* Center Details */}
+        <View style={styles.chatCenter}>
+          {/* Top Row: Name + Group Pill + Timestamp */}
+          <View style={styles.topRow}>
+            <View style={styles.nameGroup}>
+              <Text style={[styles.contactName, isUnread && styles.nameUnread]} numberOfLines={1}>
                 {item.name}
               </Text>
-            </View>
-            <Text
-              style={[
-                styles.timeText,
-                isUnread && styles.timeUnread,
-              ]}
-            >
-              {item.timestamp}
-            </Text>
-          </View>
-
-          {/* Bottom Line: Read Receipt + Message Snippet + Unread/Pinned Badges */}
-          <View style={styles.bottomLine}>
-            <View style={styles.previewContainer}>
-              {item.sentByMe && (
-                <View style={styles.tickContainer}>
-                  {item.messageStatus === 'read' ? (
-                    <Ionicons name="checkmark-done" size={16} color="#53BDEB" />
-                  ) : item.messageStatus === 'delivered' ? (
-                    <Ionicons name="checkmark-done" size={16} color="#8696A0" />
-                  ) : (
-                    <Ionicons name="checkmark" size={16} color="#8696A0" />
-                  )}
+              {item.isGroup && (
+                <View style={styles.groupBadge}>
+                  <Text style={styles.groupBadgeText}>Group</Text>
                 </View>
               )}
-              <Text
-                style={[
-                  styles.previewText,
-                  isUnread && styles.previewUnread,
-                ]}
-                numberOfLines={1}
-              >
-                {item.lastMessage}
+            </View>
+
+            <View style={styles.timeGroup}>
+              {item.isPinned && (
+                <Ionicons name="pin" size={12} color="#94A3B8" style={{ marginRight: 4 }} />
+              )}
+              <Text style={[styles.timestamp, isUnread && styles.timestampUnread]}>
+                {item.timestamp}
               </Text>
             </View>
-
-            {/* Right Indicators (Pin, Mute, Unread Pill) */}
-            <View style={styles.badgeContainer}>
-              {item.isMuted && (
-                <Ionicons
-                  name="volume-mute"
-                  size={15}
-                  color="#8696A0"
-                  style={{ marginRight: 4 }}
-                />
-              )}
-              {item.isPinned && (
-                <Ionicons
-                  name="pin"
-                  size={14}
-                  color="#8696A0"
-                  style={{ marginRight: 4 }}
-                />
-              )}
-              {isUnread && (
-                <View style={styles.unreadBadge}>
-                  <Text style={styles.unreadBadgeText}>
-                    {item.unreadCount! > 99 ? '99+' : item.unreadCount}
-                  </Text>
-                </View>
-              )}
-            </View>
           </View>
+
+          {/* Bottom Row: Preview Snippet + Unread Pill */}
+          <View style={styles.bottomRow}>
+            <Text
+              style={[styles.messagePreview, isUnread && styles.previewUnread]}
+              numberOfLines={1}
+            >
+              {item.sentByMe && <Text style={styles.youPrefix}>You: </Text>}
+              {item.lastMessage}
+            </Text>
+
+            {isUnread && (
+              <View style={styles.unreadBadge}>
+                <Text style={styles.unreadBadgeText}>{item.unreadCount}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Right Calling Actions */}
+        <View style={styles.actionsRight}>
+          <TouchableOpacity
+            style={styles.circleActionBtn}
+            onPress={(e) => {
+              e.stopPropagation();
+              onStartCall?.(item.phone, item.name, false);
+            }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="call" size={16} color="#059669" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.circleActionBtn, styles.videoCircleBtn]}
+            onPress={(e) => {
+              e.stopPropagation();
+              onStartCall?.(item.phone, item.name, true);
+            }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="videocam" size={17} color="#2563EB" />
+          </TouchableOpacity>
         </View>
       </TouchableOpacity>
     );
@@ -173,19 +209,10 @@ export default function ChatsTab({
         data={chats}
         keyExtractor={(item) => item.phone}
         renderItem={renderChatItem}
-        ListHeaderComponent={renderArchivedHeader}
+        ListHeaderComponent={renderActivePresenceHeader}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
       />
-
-      {/* WhatsApp Floating Action Button (New Chat) */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={onOpenNewChat}
-        activeOpacity={0.85}
-      >
-        <MaterialCommunityIcons name="message-text" size={24} color="#FFFFFF" />
-      </TouchableOpacity>
     </View>
   );
 }
@@ -193,169 +220,270 @@ export default function ChatsTab({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F8FAFC',
   },
   listContent: {
-    paddingBottom: 90,
+    paddingBottom: 24,
+    paddingTop: 4,
   },
-  // Archived Row (WhatsApp Standard)
-  archivedRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#F0F2F5',
-  },
-  archivedLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  archivedIcon: {
-    marginRight: 24,
-    marginLeft: 4,
-  },
-  archivedText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111B21',
-  },
-  archivedCount: {
-    fontSize: 13,
-    color: '#008069',
-    fontWeight: '600',
-  },
-  // Chat Row (WhatsApp Standard)
-  chatRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+  // Active Presence Header
+  presenceSection: {
     backgroundColor: '#FFFFFF',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    marginBottom: 8,
   },
-  chatRowSelected: {
-    backgroundColor: '#F0F2F5',
-  },
-  avatarWrapper: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: 'center',
+  presenceHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginRight: 14,
+    marginBottom: 10,
   },
-  statusRing: {
-    borderWidth: 2,
-    borderColor: '#25D366',
-    padding: 1,
+  presenceTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
-  avatar: {
+  activeDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#059669',
+  },
+  presenceTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.5,
+  },
+  presenceCount: {
+    fontSize: 11,
+    color: '#94A3B8',
+    fontWeight: '600',
+  },
+  presenceScroll: {
+    paddingRight: 12,
+    gap: 12,
+  },
+  presenceCard: {
+    alignItems: 'center',
+    width: 58,
+  },
+  presenceAvatarWrapper: {
+    position: 'relative',
+    marginBottom: 5,
+  },
+  presenceAvatar: {
     width: 48,
     height: 48,
-    borderRadius: 24,
+    borderRadius: 16,
   },
-  avatarFallback: {
-    backgroundColor: '#E9EDEF',
+  presenceFallback: {
+    backgroundColor: '#E2E8F0',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarInitial: {
-    fontSize: 19,
-    fontWeight: '600',
-    color: '#54656F',
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
   },
-  chatDetails: {
+  activePulseRing: {
+    position: 'absolute',
+    bottom: -1,
+    right: -1,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#059669',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  presenceName: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+    textAlign: 'center',
+  },
+  // Clean Light Chat Card
+  chatCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginVertical: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  chatCardUnread: {
+    borderLeftWidth: 3,
+    borderLeftColor: '#059669',
+  },
+  chatCardSelected: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#059669',
+    borderLeftWidth: 4,
+    borderLeftColor: '#059669',
+  },
+  avatarWrapper: {
+    position: 'relative',
+    marginRight: 12,
+  },
+  avatarImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+  },
+  avatarFallback: {
+    backgroundColor: '#E2E8F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarInitialLarge: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  onlineDot: {
+    position: 'absolute',
+    bottom: -1,
+    right: -1,
+    width: 11,
+    height: 11,
+    borderRadius: 5.5,
+    backgroundColor: '#059669',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  chatCenter: {
     flex: 1,
     justifyContent: 'center',
-    paddingBottom: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#F0F2F5',
+    marginRight: 6,
   },
-  topLine: {
+  topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 4,
   },
-  nameContainer: {
+  nameGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
     flex: 1,
     marginRight: 8,
+    gap: 6,
   },
-  nameText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111B21',
+  contactName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
   },
   nameUnread: {
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  groupBadge: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+  },
+  groupBadgeText: {
+    fontSize: 10,
     fontWeight: '700',
-    color: '#111B21',
+    color: '#64748B',
   },
-  timeText: {
-    fontSize: 12,
-    color: '#667781',
+  timeGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  timeUnread: {
-    color: '#25D366',
+  timestamp: {
+    fontSize: 11,
+    color: '#94A3B8',
     fontWeight: '600',
   },
-  bottomLine: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  previewContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    marginRight: 10,
-  },
-  tickContainer: {
-    marginRight: 3,
-  },
-  previewText: {
-    fontSize: 14,
-    color: '#667781',
-    flex: 1,
-  },
-  previewUnread: {
-    color: '#111B21',
-    fontWeight: '500',
-  },
-  badgeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  unreadBadge: {
-    backgroundColor: '#25D366',
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 5,
-    marginLeft: 4,
-  },
-  unreadBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
+  timestampUnread: {
+    color: '#059669',
     fontWeight: '700',
   },
-  // WhatsApp Floating Action Button (FAB)
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: '#00A884',
+  bottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  messagePreview: {
+    fontSize: 13,
+    color: '#64748B',
+    lineHeight: 18,
+    flex: 1,
+    marginRight: 6,
+  },
+  previewUnread: {
+    color: '#0F172A',
+    fontWeight: '600',
+  },
+  youPrefix: {
+    color: '#059669',
+    fontWeight: '700',
+  },
+  unreadBadge: {
+    backgroundColor: '#059669',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 5,
-    shadowOffset: { width: 0, height: 3 },
+    paddingHorizontal: 6,
+  },
+  unreadBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  // Calling Action Buttons
+  actionsRight: {
+    flexDirection: 'row',
+    gap: 8,
+    marginLeft: 6,
+    alignItems: 'center',
+  },
+  circleActionBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  videoCircleBtn: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+  },
+  // Quick Action in Active Contacts
+  newChatPresenceWrapper: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1.5,
+    borderColor: '#059669',
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  newChatPresenceText: {
+    fontSize: 11,
+    color: '#059669',
+    fontWeight: '700',
+    textAlign: 'center',
   },
 });

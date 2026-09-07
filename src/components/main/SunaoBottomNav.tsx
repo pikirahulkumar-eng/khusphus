@@ -71,8 +71,8 @@ export default function SunaoBottomNav({
             <View style={[styles.iconWrapper, isActive && styles.iconWrapperActive]}>
               <Ionicons
                 name={isActive ? tab.activeIcon : tab.inactiveIcon}
-                size={23}
-                color={isActive ? '#0A332C' : '#54656F'}
+                size={22}
+                color={isActive ? '#059669' : '#64748B'}
               />
 
               {Boolean(tab.badgeCount && tab.badgeCount > 0 && !isActive) && (
@@ -104,10 +104,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    paddingTop: 6,
+    paddingTop: 8,
     paddingBottom: Platform.OS === 'ios' ? 24 : 8,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#F0F2F5',
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
   },
   navItem: {
     flex: 1,
@@ -120,47 +120,51 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: 16,
-    minHeight: 28,
+    minHeight: 30,
   },
   iconWrapperActive: {
-    backgroundColor: '#D9FDD3',
+    backgroundColor: '#ECFDF5',
   },
   navLabel: {
-    fontSize: 11.5,
-    fontWeight: '500',
-    color: '#54656F',
-    marginTop: 3,
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+    marginTop: 2,
   },
   navLabelActive: {
-    color: '#0A332C',
+    color: '#059669',
     fontWeight: '700',
   },
   badge: {
     position: 'absolute',
     top: -2,
     right: 4,
-    backgroundColor: '#25D366',
+    backgroundColor: '#059669',
     minWidth: 16,
     height: 16,
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
   },
   badgeText: {
     color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '700',
+    fontSize: 9,
+    fontWeight: '800',
   },
   dotBadge: {
     position: 'absolute',
     top: 2,
     right: 12,
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#25D366',
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#059669',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
   },
 });
