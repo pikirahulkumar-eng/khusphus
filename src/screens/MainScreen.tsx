@@ -20,7 +20,7 @@ import { useTheme } from '../contexts/ThemeContext';
 interface MainScreenProps {
   currentUserPhone: string;
   currentUserName?: string;
-  onOpenChat: (user: { phone: string; name: string; avatarUri?: string; about?: string }) => void;
+  onOpenChat: (user: { phone: string; name: string; avatarUri?: string; about?: string; isOnline?: boolean }) => void;
   onStartCall: (phone: string, name: string, isVideo: boolean) => void;
   onLogout: () => void;
   activeChatPhone?: string;
@@ -299,6 +299,7 @@ export default function MainScreen({
       name: chat.name,
       avatarUri: chat.avatarUri,
       about: (chat as any).about,
+      isOnline: chat.isOnline,
     });
   };
 

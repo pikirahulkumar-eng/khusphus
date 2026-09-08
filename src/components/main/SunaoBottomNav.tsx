@@ -84,15 +84,12 @@ export default function SunaoBottomNav({
             <View
               style={[
                 styles.iconWrapper,
-                isActive && [
-                  styles.iconWrapperActive,
-                  isDark && { backgroundColor: 'rgba(16, 185, 129, 0.15)' },
-                ],
+                isActive && styles.iconWrapperActive,
               ]}
             >
               <Ionicons
                 name={isActive ? tab.activeIcon : tab.inactiveIcon}
-                size={22}
+                size={24}
                 color={
                   isActive
                     ? '#10B981'
@@ -100,6 +97,10 @@ export default function SunaoBottomNav({
                     ? '#64748B'
                     : '#64748B'
                 }
+                style={isActive ? [
+                  styles.activeIconGlow,
+                  Platform.OS === 'web' && ({ filter: 'drop-shadow(0px 0px 8px rgba(16, 185, 129, 0.85))' } as any),
+                ] : undefined}
               />
 
               {Boolean(tab.badgeCount && tab.badgeCount > 0 && !isActive) && (
@@ -164,28 +165,35 @@ const styles = StyleSheet.create({
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-    borderRadius: 16,
-    minHeight: 30,
+    minHeight: 28,
   },
   iconWrapperActive: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: 'transparent',
+  },
+  activeIconGlow: {
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.95,
+    shadowRadius: 10,
+    elevation: 10,
   },
   navLabel: {
     fontSize: 11,
     fontWeight: '600',
     color: '#64748B',
-    marginTop: 2,
+    marginTop: 3,
   },
   navLabelActive: {
-    color: '#047857',
+    color: '#10B981',
     fontWeight: '700',
+    textShadowColor: 'rgba(16, 185, 129, 0.65)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 6,
   },
   badge: {
     position: 'absolute',
-    top: -2,
-    right: 4,
+    top: -4,
+    right: -8,
     backgroundColor: '#10B981',
     minWidth: 16,
     height: 16,
@@ -203,8 +211,8 @@ const styles = StyleSheet.create({
   },
   dotBadge: {
     position: 'absolute',
-    top: 2,
-    right: 12,
+    top: -1,
+    right: -4,
     width: 7,
     height: 7,
     borderRadius: 3.5,

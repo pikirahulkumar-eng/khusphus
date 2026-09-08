@@ -11,6 +11,7 @@ class RealtimeBridgeManager {
   private registeredUserId: string | null = null;
   private registeredUserPhone: string | null = null;
   private outboxQueue: Array<{ type: string; payload: any; targetUserId?: string }> = [];
+  private cachedOnlineUsers: string[] = [];
 
   private getWsUrl(): string {
     if (typeof window !== 'undefined' && window.location) {
@@ -90,10 +91,28 @@ class RealtimeBridgeManager {
       });
 
       this.socket.on('presence_update', (payload) => {
+        if (payload?.userId) {
+          const uId = String(payload.userId);
+          if (payload.isOnline) {
+            if (!this.cachedOnlineUsers.includes(uId)) {
+              this.cachedOnlineUsers.push(uId);
+            }
+          } else {
+            const cleanTarget = uId.replace(/\D/g, '').slice(-10);
+            this.cachedOnlineUsers = this.cachedOnlineUsers.filter((u) => {
+              if (u === uId) return false;
+              if (cleanTarget.length >= 10 && u.replace(/\D/g, '').slice(-10) === cleanTarget) return false;
+              return true;
+            });
+          }
+        }
         this.notify({ type: 'PRESENCE_UPDATE', payload });
       });
 
       this.socket.on('online_users', (users) => {
+        if (Array.isArray(users)) {
+          this.cachedOnlineUsers = users;
+        }
         this.notify({ type: 'ONLINE_USERS', payload: { users } });
       });
       
@@ -110,8 +129,27 @@ class RealtimeBridgeManager {
     }
   }
 
+  public getOnlineUsers(): string[] {
+    return this.cachedOnlineUsers;
+  }
+
+  public isUserOnline(phoneOrId?: string): boolean {
+    if (!phoneOrId) return false;
+    const clean = String(phoneOrId).replace(/\D/g, '').slice(-10);
+    return this.cachedOnlineUsers.some((u) => {
+      if (u === phoneOrId) return true;
+      const uClean = String(u || '').replace(/\D/g, '').slice(-10);
+      return clean.length >= 10 && uClean.length >= 10 && clean === uClean;
+    });
+  }
+
   public subscribe(listener: RealtimeListener): () => void {
     this.listeners.add(listener);
+    if (this.cachedOnlineUsers.length > 0) {
+      try {
+        listener({ type: 'ONLINE_USERS', payload: { users: this.cachedOnlineUsers } });
+      } catch (_) {}
+    }
     return () => this.listeners.delete(listener);
   }
 

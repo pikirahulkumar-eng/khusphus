@@ -21,6 +21,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { KhusPhusTheme } from '../constants/theme';
 import { ChatStorageService, LocalMessage, getChatKey } from '../services/chatStorageService';
 import { RealtimeBridge } from '../services/realtimeBridge';
+import { getBackendUrl } from '../services/firebase';
 import { VoiceService } from '../services/voiceRecordingService';
 import VoiceNoteBubble from '../components/chat/VoiceNoteBubble';
 import ContactProfileModal from '../components/chat/ContactProfileModal';
@@ -82,7 +83,15 @@ export default function ChatScreen({
   });
 
   const [isPeerTyping, setIsPeerTyping] = useState(false);
-  const [isPeerOnline, setIsPeerOnline] = useState(false);
+  const [isPeerOnline, setIsPeerOnline] = useState<boolean>(
+    () => Boolean(activeUser?.isOnline) || RealtimeBridge.isUserOnline(contactPhone)
+  );
+
+  useEffect(() => {
+    if (activeUser?.isOnline !== undefined) {
+      setIsPeerOnline(Boolean(activeUser.isOnline));
+    }
+  }, [activeUser?.isOnline]);
   const [showEmojiBar, setShowEmojiBar] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
@@ -373,13 +382,24 @@ export default function ChatScreen({
     });
 
     // Check initial online status
+    if (RealtimeBridge.isUserOnline(contactPhone) || activeUser?.isOnline) {
+      setIsPeerOnline(true);
+    }
     const checkInitialOnline = async () => {
       try {
-        const res = await fetch('/api/online-users');
+        const baseUrl = getBackendUrl();
+        const res = await fetch(`${baseUrl}/api/online-users`);
         if (res.ok) {
           const list = await res.json();
           if (Array.isArray(list)) {
-            setIsPeerOnline(list.includes(contactPhone));
+            const normalizePhone = (p?: string) => String(p || '').replace(/\D/g, '').slice(-10);
+            const peerClean = normalizePhone(contactPhone);
+            const isOnline = list.some((u: string) => {
+              if (u === contactPhone) return true;
+              const uClean = normalizePhone(u);
+              return Boolean(peerClean && uClean && peerClean === uClean);
+            });
+            setIsPeerOnline(isOnline);
           }
         }
       } catch (_) {}
