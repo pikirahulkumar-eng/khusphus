@@ -79,9 +79,12 @@ try {
   }
 } catch (_) {}
 
-// Initialize Database Client — connects to Khusphus DB (defaults to local sunao_local.db or custom cloud TURSO_URL)
-const DB_URL = process.env.TURSO_URL || process.env.TURSO_DATABASE_URL || 'file:sunao_local.db';
-const DB_AUTH_TOKEN = process.env.TURSO_AUTH_TOKEN || undefined;
+// Initialize Database Client — connects to Khusphus DB
+const DEFAULT_TURSO_URL = 'libsql://khusphus-khusphus.turso.io';
+const DEFAULT_TURSO_TOKEN = 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODg4OTA3MDIsImlkIjoiMDFhMDU1ZTMtYTMwMS03MzhhLTg3YjQtZGIyOWM0NTA5YzQxIiwia2lkIjoiYXV1RnlEbnFzdkV1Tnp6YzVsb2ltN2dJQTNvcExiSHlJa29UR3VfM2dPQSIsInJpZCI6Ijg4YTVhZWZlLWU0ZmQtNDZkMy05MGY0LWFmNDRiMmU3NmI2MyJ9.33neAHtCPg_xcyapPdZASKNHKsEUadkXMiCKpqKqJHUApAkgaQKkZSlxrI1JPAV6Q6StRz9e1YJUwV3t8E4MCA';
+
+const DB_URL = process.env.TURSO_URL || process.env.TURSO_DATABASE_URL || DEFAULT_TURSO_URL;
+const DB_AUTH_TOKEN = process.env.TURSO_AUTH_TOKEN || DEFAULT_TURSO_TOKEN;
 
 console.log('[DB_CONFIG] Using Khusphus database:', DB_URL);
 const turso = createClient({
@@ -116,14 +119,14 @@ async function initDb() {
       await turso.execute('CREATE INDEX IF NOT EXISTS idx_pending_target ON pending_messages(target_id)');
     } catch (_) {}
 
-    // Purge any legacy dummy accounts or fabricated phantom users
+    // Purge only synthetic test IDs
     try {
       await turso.execute(`
         DELETE FROM users 
         WHERE phone LIKE 'user_%' 
            OR phone LIKE 'reg_%' 
-           OR phone IN ('9876543210', '9876543211', '6677889900', '9999888877', '1122334455', 'test_123', '12345', 'space_live_room')
-           OR name IN ('Rahul Bhai', 'Priya Verma', 'Neha Sharma', 'Amit Patel', 'Vikram Rajput', 'Papa', 'Test Bhai', 'Open Audio Lounge 🎙️')
+           OR phone LIKE 'guest_%'
+           OR phone IN ('test_123', 'space_live_room')
       `);
     } catch (_) {}
 
@@ -187,7 +190,8 @@ app.get('/api/search', async (req, res) => {
             WHERE (phone = ? OR phone LIKE ?)
               AND phone NOT LIKE 'user_%' 
               AND phone NOT LIKE 'reg_%'
-              AND phone NOT IN ('9876543210', '9876543211', '6677889900', '9999888877', '1122334455', 'test_123', '12345', 'space_live_room')
+              AND phone NOT LIKE 'guest_%'
+              AND phone NOT IN ('test_123', 'space_live_room')
             LIMIT 5`,
       args: [q, `%${q}%`]
     });
@@ -205,7 +209,8 @@ app.get('/api/users', async (req, res) => {
   const dummyFilter = `
     AND phone NOT LIKE 'user_%' 
     AND phone NOT LIKE 'reg_%'
-    AND phone NOT IN ('9876543210', '9876543211', '6677889900', '9999888877', '1122334455', 'test_123', '12345', 'space_live_room')
+    AND phone NOT LIKE 'guest_%'
+    AND phone NOT IN ('test_123', 'space_live_room')
   `;
   try {
     const result = await turso.execute({

@@ -53,3 +53,5 @@ screen_app.png
 # Scratch / debug scripts
 scratch_*.js
 *.db
+.env
+.env.*
