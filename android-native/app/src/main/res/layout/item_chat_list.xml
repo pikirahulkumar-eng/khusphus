@@ -126,7 +126,7 @@
                     android:layout_height="wrap_content"
                     android:ellipsize="end"
                     android:maxLines="1"
-                    android:text="Bhai Render pe server 100% live chal raha hai! 🔥"
+                    android:text="Bhai Northflank pe server 100% live chal raha hai! 🔥"
                     android:textColor="@color/text_secondary"
                     android:textSize="13sp" />
             </LinearLayout>

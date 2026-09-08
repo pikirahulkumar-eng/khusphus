@@ -95,7 +95,7 @@ export async function fetchProfilesFromFirestore(currentUserId: string): Promise
     if (localRes.ok) {
       const data = await localRes.json();
       if (Array.isArray(data)) {
-        return data; // Return exactly what Render gives, even if it's empty []
+        return data; // Return server response, even if it's empty []
       }
     }
   } catch (e) {}

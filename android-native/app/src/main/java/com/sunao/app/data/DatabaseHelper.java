@@ -34,7 +34,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     public List<Chat> getInitialChats() {
         List<Chat> list = new ArrayList<>();
-        list.add(new Chat("9876543210", "Rahul Bhai", "Bhai Render pe server 100% live chal raha hai! 🔥", "11:42 AM", 2, true, false, false, true));
+        list.add(new Chat("9876543210", "Rahul Bhai", "Bhai Northflank pe server 100% live chal raha hai! 🔥", "11:42 AM", 2, true, false, false, true));
         list.add(new Chat("9998887776", "Papa", "Theek hai beta, aate waqt le aana.", "10:15 AM", 0, true, false, true, false));
         list.add(new Chat("1122334455", "Neha Sharma", "Call me when you are free! Important discuss karna hai.", "9:30 AM", 1, true, false, false, true));
         list.add(new Chat("grp_sunao_core", "KhusPhus Core Devs 🚀", "Amit: WebRTC low latency audio call chal raha hai.", "Yesterday", 4, true, true, false, true));
@@ -90,7 +90,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         List<com.sunao.app.data.model.Message> list = new ArrayList<>();
         list.add(new com.sunao.app.data.model.Message("1", chatId, "Hey! Kaam kaisa chal raha hai?", "10:00 AM", false));
         list.add(new com.sunao.app.data.model.Message("2", chatId, "Pure native C++ NDK engine mast chal raha hai bhai!", "10:02 AM", true));
-        list.add(new com.sunao.app.data.model.Message("3", chatId, "Bhai Render pe server 100% live chal raha hai! 🔥", "11:42 AM", false));
+        list.add(new com.sunao.app.data.model.Message("3", chatId, "Bhai Northflank pe server 100% live chal raha hai! 🔥", "11:42 AM", false));
         return list;
     }
 

@@ -50,7 +50,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     private fun saveFcmTokenToServer(userId: String, fcmToken: String) {
         Thread {
             try {
-                val url = java.net.URL("https://khusphus-epsm.onrender.com/api/profiles/push-token")
+                val url = java.net.URL("https://p01--sunao-server--njm6yd7449gk.code.run/api/profiles/push-token")
                 val conn = url.openConnection() as java.net.HttpURLConnection
                 conn.requestMethod = "POST"
                 conn.setRequestProperty("Content-Type", "application/json")

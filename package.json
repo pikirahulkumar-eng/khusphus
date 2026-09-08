@@ -56,7 +56,7 @@
     "build:web": "expo export -p web",
     "web:serve": "node realtime-server.js",
     "desktop:build": "electron-builder --win --x64",
-    "build": "echo 'Render build completed'",
+    "build": "echo 'Production build ready'",
     "eas-build-pre-install": "npm config set legacy-peer-deps true",
     "eas:build:apk": "eas build -p android --profile preview",
     "eas:build:prod": "eas build -p android --profile production"
