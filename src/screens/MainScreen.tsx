@@ -184,19 +184,25 @@ export default function MainScreen({
       if (event.type === 'CHAT_MESSAGE' && event.payload) {
         const p = event.payload;
         // STRICT PRIVACY CHECK: Ignore messages that do not involve currentUserPhone
-        const myCleanPhone = String(currentUserPhone || '').trim();
-        const msgReceiver = String(p.receiverId || event.targetUserId || '').trim();
-        const msgSender = String(p.senderId || '').trim();
-        const isForMe = msgReceiver === myCleanPhone;
-        const isByMe = msgSender === myCleanPhone;
+        const normalizePhone = (p?: string) => String(p || '').replace(/\D/g, '').slice(-10);
+        const myClean = normalizePhone(currentUserPhone);
+        const msgReceiverClean = normalizePhone(p.receiverId || event.targetUserId);
+        const msgSenderClean = normalizePhone(p.senderId);
+
+        const isForMe = (msgReceiverClean && myClean && msgReceiverClean === myClean) ||
+                        p.receiverId === currentUserPhone ||
+                        event.targetUserId === currentUserPhone;
+        const isByMe = (msgSenderClean && myClean && msgSenderClean === myClean) ||
+                       p.senderId === currentUserPhone;
+
         if (!isForMe && !isByMe) {
           return;
         }
         const isIncoming = !isByMe;
-        const peerPhone = isIncoming ? msgSender : msgReceiver;
+        const peerPhone = isIncoming ? (p.senderId || p.senderPhone) : (p.receiverId || event.targetUserId);
         const time = p.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const text = p.type === 'voice' ? '🎤 Voice message' : (p.text || '');
-        const isViewing = activeChatPhone === peerPhone;
+        const isViewing = activeChatPhone && normalizePhone(activeChatPhone) === normalizePhone(peerPhone);
 
         setChats((prev) => {
           const list = [...prev];
@@ -337,10 +343,14 @@ export default function MainScreen({
       result = result.filter((c) => c.isPinned);
     }
 
-    return result.map((c) => ({
-      ...c,
-      isOnline: onlineUsers.has(c.phone),
-    }));
+    return result.map((c) => {
+      const cleanP = String(c.phone || '').replace(/\D/g, '').slice(-10);
+      const isOnline = onlineUsers.has(c.phone) || (cleanP.length >= 10 && Array.from(onlineUsers).some(u => String(u).replace(/\D/g, '').slice(-10) === cleanP));
+      return {
+        ...c,
+        isOnline,
+      };
+    });
   }, [chats, searchQuery, activeFilter, onlineUsers, contactsList]);
 
   const totalUnreadCount = useMemo(() => {

@@ -224,16 +224,28 @@ export default function ChatScreen({
       if (event.type === 'CHAT_MESSAGE' && event.payload) {
         const payload = event.payload;
         // STRICT PRIVACY CHECK: Only process messages belonging to this exact 1-on-1 thread
-        const myCleanPhone = String(currentUserPhone || '').trim();
-        const peerCleanPhone = String(contactPhone || '').trim();
+        const normalizePhone = (p?: string) => String(p || '').replace(/\D/g, '').slice(-10);
+        const myClean = normalizePhone(currentUserPhone);
+        const peerClean = normalizePhone(contactPhone);
         const peerUserId = String(activeUser?.userId || '').trim();
-        const msgSender = String(payload.senderId || '').trim();
-        const msgReceiver = String(payload.receiverId || event.targetUserId || '').trim();
+        const msgSenderClean = normalizePhone(payload.senderId);
+        const msgReceiverClean = normalizePhone(payload.receiverId || event.targetUserId);
 
-        const isFromContact = (msgSender === peerCleanPhone || (peerUserId && msgSender === peerUserId)) &&
-                              (msgReceiver === myCleanPhone || !msgReceiver);
-        const isEchoFromMyDevice = msgSender === myCleanPhone &&
-                                   (msgReceiver === peerCleanPhone || (peerUserId && msgReceiver === peerUserId));
+        const isFromContact =
+          ((msgSenderClean && peerClean && msgSenderClean === peerClean) ||
+           payload.senderId === contactPhone ||
+           (peerUserId && payload.senderId === peerUserId)) &&
+          ((msgReceiverClean && myClean && msgReceiverClean === myClean) ||
+           payload.receiverId === currentUserPhone ||
+           !payload.receiverId);
+
+        const isEchoFromMyDevice =
+          ((msgSenderClean && myClean && msgSenderClean === myClean) ||
+           payload.senderId === currentUserPhone) &&
+          ((msgReceiverClean && peerClean && msgReceiverClean === peerClean) ||
+           payload.receiverId === contactPhone ||
+           (peerUserId && (payload.receiverId === peerUserId || event.targetUserId === peerUserId)));
+
         if (!isFromContact && !isEchoFromMyDevice) {
           return;
         }
@@ -276,33 +288,39 @@ export default function ChatScreen({
           }
         }
       } else if (event.type === 'MESSAGE_DELIVERED' && event.payload) {
+        const normalizePhone = (p?: string) => String(p || '').replace(/\D/g, '').slice(-10);
+        const peerClean = normalizePhone(contactPhone);
+        const senderClean = normalizePhone(event.payload.senderId || event.payload.senderPhone);
         const isFromPeer =
           event.payload.senderId === contactPhone ||
           event.payload.senderPhone === contactPhone ||
           event.payload.senderUserId === activeUser?.userId ||
-          event.targetUserId === currentUserPhone;
+          (peerClean && senderClean && peerClean === senderClean);
         if (isFromPeer) {
-          const targetMsgId = event.payload.messageId;
-          setMessages((prev) =>
-            prev.map((m) => {
-              const isMyMsg = m.sender === 'me' || m.senderId === currentUserPhone;
-              if (isMyMsg && (targetMsgId ? m.id === targetMsgId : m.status === 'sent')) {
-                return { ...m, status: 'delivered' };
-              }
-              return m;
-            })
-          );
-          if (targetMsgId) {
-            ChatStorageService.updateMessageStatus(currentUserPhone, contactPhone, targetMsgId, 'delivered');
+          const messageId = event.payload.messageId;
+          if (messageId) {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === messageId && m.status === 'sent' ? { ...m, status: 'delivered' } : m
+              )
+            );
+            ChatStorageService.updateMessageStatus(currentUserPhone, contactPhone, messageId, 'delivered');
           } else {
+            setMessages((prev) =>
+              prev.map((m) => (m.status === 'sent' ? { ...m, status: 'delivered' } : m))
+            );
             ChatStorageService.updateAllSentStatus(currentUserPhone, contactPhone, 'delivered');
           }
         }
       } else if (event.type === 'MESSAGE_READ' && event.payload) {
+        const normalizePhone = (p?: string) => String(p || '').replace(/\D/g, '').slice(-10);
+        const peerClean = normalizePhone(contactPhone);
+        const senderClean = normalizePhone(event.payload.senderId || event.payload.senderPhone);
         const isFromPeer =
           event.payload.senderId === contactPhone ||
           event.payload.senderPhone === contactPhone ||
           event.payload.senderUserId === activeUser?.userId ||
+          (peerClean && senderClean && peerClean === senderClean) ||
           event.targetUserId === currentUserPhone;
         if (isFromPeer) {
           const targetMsgId = event.payload.messageId;
@@ -322,9 +340,13 @@ export default function ChatScreen({
           }
         }
       } else if (event.type === 'USER_TYPING' && event.payload) {
+        const normalizePhone = (p?: string) => String(p || '').replace(/\D/g, '').slice(-10);
+        const peerClean = normalizePhone(contactPhone);
+        const senderClean = normalizePhone(event.payload.senderId || event.payload.senderPhone);
         const isFromPeer =
           event.payload.senderId === contactPhone ||
-          event.payload.senderPhone === contactPhone;
+          event.payload.senderPhone === contactPhone ||
+          (peerClean && senderClean && peerClean === senderClean);
         if (isFromPeer) {
           setIsPeerTyping(Boolean(event.payload.isTyping));
           if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -333,13 +355,19 @@ export default function ChatScreen({
           }, 3000);
         }
       } else if (event.type === 'PRESENCE_UPDATE' && event.payload) {
-        if (event.payload.userId === contactPhone) {
+        const normalizePhone = (p?: string) => String(p || '').replace(/\D/g, '').slice(-10);
+        const peerClean = normalizePhone(contactPhone);
+        const userClean = normalizePhone(event.payload.userId);
+        if (event.payload.userId === contactPhone || (peerClean && userClean && peerClean === userClean)) {
           setIsPeerOnline(Boolean(event.payload.isOnline));
         }
       } else if (event.type === 'ONLINE_USERS' && event.payload) {
         const users = event.payload.users;
+        const normalizePhone = (p?: string) => String(p || '').replace(/\D/g, '').slice(-10);
+        const peerClean = normalizePhone(contactPhone);
         if (Array.isArray(users)) {
-          setIsPeerOnline(users.includes(contactPhone));
+          const isOnline = users.some((u: string) => u === contactPhone || (peerClean && normalizePhone(u) === peerClean));
+          setIsPeerOnline(isOnline);
         }
       }
     });

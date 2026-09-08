@@ -444,21 +444,37 @@ const connectedUsers = new Map(); // userId -> Set of socket IDs
 // Helper to get all sockets for a target (resolves phone <-> userId bi-directionally)
 async function getSocketsForTarget(targetId) {
   if (!targetId) return [];
+  // 1. Direct match
   const direct = connectedUsers.get(targetId);
   if (direct && direct.size > 0) {
     return Array.from(direct);
   }
-  // Try DB alias lookup (e.g. if targetId is a phone, find their userId, or vice versa)
+  // 2. Clean 10-digit phone match (strip country code, spaces, hyphens)
+  const clean = String(targetId).replace(/\D/g, '').slice(-10);
+  if (clean && clean.length >= 10) {
+    const byClean = connectedUsers.get(clean);
+    if (byClean && byClean.size > 0) {
+      return Array.from(byClean);
+    }
+  }
+  // 3. Try DB alias lookup (e.g. if targetId is a phone, find their userId, or vice versa)
   try {
     const res = await turso.execute({
-      sql: 'SELECT userId, phone FROM users WHERE userId = ? OR phone = ? LIMIT 1',
-      args: [targetId, targetId]
+      sql: 'SELECT userId, phone, phone_number FROM users WHERE userId = ? OR phone = ? OR phone = ? OR phone_number LIKE ? LIMIT 1',
+      args: [targetId, targetId, clean, `%${clean}%`]
     });
     if (res.rows && res.rows.length > 0) {
-      const { userId, phone } = res.rows[0];
-      const altId = (userId === targetId) ? phone : userId;
-      if (altId && connectedUsers.has(altId)) {
-        return Array.from(connectedUsers.get(altId));
+      const row = res.rows[0];
+      const candidates = [
+        row.userId,
+        row.phone,
+        String(row.phone || '').replace(/\D/g, '').slice(-10),
+        String(row.phone_number || '').replace(/\D/g, '').slice(-10)
+      ].filter(Boolean);
+      for (const candidate of candidates) {
+        if (connectedUsers.has(candidate)) {
+          return Array.from(connectedUsers.get(candidate));
+        }
       }
     }
   } catch (_) {}
@@ -502,7 +518,11 @@ io.on('connection', (socket) => {
     };
 
     mapId(userId);
-    if (phone) mapId(phone);
+    if (phone) {
+      mapId(phone);
+      const cleanP = String(phone).replace(/\D/g, '').slice(-10);
+      if (cleanP && cleanP !== phone) mapId(cleanP);
+    }
 
     // Also auto-map from DB if phone not provided in data
     if (userId && !phone) {
