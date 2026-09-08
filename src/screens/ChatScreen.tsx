@@ -176,10 +176,21 @@ export default function ChatScreen({
   useEffect(() => {
     let isMounted = true;
     const loadChatHistory = async () => {
+      // 1. Instant offline load from local cache (0ms delay)
       const stored = await ChatStorageService.getMessages(currentUserPhone, contactPhone);
       if (isMounted) {
         setMessages(stored || []);
       }
+
+      // 2. Background Turso Cloud Sync (restores cloud history across devices)
+      ChatStorageService.syncMessagesWithCloud(currentUserPhone, contactPhone)
+        .then((synced) => {
+          if (isMounted && synced && synced.length > 0) {
+            setMessages(synced);
+          }
+        })
+        .catch(() => {});
+
       // Mark as read in recent chats list
       await ChatStorageService.markAsRead(currentUserPhone, contactPhone);
       const isVisible = typeof document === 'undefined' || !document.hidden;

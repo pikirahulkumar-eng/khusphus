@@ -9,24 +9,47 @@ import { PermissionsAndroid, Platform, NativeModules } from 'react-native';
 import { MediaDevices, PeerConnection, SessionDescription, IceCandidate } from './webrtcCore';
 import { NotificationService } from './notificationService';
 import { CallDebugger } from './callDebugger';
+import { getBackendUrl } from './firebase';
 
-// High-Speed WebRTC Ice Server Configuration (Google STUN + Free OpenRelay TURN Fallback)
-const ICE_SERVERS: any = {
+// Multi-Transport Carrier-Grade WebRTC ICE Server Pool (Engineered for Jio 5G / Airtel 4G Symmetric NAT & Mobile Firewalls)
+let ICE_SERVERS: any = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun.relay.metered.ca:80' },
     {
       urls: [
         'turn:openrelay.metered.ca:80',
+        'turn:openrelay.metered.ca:80?transport=tcp',
         'turn:openrelay.metered.ca:443',
         'turn:openrelay.metered.ca:443?transport=tcp',
+        'turns:openrelay.metered.ca:443?transport=tcp',
+        'turns:openrelay.metered.ca:5349?transport=tcp',
       ],
       username: 'openrelayproject',
       credential: 'openrelayproject',
-    }
+    },
   ],
   iceCandidatePoolSize: 10,
+  iceTransportPolicy: 'all',
 };
+
+// Dynamically refresh ICE servers from backend on launch (supports custom dedicated TURN credentials)
+async function refreshIceServers() {
+  try {
+    const baseUrl = getBackendUrl();
+    const res = await fetch(`${baseUrl}/api/ice-servers`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && Array.isArray(data.iceServers) && data.iceServers.length > 0) {
+        ICE_SERVERS = data;
+        console.log('[WEBRTC_ICE] Dynamic cellular TURN configuration loaded from server:', data.iceServers.length, 'servers');
+      }
+    }
+  } catch (_) {}
+}
+refreshIceServers();
 
 type CallStateListener = (session: CallSession | null) => void;
 type FrameListener = (frame: string | null) => void;

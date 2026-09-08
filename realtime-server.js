@@ -123,22 +123,26 @@ async function initDb() {
         created_at INTEGER NOT NULL
       )
     `);
+    await turso.execute(`
+      CREATE TABLE IF NOT EXISTS messages (
+        id TEXT PRIMARY KEY,
+        thread_id TEXT NOT NULL,
+        sender_phone TEXT NOT NULL,
+        receiver_phone TEXT NOT NULL,
+        text TEXT NOT NULL,
+        type TEXT DEFAULT 'text',
+        media_url TEXT,
+        duration TEXT,
+        status TEXT DEFAULT 'sent',
+        created_at INTEGER NOT NULL
+      )
+    `);
     try {
-      await turso.execute('CREATE INDEX IF NOT EXISTS idx_pending_target ON pending_messages(target_id)');
+      await turso.execute('CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(thread_id, created_at)');
+      await turso.execute('CREATE INDEX IF NOT EXISTS idx_messages_receiver ON messages(receiver_phone, status)');
     } catch (_) {}
 
-    // Purge only synthetic test IDs
-    try {
-      await turso.execute(`
-        DELETE FROM users 
-        WHERE phone LIKE 'user_%' 
-           OR phone LIKE 'reg_%' 
-           OR phone LIKE 'guest_%'
-           OR phone IN ('test_123', 'space_live_room')
-      `);
-    } catch (_) {}
-
-    console.log('[DB] users & pending_messages tables ready in Khusphus Database');
+    console.log('[DB] users, pending_messages & messages tables ready in Khusphus Database');
   } catch (e) {
     console.error('[DB_INIT_ERR]', e);
   }
@@ -237,6 +241,121 @@ app.get('/api/users', async (req, res) => {
 // Online Users Endpoint — returns array of userIds/phones currently connected
 app.get('/api/online-users', (req, res) => {
   res.json(Array.from(connectedUsers.keys()));
+});
+
+// Canonical conversation thread ID helper (e.g. "1234567890_9837628163")
+function getThreadId(phoneA, phoneB) {
+  const cleanA = String(phoneA || '').replace(/\D/g, '').slice(-10);
+  const cleanB = String(phoneB || '').replace(/\D/g, '').slice(-10);
+  return [cleanA, cleanB].sort().join('_');
+}
+
+// Cloud Chat History Endpoint — loads permanent messages from Turso
+app.get('/api/messages/history', async (req, res) => {
+  const { myPhone, contactPhone, limit } = req.query;
+  if (!myPhone || !contactPhone) {
+    return res.status(400).json({ error: 'myPhone and contactPhone required' });
+  }
+  const threadId = getThreadId(myPhone, contactPhone);
+  const max = Math.min(Number(limit) || 100, 500);
+  try {
+    const result = await turso.execute({
+      sql: `SELECT id, sender_phone as senderId, receiver_phone as receiverId, 
+                   text, type, media_url as audioUrl, duration, status, 
+                   created_at as timestamp 
+            FROM messages 
+            WHERE thread_id = ? 
+            ORDER BY created_at ASC 
+            LIMIT ?`,
+      args: [threadId, max]
+    });
+    res.json(result.rows);
+  } catch (err) {
+    console.error('[MESSAGES_HISTORY_ERR]', err);
+    res.status(500).json({ error: 'Failed to fetch history' });
+  }
+});
+
+// Cloud Chat Backup / Sync Endpoint — bulk uploads local messages to Turso
+app.post('/api/messages/sync', async (req, res) => {
+  const { messages } = req.body;
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return res.json({ success: true, synced: 0 });
+  }
+  let synced = 0;
+  for (const m of messages) {
+    if (!m.senderId || !m.receiverId) continue;
+    const sPhone = String(m.senderId).replace(/\D/g, '').slice(-10);
+    const rPhone = String(m.receiverId).replace(/\D/g, '').slice(-10);
+    if (!sPhone || !rPhone) continue;
+    const threadId = getThreadId(sPhone, rPhone);
+    try {
+      await turso.execute({
+        sql: `INSERT OR REPLACE INTO messages (id, thread_id, sender_phone, receiver_phone, text, type, media_url, duration, status, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [
+          String(m.id || `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`),
+          threadId,
+          sPhone,
+          rPhone,
+          String(m.text || ''),
+          m.type || 'text',
+          m.audioUrl || m.mediaUrl || null,
+          m.duration || null,
+          m.status || 'sent',
+          m.timestamp || Date.now()
+        ]
+      });
+      synced++;
+    } catch (_) {}
+  }
+  console.log(`[CLOUD_SYNC] Synced ${synced} messages to Turso Cloud`);
+  res.json({ success: true, synced });
+});
+
+// Dynamic Carrier-Grade WebRTC ICE Servers Endpoint (Jio 5G / Airtel 4G NAT-optimized)
+app.get('/api/ice-servers', (req, res) => {
+  const customTurnUrl = process.env.TURN_URL;
+  const customTurnUsername = process.env.TURN_USERNAME;
+  const customTurnCredential = process.env.TURN_CREDENTIAL;
+
+  const customServers = [];
+  if (customTurnUrl && customTurnUsername && customTurnCredential) {
+    customServers.push({
+      urls: customTurnUrl.includes(',') ? customTurnUrl.split(',').map(s => s.trim()) : customTurnUrl.trim(),
+      username: customTurnUsername.trim(),
+      credential: customTurnCredential.trim()
+    });
+  }
+
+  // Multi-port, multi-transport fallback pool engineered for Indian cellular Symmetric NAT
+  const iceServers = [
+    // Standard STUN pool
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun.relay.metered.ca:80' },
+    ...customServers,
+    // Enterprise TURN relay pool: Port 80 (UDP/TCP), Port 443 (UDP/TCP), and TURNS (TLS)
+    {
+      urls: [
+        'turn:openrelay.metered.ca:80',
+        'turn:openrelay.metered.ca:80?transport=tcp',
+        'turn:openrelay.metered.ca:443',
+        'turn:openrelay.metered.ca:443?transport=tcp',
+        'turns:openrelay.metered.ca:443?transport=tcp',
+        'turns:openrelay.metered.ca:5349?transport=tcp'
+      ],
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    }
+  ];
+
+  res.json({
+    iceServers,
+    iceCandidatePoolSize: 10,
+    iceTransportPolicy: 'all'
+  });
 });
 
 // Native Android Direct Call Signal Relay (HTTP -> Socket.io & FCM)
@@ -568,6 +687,60 @@ io.on('connection', (socket) => {
       } catch (err) {
         console.error('[MSG_STORE_OFFLINE_ERR]', err);
       }
+    }
+
+    // 2. Cloud Backup to Turso Database (Permanent chat history across device re-installs)
+    if (data?.type === 'CHAT_MESSAGE' && data.payload) {
+      try {
+        const p = data.payload;
+        const sPhone = String(p.senderPhone || p.senderId || socket.userPhone || senderId || '').replace(/\D/g, '').slice(-10);
+        const rPhone = String(p.receiverPhone || p.receiverId || targetUserId || '').replace(/\D/g, '').slice(-10);
+        if (sPhone && rPhone) {
+          const threadId = getThreadId(sPhone, rPhone);
+          const msgId = p.id || `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+          await turso.execute({
+            sql: `INSERT OR REPLACE INTO messages (id, thread_id, sender_phone, receiver_phone, text, type, media_url, duration, status, created_at)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            args: [
+              String(msgId),
+              threadId,
+              sPhone,
+              rPhone,
+              String(p.text || ''),
+              p.type || 'text',
+              p.audioUrl || p.mediaUrl || null,
+              p.duration || null,
+              p.status || 'sent',
+              p.timestamp || Date.now()
+            ]
+          });
+          console.log(`[CLOUD_BACKUP] Saved message ${msgId} to Turso thread ${threadId}`);
+        }
+      } catch (backupErr) {
+        console.error('[CLOUD_BACKUP_ERR]', backupErr);
+      }
+    } else if (data?.type === 'MESSAGE_DELIVERED' && data.payload) {
+      try {
+        const msgId = data.payload.messageId || data.payload.id;
+        if (msgId) {
+          await turso.execute({
+            sql: "UPDATE messages SET status = 'delivered' WHERE id = ? AND status = 'sent'",
+            args: [String(msgId)]
+          });
+        }
+      } catch (_) {}
+    } else if ((data?.type === 'MESSAGE_READ' || data?.type === 'CHAT_READ_SYNC') && data.payload) {
+      try {
+        const reader = String(data.payload.readerPhone || data.payload.senderId || '').replace(/\D/g, '').slice(-10);
+        const contact = String(data.payload.contactPhone || data.payload.receiverId || '').replace(/\D/g, '').slice(-10);
+        if (reader && contact) {
+          const threadId = getThreadId(reader, contact);
+          await turso.execute({
+            sql: "UPDATE messages SET status = 'read' WHERE thread_id = ? AND receiver_phone = ?",
+            args: [threadId, reader]
+          });
+        }
+      } catch (_) {}
     }
 
     // 2. Multi-Device Companion Sync: mirror message to sender's OTHER devices (Mobile <-> Web <-> Desktop)

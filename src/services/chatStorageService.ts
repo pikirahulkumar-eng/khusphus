@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ChatItemData } from '../components/main/ChatsTab';
+import { getBackendUrl } from './firebase';
 
 export interface LocalMessage {
   id: string;
@@ -81,6 +82,66 @@ export const ChatStorageService = {
       console.warn('[STORAGE] Error reading messages:', e);
     }
     return [];
+  },
+
+  /**
+   * Sync and restore messages from Turso Cloud
+   */
+  async syncMessagesWithCloud(myPhone: string, contactPhone: string): Promise<LocalMessage[]> {
+    try {
+      const cleanMe = String(myPhone || '').replace(/\D/g, '').slice(-10);
+      const cleanContact = String(contactPhone || '').replace(/\D/g, '').slice(-10);
+      if (!cleanMe || !cleanContact) return await this.getMessages(myPhone, contactPhone);
+
+      const baseUrl = getBackendUrl();
+      const res = await fetch(`${baseUrl}/api/messages/history?myPhone=${cleanMe}&contactPhone=${cleanContact}&limit=150`);
+      if (res.ok) {
+        const cloudMessages = await res.json();
+        if (Array.isArray(cloudMessages) && cloudMessages.length > 0) {
+          const current = await this.getMessages(myPhone, contactPhone);
+          const currentMap = new Map(current.map((m) => [m.id, m]));
+
+          let changed = false;
+          for (const cm of cloudMessages) {
+            const isMe = String(cm.senderId).replace(/\D/g, '').slice(-10) === cleanMe;
+            const normalized: LocalMessage = {
+              id: cm.id,
+              senderId: isMe ? myPhone : contactPhone,
+              receiverId: isMe ? contactPhone : myPhone,
+              text: cm.text || '',
+              time: cm.timestamp ? new Date(Number(cm.timestamp)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+              timestamp: Number(cm.timestamp) || Date.now(),
+              sender: isMe ? 'me' : 'them',
+              status: (cm.status as any) || 'sent',
+              type: (cm.type as any) || 'text',
+              audioUrl: cm.audioUrl || undefined,
+              duration: cm.duration || undefined,
+            };
+
+            if (!currentMap.has(cm.id)) {
+              currentMap.set(cm.id, normalized);
+              changed = true;
+            } else {
+              const existing = currentMap.get(cm.id)!;
+              if (existing.status !== normalized.status && normalized.status) {
+                existing.status = normalized.status;
+                changed = true;
+              }
+            }
+          }
+
+          if (changed) {
+            const merged = Array.from(currentMap.values()).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+            const key = getChatKey(myPhone, contactPhone);
+            await AsyncStorage.setItem(key, JSON.stringify(merged));
+            return merged;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[STORAGE] Cloud sync failed:', err);
+    }
+    return await this.getMessages(myPhone, contactPhone);
   },
 
   /**
