@@ -1,0 +1,9 @@
+node_modules
+.git
+.expo
+android
+android-native
+release-builds
+*.apk
+gh_logs
+*.png
