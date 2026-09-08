@@ -14,14 +14,9 @@ class RealtimeBridgeManager {
 
   private getWsUrl(): string {
     if (typeof window !== 'undefined' && window.location) {
-      if (window.location.port === '10000') {
-        return window.location.origin;
+      if (window.location.search && window.location.search.includes('local=true')) {
+        return `${window.location.protocol}//${window.location.hostname}:10000`;
       }
-      const hostname = window.location.hostname;
-      if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.startsWith('172.')) {
-        return `${window.location.protocol}//${hostname}:10000`;
-      }
-      return window.location.origin;
     }
     return 'https://p01--sunao-server--njm6yd7449gk.code.run';
   }
