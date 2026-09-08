@@ -53,13 +53,35 @@ const io = new Server(server, {
   transports: ['websocket', 'polling']
 });
 
-// Initialize SQLite Client — uses Turso on cloud (if env set), falls back to local SQLite file for zero-error dev
+// Load .env if present
+try {
+  const envPath = path.join(__dirname, '.env');
+  if (fs.existsSync(envPath)) {
+    const envFile = fs.readFileSync(envPath, 'utf8');
+    envFile.split('\n').forEach((line) => {
+      const parts = line.trim().split('=');
+      if (parts.length >= 2 && !parts[0].startsWith('#')) {
+        const key = parts[0].trim();
+        const val = parts.slice(1).join('=').trim().replace(/^["']|["']$/g, '');
+        if (!process.env[key]) {
+          process.env[key] = val;
+        }
+      }
+    });
+  }
+} catch (_) {}
+
+// Initialize Database Client — connects to Khusphus DB (defaults to local sunao_local.db or custom cloud TURSO_URL)
+const DB_URL = process.env.TURSO_URL || process.env.TURSO_DATABASE_URL || 'file:sunao_local.db';
+const DB_AUTH_TOKEN = process.env.TURSO_AUTH_TOKEN || undefined;
+
+console.log('[DB_CONFIG] Using Khusphus database:', DB_URL);
 const turso = createClient({
-  url: process.env.TURSO_URL || 'file:sunao_local.db',
-  authToken: process.env.TURSO_AUTH_TOKEN,
+  url: DB_URL,
+  authToken: DB_AUTH_TOKEN,
 });
 
-// Initialize users and pending_messages tables on startup (safe — runs every time server boots)
+// Initialize users and pending_messages tables on startup
 async function initDb() {
   try {
     await turso.execute(`
@@ -71,8 +93,6 @@ async function initDb() {
         registered_at INTEGER DEFAULT (strftime('%s','now'))
       )
     `);
-    // Ensure legacy rows (phone-keyed) still work — add userId column if missing
-    try { await turso.execute('ALTER TABLE users ADD COLUMN userId TEXT'); } catch (_) {}
 
     await turso.execute(`
       CREATE TABLE IF NOT EXISTS pending_messages (
@@ -99,7 +119,7 @@ async function initDb() {
       `);
     } catch (_) {}
 
-    console.log('[DB] users & pending_messages tables ready');
+    console.log('[DB] users & pending_messages tables ready in Khusphus Database');
   } catch (e) {
     console.error('[DB_INIT_ERR]', e);
   }
@@ -112,7 +132,13 @@ app.post('/api/register', async (req, res) => {
   if (!userId || !phone || !name) {
     return res.status(400).json({ error: 'userId, phone, name are required' });
   }
-  const cleanPhone = String(phone).trim();
+  let cleanPhone = String(phone).trim().replace(/\D/g, '');
+  if (cleanPhone.length > 10 && cleanPhone.startsWith('91')) {
+    cleanPhone = cleanPhone.slice(2);
+  }
+  if (cleanPhone.length > 10) {
+    cleanPhone = cleanPhone.slice(-10);
+  }
   const cleanName = String(name).trim();
   if (cleanPhone.startsWith('user_') || cleanPhone.startsWith('reg_') || cleanPhone.length < 10) {
     return res.status(400).json({ error: 'Invalid phone format' });
@@ -133,25 +159,33 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-// Search API Endpoint — only exact phone lookup allowed, NEVER substring name search
+// Search API Endpoint — queries Khusphus DB for registered user by phone number
 app.get('/api/search', async (req, res) => {
   const { query } = req.query;
   if (!query || !query.trim()) return res.json([]);
-  const q = query.trim().replace(/\D/g, '');
+  let q = query.trim().replace(/\D/g, '');
+  if (q.length > 10 && q.startsWith('91')) {
+    q = q.slice(2);
+  }
+  if (q.length > 10) {
+    q = q.slice(-10);
+  }
   if (q.length < 10) return res.json([]);
 
   try {
     const result = await turso.execute({
-      sql: `SELECT userId, phone, name FROM users 
-            WHERE phone = ? 
+      sql: `SELECT userId, phone, name 
+            FROM users 
+            WHERE (phone = ? OR phone LIKE ?)
               AND phone NOT LIKE 'user_%' 
               AND phone NOT LIKE 'reg_%'
               AND phone NOT IN ('9876543210', '9876543211', '6677889900', '9999888877', '1122334455', 'test_123', '12345', 'space_live_room')
-            LIMIT 1`,
-      args: [q]
+            LIMIT 5`,
+      args: [q, `%${q}%`]
     });
     res.json(result.rows);
   } catch (error) {
+    console.error('Search error:', error);
     res.json([]);
   }
 });
@@ -159,6 +193,7 @@ app.get('/api/search', async (req, res) => {
 // All Users Endpoint — loads real registered users from DB for chat list & live rail
 app.get('/api/users', async (req, res) => {
   const { excludePhone } = req.query;
+  let cleanExclude = excludePhone ? String(excludePhone).replace(/\D/g, '').slice(-10) : '';
   const dummyFilter = `
     AND phone NOT LIKE 'user_%' 
     AND phone NOT LIKE 'reg_%'
@@ -166,10 +201,10 @@ app.get('/api/users', async (req, res) => {
   `;
   try {
     const result = await turso.execute({
-      sql: excludePhone 
+      sql: cleanExclude 
         ? `SELECT userId, phone, name FROM users WHERE phone != ? ${dummyFilter} ORDER BY registered_at DESC LIMIT 50`
         : `SELECT userId, phone, name FROM users WHERE 1=1 ${dummyFilter} ORDER BY registered_at DESC LIMIT 50`,
-      args: excludePhone ? [excludePhone] : []
+      args: cleanExclude ? [cleanExclude] : []
     });
     res.json(result.rows);
   } catch (e) {
@@ -306,11 +341,14 @@ io.on('connection', (socket) => {
     // Automatically ensure valid real users exist in users table
     if (userId && phone && !phone.startsWith('user_') && !phone.startsWith('reg_') && phone.length >= 10) {
       try {
+        let cleanPhone = String(phone).trim().replace(/\D/g, '');
+        if (cleanPhone.length > 10 && cleanPhone.startsWith('91')) cleanPhone = cleanPhone.slice(2);
+        if (cleanPhone.length > 10) cleanPhone = cleanPhone.slice(-10);
         await turso.execute({
           sql: `INSERT INTO users (userId, phone, name)
                 VALUES (?, ?, ?)
                 ON CONFLICT(userId) DO UPDATE SET phone=excluded.phone, name=COALESCE(excluded.name, users.name)`,
-          args: [userId, phone.trim(), (name || phone).trim()]
+          args: [userId, cleanPhone, (name || phone).trim()]
         });
       } catch (_) {}
     }

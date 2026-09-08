@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -42,6 +42,8 @@ export default function NewChatModal({
   const { isDark } = useTheme();
   const [search, setSearch] = useState('');
   const [toastMessage, setToastMessage] = useState('');
+  const [dbUser, setDbUser] = useState<ContactUser | null>(null);
+  const [isSearchingDb, setIsSearchingDb] = useState(false);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -52,22 +54,74 @@ export default function NewChatModal({
   const digitsOnly = trimmedSearch.replace(/\D/g, '');
   const isValidPhoneNumber = digitsOnly.length >= 10 && digitsOnly.length <= 15;
 
-  // Filter contacts by name or phone (only within known contacts)
-  const filteredContacts = React.useMemo(() => {
+  // Search Turso DB when typing a valid phone number
+  useEffect(() => {
+    if (!isValidPhoneNumber) {
+      setDbUser(null);
+      setIsSearchingDb(false);
+      return;
+    }
+
+    let isMounted = true;
+    setIsSearchingDb(true);
+    const timer = setTimeout(async () => {
+      try {
+        const baseUrl = getBackendUrl();
+        const res = await fetch(`${baseUrl}/api/search?query=${digitsOnly}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted && Array.isArray(data) && data.length > 0) {
+            const u = data[0];
+            setDbUser({
+              phone: u.phone || digitsOnly,
+              name: u.name || `+91 ${digitsOnly}`,
+              about: u.about || 'Registered on Sunao 🚀',
+              avatarUri: u.avatarUri || undefined,
+            });
+          } else if (isMounted) {
+            setDbUser(null);
+          }
+        }
+      } catch (err) {
+        if (isMounted) setDbUser(null);
+      } finally {
+        if (isMounted) setIsSearchingDb(false);
+      }
+    }, 250);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [digitsOnly, isValidPhoneNumber]);
+
+  // Filter contacts by name or phone (only within known contacts + live DB search match)
+  const filteredContacts = useMemo(() => {
     const q = trimmedSearch.toLowerCase();
-    return contacts.filter(
+    const list = contacts.filter(
       (c) => !isDummyContact(c) && (c.name.toLowerCase().includes(q) || c.phone.includes(q))
     );
-  }, [contacts, trimmedSearch]);
+    if (dbUser && !list.some((c) => c.phone === dbUser.phone)) {
+      list.unshift(dbUser);
+    }
+    return list;
+  }, [contacts, trimmedSearch, dbUser]);
 
   // Helper to start chat directly with a real phone number
   const handleStartPhoneChat = () => {
     if (!isValidPhoneNumber) return;
     onClose();
-    onSelectUser({
-      phone: digitsOnly,
-      name: `+91 ${digitsOnly}`,
-    });
+    if (dbUser) {
+      onSelectUser({
+        phone: dbUser.phone,
+        name: dbUser.name,
+      });
+    } else {
+      onSelectUser({
+        phone: digitsOnly,
+        name: `+91 ${digitsOnly}`,
+      });
+    }
   };
 
   return (
@@ -82,7 +136,7 @@ export default function NewChatModal({
 
             <View style={styles.headerTitleBox}>
               <Text style={[styles.headerTitle, isDark && { color: '#FFFFFF' }]}>New Chat</Text>
-              <Text style={[styles.headerSubtitle, isDark && { color: '#94A3B8' }]}>{contacts.length} contacts</Text>
+              <Text style={[styles.headerSubtitle, isDark && { color: '#94A3B8' }]}>{filteredContacts.length} contacts</Text>
             </View>
 
             <TouchableOpacity
@@ -104,6 +158,9 @@ export default function NewChatModal({
               value={search}
               onChangeText={setSearch}
             />
+            {isSearchingDb && (
+              <ActivityIndicator size="small" color="#10B981" style={{ marginRight: 6 }} />
+            )}
             {search.length > 0 && (
               <TouchableOpacity onPress={() => setSearch('')}>
                 <Ionicons name="close-circle" size={18} color="#94A3B8" />
@@ -182,7 +239,15 @@ export default function NewChatModal({
           )}
           ListEmptyComponent={
             trimmedSearch.length > 0 ? (
-              isValidPhoneNumber ? (
+              isSearchingDb ? (
+                <View style={styles.emptyContainer}>
+                  <ActivityIndicator size="small" color="#10B981" style={{ marginBottom: 12 }} />
+                  <Text style={[styles.emptyTitle, isDark && { color: '#FFFFFF' }]}>Searching Turso Database...</Text>
+                  <Text style={[styles.emptySub, isDark && { color: '#94A3B8' }]}>
+                    Looking up +91 {digitsOnly}
+                  </Text>
+                </View>
+              ) : isValidPhoneNumber ? (
                 <View style={styles.emptyContainer}>
                   <TouchableOpacity
                     style={[
@@ -211,7 +276,7 @@ export default function NewChatModal({
                   <Ionicons name="search-outline" size={44} color="#94A3B8" style={{ marginBottom: 10 }} />
                   <Text style={[styles.emptyTitle, isDark && { color: '#FFFFFF' }]}>No registered user found</Text>
                   <Text style={[styles.emptySub, isDark && { color: '#94A3B8' }]}>
-                    No Sunao user matches "{trimmedSearch}"
+                    Enter a 10-digit phone number to search registered users
                   </Text>
                 </View>
               )
@@ -223,7 +288,7 @@ export default function NewChatModal({
             )
           }
           ListFooterComponent={
-            isValidPhoneNumber && !filteredContacts.some((c) => c.phone === digitsOnly) ? (
+            isValidPhoneNumber && !isSearchingDb && !filteredContacts.some((c) => c.phone === digitsOnly) ? (
               <TouchableOpacity
                 style={[
                   styles.customChatCard,
