@@ -10,7 +10,12 @@ import { WebRTCService } from './src/services/webrtcService';
 import { RealtimeBridge } from './src/services/realtimeBridge';
 import { getBackendUrl } from './src/services/firebase';
 import { isDummyContact } from './src/services/chatStorageService';
-import * as Updates from 'expo-updates';
+let Updates: any = null;
+try {
+  Updates = require('expo-updates');
+} catch (_) {
+  Updates = null;
+}
 
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 
@@ -85,10 +90,10 @@ function AppMain() {
   // Immediate check & reload on launch for live EAS OTA updates
   useEffect(() => {
     async function checkAutoUpdate() {
-      if (__DEV__ || Platform.OS === 'web') return;
+      if (__DEV__ || Platform.OS === 'web' || !Updates || typeof Updates.checkForUpdateAsync !== 'function') return;
       try {
         const update = await Updates.checkForUpdateAsync();
-        if (update.isAvailable) {
+        if (update && update.isAvailable) {
           await Updates.fetchUpdateAsync();
           await Updates.reloadAsync();
         }
