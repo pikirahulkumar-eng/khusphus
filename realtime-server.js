@@ -30,6 +30,14 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+app.get('/api/env-info', (req, res) => {
+  res.json({
+    tursoUrl: process.env.TURSO_URL || process.env.TURSO_DATABASE_URL || 'NOT_SET',
+    hasTursoToken: Boolean(process.env.TURSO_AUTH_TOKEN),
+    tokenPrefix: process.env.TURSO_AUTH_TOKEN ? process.env.TURSO_AUTH_TOKEN.substring(0, 20) + '...' : 'NOT_SET'
+  });
+});
+
 const path = require('path');
 const distPath = path.join(__dirname, 'dist');
 if (fs.existsSync(distPath)) {
