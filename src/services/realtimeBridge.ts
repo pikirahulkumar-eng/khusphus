@@ -23,7 +23,7 @@ class RealtimeBridgeManager {
       }
       return window.location.origin;
     }
-    return 'http://192.168.29.118:10000';
+    return 'https://p01--sunao-server--njm6yd7449gk.code.run';
   }
 
   constructor() {

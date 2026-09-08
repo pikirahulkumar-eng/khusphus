@@ -12,8 +12,8 @@ async function decryptE2EEMessage(text: string, _senderId?: string, _receiverId?
   return text.replace(/^E2EE::/, '');
 }
 
-export const LOCAL_DEV_URL = 'http://192.168.29.118:10000';
-export const CLOUD_BACKEND_URL = 'https://khusphus-epsm.onrender.com';
+export const LOCAL_DEV_URL = 'https://p01--sunao-server--njm6yd7449gk.code.run';
+export const CLOUD_BACKEND_URL = 'https://p01--sunao-server--njm6yd7449gk.code.run';
 
 export function getBackendUrl(): string {
   if (typeof window !== 'undefined' && window.location) {
