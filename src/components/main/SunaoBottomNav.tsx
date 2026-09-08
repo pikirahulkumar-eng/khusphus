@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../contexts/ThemeContext';
 
 export type MainNavTab = 'Chats' | 'Calls' | 'Updates' | 'Profile';
@@ -22,8 +21,7 @@ export default function SunaoBottomNav({
   hasUpdatesBadge = true,
 }: SunaoBottomNavProps) {
   const { isDark } = useTheme();
-  const insets = useSafeAreaInsets();
-  const safeBottom = Math.max(insets.bottom, Platform.OS === 'android' ? 12 : 24);
+  const safeBottom = Platform.OS === 'ios' ? 24 : 10;
 
   const tabs: {
     key: MainNavTab;

@@ -38,9 +38,7 @@
     "updates": {
       "url": "https://u.expo.dev/2a3b2eea-be29-405c-8475-e381affdedb5"
     },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "1.0.0",
     "extra": {
       "eas": {
         "projectId": "2a3b2eea-be29-405c-8475-e381affdedb5"
