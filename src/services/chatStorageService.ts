@@ -19,8 +19,8 @@ export const getChatKey = (myPhone: string, contactPhone: string) => {
   return `@sunao_msgs_${myPhone}_${contactPhone}`;
 };
 
-const DUMMY_PHONES = new Set(['9876543210', '9876543211', '6677889900', '9999888877', '1122334455', 'test_123', '12345', 'space_live_room']);
-const DUMMY_NAMES = new Set(['Rahul Bhai', 'Priya Verma', 'Neha Sharma', 'Amit Patel', 'Vikram Rajput', 'Papa', 'Test Bhai', 'Open Audio Lounge 🎙️']);
+const DUMMY_PHONES = new Set(['test_123', 'space_live_room']);
+const DUMMY_NAMES = new Set(['Open Audio Lounge 🎙️']);
 
 export const isDummyContact = (c: any): boolean => {
   if (!c) return true;
@@ -29,8 +29,8 @@ export const isDummyContact = (c: any): boolean => {
   if (!phone) return true;
   if (DUMMY_PHONES.has(phone)) return true;
   if (DUMMY_NAMES.has(name)) return true;
-  if (phone.startsWith('user_') || phone.startsWith('reg_')) return true;
-  if (name.toLowerCase().startsWith('user_')) return true;
+  if (phone.startsWith('user_') || phone.startsWith('reg_') || phone.startsWith('guest_')) return true;
+  if (name.toLowerCase().startsWith('user_') || name.toLowerCase().startsWith('reg_')) return true;
   return false;
 };
 

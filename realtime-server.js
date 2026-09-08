@@ -20,6 +20,14 @@ try {
       credential: admin.credential.cert(serviceAccount)
     });
     console.log('Firebase Admin Initialized for FCM');
+  } else if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    const serviceAccount = typeof process.env.FIREBASE_SERVICE_ACCOUNT === 'string' 
+      ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT) 
+      : process.env.FIREBASE_SERVICE_ACCOUNT;
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
+    console.log('Firebase Admin Initialized for FCM from ENV');
   } else {
     console.warn('FCM disabled: firebase-service-account.json not found');
   }
