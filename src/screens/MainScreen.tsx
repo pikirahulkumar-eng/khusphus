@@ -300,15 +300,32 @@ export default function MainScreen({
   const filteredChats = useMemo(() => {
     let result = chats.filter((c) => !isDummyContact(c));
 
-    // Search filter: Strictly filter existing chats only
+    // Search filter: Filter existing chats AND include registered users from database
     if (searchQuery.trim().length > 0) {
       const q = searchQuery.trim().toLowerCase();
+      const digits = q.replace(/\D/g, '');
       result = result.filter(
         (c) =>
           (c.name && c.name.toLowerCase().includes(q)) ||
           (c.lastMessage && c.lastMessage.toLowerCase().includes(q)) ||
-          (c.phone && c.phone.includes(q))
+          (c.phone && (c.phone.includes(q) || (digits.length >= 4 && c.phone.includes(digits))))
       );
+
+      // Include matching registered contacts from database
+      contactsList.forEach((contact) => {
+        const contactDigits = contact.phone.replace(/\D/g, '');
+        const matchesPhone = contact.phone.includes(q) || (digits.length >= 4 && contactDigits.includes(digits));
+        const matchesName = contact.name && contact.name.toLowerCase().includes(q);
+        if (!result.some((c) => c.phone === contact.phone) && (matchesPhone || matchesName)) {
+          result.push({
+            phone: contact.phone,
+            name: contact.name,
+            lastMessage: 'Tap to start conversation',
+            timestamp: '',
+            unreadCount: 0,
+          });
+        }
+      });
     }
 
     // Filter Chips
@@ -324,7 +341,7 @@ export default function MainScreen({
       ...c,
       isOnline: onlineUsers.has(c.phone),
     }));
-  }, [chats, searchQuery, activeFilter, onlineUsers]);
+  }, [chats, searchQuery, activeFilter, onlineUsers, contactsList]);
 
   const totalUnreadCount = useMemo(() => {
     return chats.reduce((acc, c) => acc + (c.unreadCount || 0), 0);

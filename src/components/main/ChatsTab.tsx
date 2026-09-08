@@ -8,10 +8,12 @@ import {
   Image,
   ScrollView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
+import { getBackendUrl } from '../../services/firebase';
 
 export interface ChatItemData {
   phone: string;
@@ -65,6 +67,45 @@ export default function ChatsTab({
       }
     });
   }, []);
+
+  // Live Database Search for Contacts & Phone Numbers
+  const [dbResults, setDbResults] = useState<Array<{ phone: string; name: string }>>([]);
+  const [isSearchingDb, setIsSearchingDb] = useState<boolean>(false);
+
+  const cleanQueryDigits = (searchQuery || '').replace(/\D/g, '');
+
+  useEffect(() => {
+    if (!searchQuery || cleanQueryDigits.length < 4) {
+      setDbResults([]);
+      setIsSearchingDb(false);
+      return;
+    }
+
+    let isMounted = true;
+    setIsSearchingDb(true);
+    const timer = setTimeout(async () => {
+      try {
+        const baseUrl = getBackendUrl();
+        const res = await fetch(`${baseUrl}/api/search?query=${cleanQueryDigits}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted && Array.isArray(data)) {
+            const fresh = data.filter((u) => !chats.some((c) => c.phone === u.phone));
+            setDbResults(fresh);
+          }
+        }
+      } catch (_) {
+      } finally {
+        if (isMounted) setIsSearchingDb(false);
+      }
+    }, 200);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [searchQuery, cleanQueryDigits, chats]);
+
   // Sunao Live Presence & Audio Spaces Rail
   const renderActivePresenceHeader = () => {
     const activeContacts = chats.slice(0, 8);
@@ -269,15 +310,118 @@ export default function ChatsTab({
         keyExtractor={(item) => item.phone}
         renderItem={renderChatItem}
         ListHeaderComponent={searchQuery && searchQuery.trim().length > 0 ? null : renderActivePresenceHeader}
+        ListFooterComponent={
+          searchQuery && searchQuery.trim().length > 0 ? (
+            <View style={{ paddingBottom: 24, paddingTop: 4 }}>
+              {isSearchingDb && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+                  <ActivityIndicator size="small" color="#10B981" />
+                  <Text style={{ marginLeft: 8, fontSize: 13, color: '#94A3B8' }}>Searching Sunao directory...</Text>
+                </View>
+              )}
+              {dbResults.length > 0 && (
+                <View style={{ marginTop: 8 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#64748B', letterSpacing: 0.5, marginHorizontal: 16, marginBottom: 8, textTransform: 'uppercase' }}>
+                    Contacts on Sunao ({dbResults.length})
+                  </Text>
+                  {dbResults.map((u) => (
+                    <TouchableOpacity
+                      key={u.phone}
+                      style={[
+                        styles.chatCard,
+                        { backgroundColor: isDark ? '#0F172A' : '#F0FDF4', marginHorizontal: 12, marginVertical: 4, borderRadius: 14, borderWidth: 1, borderColor: isDark ? '#1E293B' : '#BBF7D0' }
+                      ]}
+                      onPress={() => onSelectChat({
+                        phone: u.phone,
+                        name: u.name || u.phone,
+                        lastMessage: 'Tap to start conversation',
+                        timestamp: 'Sunao User',
+                        unreadCount: 0,
+                      })}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.avatarWrapper, { backgroundColor: '#10B981' }]}>
+                        <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 18 }}>
+                          {(u.name || u.phone).charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={styles.chatCenter}>
+                        <View style={styles.topRow}>
+                          <Text style={[styles.contactName, isDark && { color: '#FFFFFF' }]} numberOfLines={1}>
+                            {u.name || u.phone}
+                          </Text>
+                          <View style={{ backgroundColor: '#10B981', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                            <Text style={{ color: '#FFF', fontSize: 10, fontWeight: 'bold' }}>SUNAO USER</Text>
+                          </View>
+                        </View>
+                        <View style={styles.bottomRow}>
+                          <Text style={[styles.messagePreview, { color: isDark ? '#10B981' : '#047857' }]} numberOfLines={1}>
+                            +91 {u.phone} • Tap to message
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.actionsRight}>
+                        <TouchableOpacity
+                          style={[styles.quickCallBtn, isDark && { backgroundColor: 'rgba(16, 185, 129, 0.15)', borderColor: 'rgba(16, 185, 129, 0.3)' }]}
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            onStartCall?.(u.phone, u.name || u.phone, false);
+                          }}
+                          activeOpacity={0.75}
+                        >
+                          <Ionicons name="call" size={15} color={isDark ? '#10B981' : '#047857'} />
+                        </TouchableOpacity>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+              {cleanQueryDigits.length >= 10 && !dbResults.some(u => u.phone === cleanQueryDigits) && !chats.some(c => c.phone === cleanQueryDigits) && !isSearchingDb && (
+                <TouchableOpacity
+                  style={[
+                    styles.chatCard,
+                    { backgroundColor: isDark ? '#1E293B' : '#EFF6FF', marginHorizontal: 12, marginVertical: 8, borderRadius: 14, borderWidth: 1, borderColor: '#3B82F6' }
+                  ]}
+                  onPress={() => onSelectChat({
+                    phone: cleanQueryDigits,
+                    name: `+91 ${cleanQueryDigits}`,
+                    lastMessage: 'Tap to start conversation',
+                    timestamp: '',
+                    unreadCount: 0,
+                  })}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.avatarWrapper, { backgroundColor: '#3B82F6' }]}>
+                    <Ionicons name="chatbubble-ellipses" size={22} color="#FFF" />
+                  </View>
+                  <View style={styles.chatCenter}>
+                    <Text style={[styles.contactName, isDark && { color: '#FFFFFF' }]}>Message +91 {cleanQueryDigits}</Text>
+                    <Text style={[styles.messagePreview, { color: '#3B82F6' }]}>Tap to start direct conversation</Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           searchQuery && searchQuery.trim().length > 0 ? (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="search-outline" size={48} color="#94A3B8" style={{ marginBottom: 12 }} />
-              <Text style={[styles.emptyTitle, isDark && { color: '#FFFFFF' }]}>No chats found</Text>
-              <Text style={[styles.emptySub, isDark && { color: '#94A3B8' }]}>
-                No conversation matches "{searchQuery.trim()}"
-              </Text>
-            </View>
+            dbResults.length > 0 ? null : isSearchingDb ? (
+              <View style={styles.emptyContainer}>
+                <ActivityIndicator size="large" color="#10B981" style={{ marginBottom: 12 }} />
+                <Text style={[styles.emptyTitle, isDark && { color: '#FFFFFF' }]}>Searching Sunao...</Text>
+                <Text style={[styles.emptySub, isDark && { color: '#94A3B8' }]}>
+                  Checking directory for "{searchQuery.trim()}"
+                </Text>
+              </View>
+            ) : cleanQueryDigits.length >= 10 ? null : (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="search-outline" size={48} color="#94A3B8" style={{ marginBottom: 12 }} />
+                <Text style={[styles.emptyTitle, isDark && { color: '#FFFFFF' }]}>No chats found</Text>
+                <Text style={[styles.emptySub, isDark && { color: '#94A3B8' }]}>
+                  No conversation matches "{searchQuery.trim()}"
+                </Text>
+              </View>
+            )
           ) : (
             <View style={styles.emptyContainer}>
               <Ionicons name="chatbubbles-outline" size={48} color="#94A3B8" style={{ marginBottom: 12 }} />
