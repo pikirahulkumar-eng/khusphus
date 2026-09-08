@@ -37,6 +37,7 @@ interface ChatsTabProps {
   onArchivedPress?: () => void;
   archivedCount?: number;
   activeChatPhone?: string;
+  searchQuery?: string;
 }
 
 export default function ChatsTab({
@@ -45,6 +46,7 @@ export default function ChatsTab({
   onOpenNewChat,
   onStartCall,
   activeChatPhone,
+  searchQuery,
 }: ChatsTabProps) {
   const { isDark } = useTheme();
 
@@ -266,8 +268,27 @@ export default function ChatsTab({
         data={chats}
         keyExtractor={(item) => item.phone}
         renderItem={renderChatItem}
-        ListHeaderComponent={renderActivePresenceHeader}
-        contentContainerStyle={styles.listContent}
+        ListHeaderComponent={searchQuery && searchQuery.trim().length > 0 ? null : renderActivePresenceHeader}
+        ListEmptyComponent={
+          searchQuery && searchQuery.trim().length > 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="search-outline" size={48} color="#94A3B8" style={{ marginBottom: 12 }} />
+              <Text style={[styles.emptyTitle, isDark && { color: '#FFFFFF' }]}>No chats found</Text>
+              <Text style={[styles.emptySub, isDark && { color: '#94A3B8' }]}>
+                No conversation matches "{searchQuery.trim()}"
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="chatbubbles-outline" size={48} color="#94A3B8" style={{ marginBottom: 12 }} />
+              <Text style={[styles.emptyTitle, isDark && { color: '#FFFFFF' }]}>No chats yet</Text>
+              <Text style={[styles.emptySub, isDark && { color: '#94A3B8' }]}>
+                Tap the message icon below to start a conversation with any contact
+              </Text>
+            </View>
+          )
+        }
+        contentContainerStyle={[styles.listContent, chats.length === 0 && { flexGrow: 1, justifyContent: 'center' }]}
         showsVerticalScrollIndicator={false}
       />
 
@@ -563,5 +584,24 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.35,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    paddingVertical: 64,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  emptySub: {
+    fontSize: 14,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });

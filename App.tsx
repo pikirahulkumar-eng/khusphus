@@ -9,6 +9,8 @@ import CallModal from './src/components/CallModal';
 import { WebRTCService } from './src/services/webrtcService';
 import { RealtimeBridge } from './src/services/realtimeBridge';
 import { getBackendUrl } from './src/services/firebase';
+import { isDummyContact } from './src/services/chatStorageService';
+import * as Updates from 'expo-updates';
 
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 
@@ -80,14 +82,20 @@ function AppMain() {
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width >= 768;
 
-  const DUMMY_PHONES = new Set(['9876543210', '9876543211', '6677889900', '9999888877', '1122334455', 'test_123', '12345', 'space_live_room']);
-  const DUMMY_NAMES = new Set(['Rahul Bhai', 'Priya Verma', 'Neha Sharma', 'Amit Patel', 'Vikram Rajput', 'Papa', 'Test Bhai', 'Open Audio Lounge 🎙️']);
-  const isDummyContact = (c: any) => {
-    if (!c) return true;
-    if (c.phone && DUMMY_PHONES.has(String(c.phone).trim())) return true;
-    if (c.name && DUMMY_NAMES.has(String(c.name).trim())) return true;
-    return false;
-  };
+  // Immediate check & reload on launch for live EAS OTA updates
+  useEffect(() => {
+    async function checkAutoUpdate() {
+      if (__DEV__ || Platform.OS === 'web') return;
+      try {
+        const update = await Updates.checkForUpdateAsync();
+        if (update.isAvailable) {
+          await Updates.fetchUpdateAsync();
+          await Updates.reloadAsync();
+        }
+      } catch (_) {}
+    }
+    checkAutoUpdate();
+  }, []);
 
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
@@ -95,7 +103,7 @@ function AppMain() {
       const loggedOut = window.localStorage.getItem('@sunao_logged_out');
       const isVerified = window.localStorage.getItem('@sunao_session_verified_v1');
       const phone = window.localStorage.getItem('user_phone');
-      if (phone && loggedOut !== 'true' && isVerified === 'true' && !DUMMY_PHONES.has(phone.trim())) return true;
+      if (phone && loggedOut !== 'true' && isVerified === 'true' && !isDummyContact({ phone })) return true;
     }
     return false;
   });
@@ -103,7 +111,7 @@ function AppMain() {
     if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
       const isVerified = window.localStorage.getItem('@sunao_session_verified_v1');
       const phone = window.localStorage.getItem('user_phone');
-      if (isVerified === 'true' && phone && !DUMMY_PHONES.has(phone.trim())) {
+      if (isVerified === 'true' && phone && !isDummyContact({ phone })) {
         return phone;
       }
     }
@@ -177,7 +185,7 @@ function AppMain() {
         const name = (await AsyncStorage.getItem('@sunao_user_name')) || (await AsyncStorage.getItem('user_name'));
         const storedUserId = await AsyncStorage.getItem('@sunao_user_id');
         
-        const isDummy = !phone || DUMMY_PHONES.has(phone.trim()) || phone.trim().length < 10;
+        const isDummy = !phone || isDummyContact({ phone: phone.trim(), name }) || phone.trim().length < 10;
 
         // Strictly enforce fresh Sign In if no verified session exists or if dummy data detected
         if (isDummy || loggedOut === 'true' || isVerified !== 'true') {
@@ -213,6 +221,14 @@ function AppMain() {
           // Register with both UUID and phone so calls/messages resolve by phone OR UUID
           const registerId = (storedUserId && storedUserId.trim()) || activePhone;
           RealtimeBridge.registerUser(registerId, activePhone);
+
+          // Background sync to backend users database so profile is active and searchable
+          const serverUrl = getBackendUrl();
+          fetch(`${serverUrl}/api/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: registerId, phone: activePhone, name: activeName }),
+          }).catch(() => {});
         }
 
         // Restore active chat user if not already in state

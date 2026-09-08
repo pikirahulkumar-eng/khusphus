@@ -11,16 +11,18 @@ import {
   Platform,
   Alert,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { SunaoTheme } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { getBackendUrl } from '../../services/firebase';
+import { isDummyContact } from '../../services/chatStorageService';
 
 interface ContactUser {
   phone: string;
   name: string;
-  about: string;
+  about?: string;
   avatarUri?: string;
 }
 
@@ -46,64 +48,25 @@ export default function NewChatModal({
     setTimeout(() => setToastMessage(''), 2500);
   };
 
-  const [remoteUsers, setRemoteUsers] = useState<ContactUser[]>([]);
-  const [isSearchingRemote, setIsSearchingRemote] = useState(false);
+  const trimmedSearch = search.trim();
+  const digitsOnly = trimmedSearch.replace(/\D/g, '');
+  const isValidPhoneNumber = digitsOnly.length >= 10 && digitsOnly.length <= 15;
 
-  // Live remote search when user types in search bar
-  React.useEffect(() => {
-    let active = true;
-    if (search.trim().length >= 2) {
-      setIsSearchingRemote(true);
-      const timer = setTimeout(async () => {
-        try {
-          const baseUrl = getBackendUrl();
-          const res = await fetch(`${baseUrl}/api/search?query=${encodeURIComponent(search.trim())}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (active && Array.isArray(data)) {
-              setRemoteUsers(data.map((u: any) => ({
-                phone: u.phone,
-                name: u.name || u.phone,
-                about: 'Registered on Sunao 🚀',
-              })));
-            }
-          }
-        } catch (e) {
-          console.warn('Remote search error:', e);
-        } finally {
-          if (active) setIsSearchingRemote(false);
-        }
-      }, 300);
-      return () => {
-        active = false;
-        clearTimeout(timer);
-      };
-    } else {
-      setRemoteUsers([]);
-      setIsSearchingRemote(false);
-    }
-  }, [search]);
-
-  // Combine local contacts and remote search results (deduplicating by phone)
+  // Filter contacts by name or phone (only within known contacts)
   const filteredContacts = React.useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const local = contacts.filter(
-      (c) => c.name.toLowerCase().includes(q) || c.phone.includes(q)
+    const q = trimmedSearch.toLowerCase();
+    return contacts.filter(
+      (c) => !isDummyContact(c) && (c.name.toLowerCase().includes(q) || c.phone.includes(q))
     );
-    const existingPhones = new Set(local.map((c) => c.phone));
-    const extra = remoteUsers.filter((u) => !existingPhones.has(u.phone));
-    return [...local, ...extra];
-  }, [contacts, search, remoteUsers]);
+  }, [contacts, trimmedSearch]);
 
-  // Helper to start chat with custom query
-  const handleStartCustomChat = () => {
-    const trimmed = search.trim();
-    if (!trimmed) return;
-    const isNum = /^[0-9+]+$/.test(trimmed);
+  // Helper to start chat directly with a real phone number
+  const handleStartPhoneChat = () => {
+    if (!isValidPhoneNumber) return;
     onClose();
     onSelectUser({
-      phone: isNum ? trimmed.replace(/\D/g, '') : `user_${trimmed.toLowerCase().replace(/\s+/g, '_')}`,
-      name: trimmed,
+      phone: digitsOnly,
+      name: `+91 ${digitsOnly}`,
     });
   };
 
@@ -218,30 +181,40 @@ export default function NewChatModal({
             </TouchableOpacity>
           )}
           ListEmptyComponent={
-            search.trim().length > 0 ? (
-              <View style={styles.emptyContainer}>
-                <TouchableOpacity
-                  style={[
-                    styles.customChatCard,
-                    isDark && { backgroundColor: 'rgba(16, 185, 129, 0.1)', borderColor: '#10B981' },
-                  ]}
-                  onPress={handleStartCustomChat}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.customChatIconBg}>
-                    <Ionicons name="chatbubbles" size={24} color="#10B981" />
-                  </View>
-                  <View style={{ flex: 1, marginLeft: 12 }}>
-                    <Text style={[styles.customChatTitle, isDark && { color: '#FFFFFF' }]}>
-                      Message "{search.trim()}"
-                    </Text>
-                    <Text style={[styles.customChatSub, isDark && { color: '#94A3B8' }]}>
-                      Tap to open direct chat with this person
-                    </Text>
-                  </View>
-                  <Ionicons name="arrow-forward-circle" size={26} color="#10B981" />
-                </TouchableOpacity>
-              </View>
+            trimmedSearch.length > 0 ? (
+              isValidPhoneNumber ? (
+                <View style={styles.emptyContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.customChatCard,
+                      isDark && { backgroundColor: 'rgba(16, 185, 129, 0.1)', borderColor: '#10B981' },
+                    ]}
+                    onPress={handleStartPhoneChat}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.customChatIconBg}>
+                      <Ionicons name="chatbubbles" size={24} color="#10B981" />
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <Text style={[styles.customChatTitle, isDark && { color: '#FFFFFF' }]}>
+                        Message +91 {digitsOnly}
+                      </Text>
+                      <Text style={[styles.customChatSub, isDark && { color: '#94A3B8' }]}>
+                        Start direct conversation with this number
+                      </Text>
+                    </View>
+                    <Ionicons name="arrow-forward-circle" size={26} color="#10B981" />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.emptyContainer}>
+                  <Ionicons name="search-outline" size={44} color="#94A3B8" style={{ marginBottom: 10 }} />
+                  <Text style={[styles.emptyTitle, isDark && { color: '#FFFFFF' }]}>No registered user found</Text>
+                  <Text style={[styles.emptySub, isDark && { color: '#94A3B8' }]}>
+                    No Sunao user matches "{trimmedSearch}"
+                  </Text>
+                </View>
+              )
             ) : (
               <View style={styles.emptyContainer}>
                 <Ionicons name="people-outline" size={40} color="#94A3B8" style={{ marginBottom: 8 }} />
@@ -250,25 +223,25 @@ export default function NewChatModal({
             )
           }
           ListFooterComponent={
-            search.trim().length > 0 && filteredContacts.length > 0 ? (
+            isValidPhoneNumber && !filteredContacts.some((c) => c.phone === digitsOnly) ? (
               <TouchableOpacity
                 style={[
                   styles.customChatCard,
                   { marginTop: 12, marginBottom: 24 },
                   isDark && { backgroundColor: 'rgba(16, 185, 129, 0.1)', borderColor: '#10B981' },
                 ]}
-                onPress={handleStartCustomChat}
+                onPress={handleStartPhoneChat}
                 activeOpacity={0.7}
               >
                 <View style={styles.customChatIconBg}>
-                  <Ionicons name="chatbubbles" size={22} color="#10B981" />
+                  <Ionicons name="call" size={22} color="#10B981" />
                 </View>
                 <View style={{ flex: 1, marginLeft: 12 }}>
                   <Text style={[styles.customChatTitle, isDark && { color: '#FFFFFF' }]}>
-                    Message "{search.trim()}" directly
+                    Message +91 {digitsOnly} directly
                   </Text>
                   <Text style={[styles.customChatSub, isDark && { color: '#94A3B8' }]}>
-                    Start conversation with this name or number
+                    Start conversation with this phone number
                   </Text>
                 </View>
                 <Ionicons name="arrow-forward-circle" size={24} color="#10B981" />
@@ -515,6 +488,19 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 14,
     color: '#64748B',
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  emptySub: {
+    fontSize: 13,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 18,
   },
   customChatCard: {
     width: '100%',

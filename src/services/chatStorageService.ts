@@ -19,6 +19,21 @@ export const getChatKey = (myPhone: string, contactPhone: string) => {
   return `@sunao_msgs_${myPhone}_${contactPhone}`;
 };
 
+const DUMMY_PHONES = new Set(['9876543210', '9876543211', '6677889900', '9999888877', '1122334455', 'test_123', '12345', 'space_live_room']);
+const DUMMY_NAMES = new Set(['Rahul Bhai', 'Priya Verma', 'Neha Sharma', 'Amit Patel', 'Vikram Rajput', 'Papa', 'Test Bhai', 'Open Audio Lounge 🎙️']);
+
+export const isDummyContact = (c: any): boolean => {
+  if (!c) return true;
+  const phone = String(c.phone || '').trim();
+  const name = String(c.name || '').trim();
+  if (!phone) return true;
+  if (DUMMY_PHONES.has(phone)) return true;
+  if (DUMMY_NAMES.has(name)) return true;
+  if (phone.startsWith('user_') || phone.startsWith('reg_')) return true;
+  if (name.toLowerCase().startsWith('user_')) return true;
+  return false;
+};
+
 export const getRecentKey = (phone: string) => `@sunao_recent_${phone}`;
 
 export const ChatStorageService = {
@@ -105,14 +120,18 @@ export const ChatStorageService = {
       }
       if (raw) {
         let saved: ChatItemData[] = JSON.parse(raw);
-        if (saved && Array.isArray(saved) && saved.length > 0) {
-          return saved;
+        if (saved && Array.isArray(saved)) {
+          const clean = saved.filter((c) => !isDummyContact(c));
+          if (clean.length !== saved.length) {
+            AsyncStorage.setItem(key, JSON.stringify(clean)).catch(() => {});
+          }
+          return clean;
         }
       }
-      return defaultChats;
+      return defaultChats.filter((c) => !isDummyContact(c));
     } catch (e) {
       console.warn('[STORAGE] Error loading recent chats:', e);
-      return defaultChats;
+      return defaultChats.filter((c) => !isDummyContact(c));
     }
   },
 
@@ -121,8 +140,12 @@ export const ChatStorageService = {
    */
   async saveCleanChats(myPhone: string, chats: ChatItemData[]): Promise<void> {
     try {
+      const clean = (chats || []).filter((c) => !isDummyContact(c));
       const key = getRecentKey(myPhone);
-      await AsyncStorage.setItem(key, JSON.stringify(chats));
+      await AsyncStorage.setItem(key, JSON.stringify(clean));
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(key, JSON.stringify(clean));
+      }
     } catch (_) {}
   },
 
@@ -139,9 +162,13 @@ export const ChatStorageService = {
     messageStatus?: 'sent' | 'delivered' | 'read'
   ): Promise<ChatItemData[]> {
     try {
+      if (isDummyContact({ phone: contactPhone, name: contactName })) {
+        return [];
+      }
       const key = getRecentKey(myPhone);
       const raw = await AsyncStorage.getItem(key);
       let list: ChatItemData[] = raw ? JSON.parse(raw) : [];
+      list = list.filter((c) => !isDummyContact(c));
 
       const existingIndex = list.findIndex((c) => c.phone === contactPhone);
       const computedStatus = isIncoming ? undefined : (messageStatus || 'sent');
@@ -174,6 +201,9 @@ export const ChatStorageService = {
       }
 
       await AsyncStorage.setItem(key, JSON.stringify(list));
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(key, JSON.stringify(list));
+      }
       return list;
     } catch (e) {
       console.error('[STORAGE] Error updating recent chat:', e);

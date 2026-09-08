@@ -87,6 +87,18 @@ async function initDb() {
     try {
       await turso.execute('CREATE INDEX IF NOT EXISTS idx_pending_target ON pending_messages(target_id)');
     } catch (_) {}
+
+    // Purge any legacy dummy accounts or fabricated phantom users
+    try {
+      await turso.execute(`
+        DELETE FROM users 
+        WHERE phone LIKE 'user_%' 
+           OR phone LIKE 'reg_%' 
+           OR phone IN ('9876543210', '9876543211', '6677889900', '9999888877', '1122334455', 'test_123', '12345', 'space_live_room')
+           OR name IN ('Rahul Bhai', 'Priya Verma', 'Neha Sharma', 'Amit Patel', 'Vikram Rajput', 'Papa', 'Test Bhai', 'Open Audio Lounge 🎙️')
+      `);
+    } catch (_) {}
+
     console.log('[DB] users & pending_messages tables ready');
   } catch (e) {
     console.error('[DB_INIT_ERR]', e);
@@ -100,14 +112,20 @@ app.post('/api/register', async (req, res) => {
   if (!userId || !phone || !name) {
     return res.status(400).json({ error: 'userId, phone, name are required' });
   }
+  const cleanPhone = String(phone).trim();
+  const cleanName = String(name).trim();
+  if (cleanPhone.startsWith('user_') || cleanPhone.startsWith('reg_') || cleanPhone.length < 10) {
+    return res.status(400).json({ error: 'Invalid phone format' });
+  }
+
   try {
     await turso.execute({
       sql: `INSERT INTO users (userId, phone, name)
             VALUES (?, ?, ?)
             ON CONFLICT(userId) DO UPDATE SET phone=excluded.phone, name=excluded.name`,
-      args: [userId, phone.trim(), name.trim()]
+      args: [userId, cleanPhone, cleanName]
     });
-    console.log(`[USER_REGISTERED] userId=${userId} phone=${phone} name=${name}`);
+    console.log(`[USER_REGISTERED] userId=${userId} phone=${cleanPhone} name=${cleanName}`);
     res.json({ success: true });
   } catch (error) {
     console.error('[REGISTER_ERR]', error);
@@ -115,32 +133,42 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-// Search API Endpoint — search by name or phone, returns userId for routing
+// Search API Endpoint — only exact phone lookup allowed, NEVER substring name search
 app.get('/api/search', async (req, res) => {
   const { query } = req.query;
-  console.log('Search request received for:', query);
-  if (!query) return res.json([]);
+  if (!query || !query.trim()) return res.json([]);
+  const q = query.trim().replace(/\D/g, '');
+  if (q.length < 10) return res.json([]);
 
   try {
     const result = await turso.execute({
-      sql: 'SELECT userId, phone, name FROM users WHERE phone LIKE ? OR name LIKE ?',
-      args: [`%${query}%`, `%${query}%`]
+      sql: `SELECT userId, phone, name FROM users 
+            WHERE phone = ? 
+              AND phone NOT LIKE 'user_%' 
+              AND phone NOT LIKE 'reg_%'
+              AND phone NOT IN ('9876543210', '9876543211', '6677889900', '9999888877', '1122334455', 'test_123', '12345', 'space_live_room')
+            LIMIT 1`,
+      args: [q]
     });
     res.json(result.rows);
   } catch (error) {
-    console.error('Search error:', error);
-    res.status(500).json({ error: 'Database error' });
+    res.json([]);
   }
 });
 
 // All Users Endpoint — loads real registered users from DB for chat list & live rail
 app.get('/api/users', async (req, res) => {
   const { excludePhone } = req.query;
+  const dummyFilter = `
+    AND phone NOT LIKE 'user_%' 
+    AND phone NOT LIKE 'reg_%'
+    AND phone NOT IN ('9876543210', '9876543211', '6677889900', '9999888877', '1122334455', 'test_123', '12345', 'space_live_room')
+  `;
   try {
     const result = await turso.execute({
       sql: excludePhone 
-        ? 'SELECT userId, phone, name FROM users WHERE phone != ? ORDER BY registered_at DESC LIMIT 50'
-        : 'SELECT userId, phone, name FROM users ORDER BY registered_at DESC LIMIT 50',
+        ? `SELECT userId, phone, name FROM users WHERE phone != ? ${dummyFilter} ORDER BY registered_at DESC LIMIT 50`
+        : `SELECT userId, phone, name FROM users WHERE 1=1 ${dummyFilter} ORDER BY registered_at DESC LIMIT 50`,
       args: excludePhone ? [excludePhone] : []
     });
     res.json(result.rows);
@@ -269,10 +297,23 @@ io.on('connection', (socket) => {
     // data can be userId string or object { userId, phone, fcmToken }
     const userId = typeof data === 'string' ? data : data.userId;
     const phone = typeof data === 'object' ? data.phone : null;
+    const name = typeof data === 'object' ? data.name : null;
     const fcmToken = typeof data === 'object' ? data.fcmToken : null;
     
     socket.userId = userId;
     socket.userPhone = phone;
+
+    // Automatically ensure valid real users exist in users table
+    if (userId && phone && !phone.startsWith('user_') && !phone.startsWith('reg_') && phone.length >= 10) {
+      try {
+        await turso.execute({
+          sql: `INSERT INTO users (userId, phone, name)
+                VALUES (?, ?, ?)
+                ON CONFLICT(userId) DO UPDATE SET phone=excluded.phone, name=COALESCE(excluded.name, users.name)`,
+          args: [userId, phone.trim(), (name || phone).trim()]
+        });
+      } catch (_) {}
+    }
 
     const mapId = (id) => {
       if (!id) return;

@@ -11,7 +11,7 @@ import SunaoBottomNav, { MainNavTab } from '../components/main/SunaoBottomNav';
 import NewChatModal from '../components/main/NewChatModal';
 import SettingsModal from '../components/main/SettingsModal';
 import { SunaoTheme } from '../constants/theme';
-import { ChatStorageService } from '../services/chatStorageService';
+import { ChatStorageService, isDummyContact } from '../services/chatStorageService';
 import { RealtimeBridge } from '../services/realtimeBridge';
 import { getBackendUrl } from '../services/firebase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -65,45 +65,20 @@ export default function MainScreen({
 
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [remoteSearchResults, setRemoteSearchResults] = useState<any[]>([]);
 
   // Modals
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showCameraModal, setShowCameraModal] = useState(false);
 
-  // Real dynamic data - No hardcoded dummy users
-  const DUMMY_PHONES = new Set(['9876543210', '9876543211', '6677889900', '9999888877', '1122334455', 'test_123', '12345', 'space_live_room']);
-  const DUMMY_NAMES = new Set(['Rahul Bhai', 'Priya Verma', 'Neha Sharma', 'Amit Patel', 'Vikram Rajput', 'Papa', 'Test Bhai', 'Open Audio Lounge 🎙️']);
-  const isDummyContact = (c: any) => {
-    if (!c) return true;
-    if (c.phone && DUMMY_PHONES.has(String(c.phone).trim())) return true;
-    if (c.name && DUMMY_NAMES.has(String(c.name).trim())) return true;
-    return false;
-  };
-
   const initialChats: ChatItemData[] = [];
   const initialCalls: CallLogItem[] = [];
   const [contactsList, setContactsList] = useState<Array<{ phone: string; name: string; about?: string; avatarUri?: string }>>([]);
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
 
-  // Handle Search Input & live search query
-  const handleSearchChange = async (text: string) => {
+  // Handle Search Input
+  const handleSearchChange = (text: string) => {
     setSearchQuery(text);
-    if (text.trim().length >= 2) {
-      try {
-        const baseUrl = getBackendUrl();
-        const res = await fetch(`${baseUrl}/api/search?query=${encodeURIComponent(text.trim())}`);
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          setRemoteSearchResults(data);
-        }
-      } catch (e) {
-        console.warn('Search query error:', e);
-      }
-    } else {
-      setRemoteSearchResults([]);
-    }
   };
 
   const handleNavTabChange = (tab: MainNavTab) => {
@@ -161,8 +136,8 @@ export default function MainScreen({
             const validRegistered = registeredUsers.filter(
               (u) => u.phone && u.phone !== currentUserPhone && !isDummyContact(u)
             );
-            const regPhoneSet = new Set(validRegistered.map((u) => u.phone));
 
+            // Populate contacts list for New Chat Modal
             setContactsList(
               validRegistered.map((u) => ({
                 phone: u.phone,
@@ -171,47 +146,26 @@ export default function MainScreen({
               }))
             );
 
+            // Update contact names on existing active chats if name was updated, and purge dummy contacts
             setChats((prev) => {
-              // 1. Purge any dummy contacts or stale non-existent contacts
-              const updated = prev.filter(
-                (c) => !isDummyContact(c) && (regPhoneSet.size === 0 || regPhoneSet.has(c.phone))
-              );
-              // 2. Ensure each valid registered user has an entry
-              validRegistered.forEach((u) => {
-                const idx = updated.findIndex((c) => c.phone === u.phone);
-                if (idx === -1) {
-                  updated.unshift({
-                    phone: u.phone,
-                    name: u.name || u.phone,
-                    lastMessage: 'Tap to call or message 👋',
-                    timestamp: '',
-                    unreadCount: 0,
-                    hasStatusStory: true,
-                  });
-                } else if (u.name && updated[idx].name !== u.name) {
-                  updated[idx] = { ...updated[idx], name: u.name };
+              const cleaned = prev.filter((c) => !isDummyContact(c));
+              let changed = cleaned.length !== prev.length;
+              const updated = cleaned.map((c) => {
+                const found = validRegistered.find((u) => u.phone === c.phone);
+                if (found && found.name && found.name !== c.name) {
+                  changed = true;
+                  return { ...c, name: found.name };
                 }
+                return c;
               });
-              ChatStorageService.saveCleanChats(currentUserPhone, updated).catch(() => {});
+              if (changed) {
+                ChatStorageService.saveCleanChats(currentUserPhone, updated).catch(() => {});
+              }
               return updated;
             });
 
-            setCallsList((prev) => {
-              const updated = prev.filter((c) => !isDummyContact(c));
-              validRegistered.forEach((u, i) => {
-                if (!updated.some((c) => c.phone === u.phone)) {
-                  updated.unshift({
-                    id: `reg_user_${u.phone}_${i}`,
-                    phone: u.phone,
-                    name: u.name || u.phone,
-                    type: 'incoming',
-                    isVideo: false,
-                    time: 'Active Now',
-                  });
-                }
-              });
-              return updated;
-            });
+            // Purge any dummy or ghost entries from calls list
+            setCallsList((prev) => prev.filter((c) => !isDummyContact(c)));
           }
         }
       } catch (e) {
@@ -344,45 +298,17 @@ export default function MainScreen({
 
   // Filtered Chats based on chips & search
   const filteredChats = useMemo(() => {
-    let result = [...chats];
+    let result = chats.filter((c) => !isDummyContact(c));
 
-    // Search filter
+    // Search filter: Strictly filter existing chats only
     if (searchQuery.trim().length > 0) {
-      const q = searchQuery.toLowerCase();
+      const q = searchQuery.trim().toLowerCase();
       result = result.filter(
-        (c) => c.name.toLowerCase().includes(q) || c.lastMessage.toLowerCase().includes(q) || c.phone.includes(q)
+        (c) =>
+          (c.name && c.name.toLowerCase().includes(q)) ||
+          (c.lastMessage && c.lastMessage.toLowerCase().includes(q)) ||
+          (c.phone && c.phone.includes(q))
       );
-
-      // Append remote Turso users if not already in list
-      if (remoteSearchResults.length > 0) {
-        remoteSearchResults.forEach((remoteUser) => {
-          if (!result.some((c) => c.phone === remoteUser.phone)) {
-            result.push({
-              phone: remoteUser.phone,
-              name: remoteUser.name || remoteUser.phone,
-              lastMessage: 'Tap to start conversation',
-              timestamp: 'New',
-              unreadCount: 0,
-            });
-          }
-        });
-      }
-
-      // If user typed a query, also add direct chat entry if no exact match exists
-      const cleanQ = searchQuery.trim();
-      if (cleanQ.length >= 2) {
-        const isNum = /^[0-9+]+$/.test(cleanQ);
-        const queryPhone = isNum ? cleanQ.replace(/\D/g, '') : `user_${cleanQ.toLowerCase().replace(/\s+/g, '_')}`;
-        if (!result.some((c) => c.phone === queryPhone || c.name.toLowerCase() === cleanQ.toLowerCase())) {
-          result.push({
-            phone: queryPhone,
-            name: cleanQ,
-            lastMessage: 'Tap to start new chat 👋',
-            timestamp: 'Start Chat',
-            unreadCount: 0,
-          });
-        }
-      }
     }
 
     // Filter Chips
@@ -398,7 +324,7 @@ export default function MainScreen({
       ...c,
       isOnline: onlineUsers.has(c.phone),
     }));
-  }, [chats, searchQuery, remoteSearchResults, activeFilter, onlineUsers]);
+  }, [chats, searchQuery, activeFilter, onlineUsers]);
 
   const totalUnreadCount = useMemo(() => {
     return chats.reduce((acc, c) => acc + (c.unreadCount || 0), 0);
@@ -459,7 +385,6 @@ export default function MainScreen({
       if (isSearching) {
         setIsSearching(false);
         setSearchQuery('');
-        setRemoteSearchResults([]);
         return true;
       }
 
@@ -516,7 +441,6 @@ export default function MainScreen({
           onCloseSearch={() => {
             setIsSearching(false);
             setSearchQuery('');
-            setRemoteSearchResults([]);
           }}
           onOpenSettings={() => setShowSettingsModal(true)}
           onLogout={onLogout}
@@ -548,6 +472,7 @@ export default function MainScreen({
             onSelectChat={handleSelectChat}
             onOpenNewChat={() => setShowNewChatModal(true)}
             onStartCall={(phone, name, isVideo) => onStartCall(phone, name, isVideo)}
+            searchQuery={searchQuery}
           />
         )}
 
