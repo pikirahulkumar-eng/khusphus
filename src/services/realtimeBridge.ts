@@ -23,7 +23,7 @@ class RealtimeBridgeManager {
       }
       return window.location.origin;
     }
-    return 'https://khusphus-epsm.onrender.com';
+    return 'http://192.168.29.118:10000';
   }
 
   constructor() {
