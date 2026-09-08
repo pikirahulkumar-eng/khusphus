@@ -9,7 +9,6 @@ RUN npm install --legacy-peer-deps
 COPY realtime-server.js ./
 COPY firebase-service-account.json* ./
 COPY sunao_local.db* ./
-COPY dist ./dist
 
 EXPOSE 10000
 
