@@ -15,6 +15,7 @@ import {
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { SunaoTheme } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
+import { getBackendUrl } from '../../services/firebase';
 
 interface ContactUser {
   phone: string;
@@ -45,11 +46,66 @@ export default function NewChatModal({
     setTimeout(() => setToastMessage(''), 2500);
   };
 
-  const filteredContacts = contacts.filter(
-    (c) =>
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.phone.includes(search)
-  );
+  const [remoteUsers, setRemoteUsers] = useState<ContactUser[]>([]);
+  const [isSearchingRemote, setIsSearchingRemote] = useState(false);
+
+  // Live remote search when user types in search bar
+  React.useEffect(() => {
+    let active = true;
+    if (search.trim().length >= 2) {
+      setIsSearchingRemote(true);
+      const timer = setTimeout(async () => {
+        try {
+          const baseUrl = getBackendUrl();
+          const res = await fetch(`${baseUrl}/api/search?query=${encodeURIComponent(search.trim())}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (active && Array.isArray(data)) {
+              setRemoteUsers(data.map((u: any) => ({
+                phone: u.phone,
+                name: u.name || u.phone,
+                about: 'Registered on Sunao 🚀',
+              })));
+            }
+          }
+        } catch (e) {
+          console.warn('Remote search error:', e);
+        } finally {
+          if (active) setIsSearchingRemote(false);
+        }
+      }, 300);
+      return () => {
+        active = false;
+        clearTimeout(timer);
+      };
+    } else {
+      setRemoteUsers([]);
+      setIsSearchingRemote(false);
+    }
+  }, [search]);
+
+  // Combine local contacts and remote search results (deduplicating by phone)
+  const filteredContacts = React.useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const local = contacts.filter(
+      (c) => c.name.toLowerCase().includes(q) || c.phone.includes(q)
+    );
+    const existingPhones = new Set(local.map((c) => c.phone));
+    const extra = remoteUsers.filter((u) => !existingPhones.has(u.phone));
+    return [...local, ...extra];
+  }, [contacts, search, remoteUsers]);
+
+  // Helper to start chat with custom query
+  const handleStartCustomChat = () => {
+    const trimmed = search.trim();
+    if (!trimmed) return;
+    const isNum = /^[0-9+]+$/.test(trimmed);
+    onClose();
+    onSelectUser({
+      phone: isNum ? trimmed.replace(/\D/g, '') : `user_${trimmed.toLowerCase().replace(/\s+/g, '_')}`,
+      name: trimmed,
+    });
+  };
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -162,10 +218,62 @@ export default function NewChatModal({
             </TouchableOpacity>
           )}
           ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Ionicons name="search-outline" size={40} color="#94A3B8" style={{ marginBottom: 8 }} />
-              <Text style={styles.emptyText}>No contacts found for "{search}"</Text>
-            </View>
+            search.trim().length > 0 ? (
+              <View style={styles.emptyContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.customChatCard,
+                    isDark && { backgroundColor: 'rgba(16, 185, 129, 0.1)', borderColor: '#10B981' },
+                  ]}
+                  onPress={handleStartCustomChat}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.customChatIconBg}>
+                    <Ionicons name="chatbubbles" size={24} color="#10B981" />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={[styles.customChatTitle, isDark && { color: '#FFFFFF' }]}>
+                      Message "{search.trim()}"
+                    </Text>
+                    <Text style={[styles.customChatSub, isDark && { color: '#94A3B8' }]}>
+                      Tap to open direct chat with this person
+                    </Text>
+                  </View>
+                  <Ionicons name="arrow-forward-circle" size={26} color="#10B981" />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="people-outline" size={40} color="#94A3B8" style={{ marginBottom: 8 }} />
+                <Text style={styles.emptyText}>No contacts yet</Text>
+              </View>
+            )
+          }
+          ListFooterComponent={
+            search.trim().length > 0 && filteredContacts.length > 0 ? (
+              <TouchableOpacity
+                style={[
+                  styles.customChatCard,
+                  { marginTop: 12, marginBottom: 24 },
+                  isDark && { backgroundColor: 'rgba(16, 185, 129, 0.1)', borderColor: '#10B981' },
+                ]}
+                onPress={handleStartCustomChat}
+                activeOpacity={0.7}
+              >
+                <View style={styles.customChatIconBg}>
+                  <Ionicons name="chatbubbles" size={22} color="#10B981" />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={[styles.customChatTitle, isDark && { color: '#FFFFFF' }]}>
+                    Message "{search.trim()}" directly
+                  </Text>
+                  <Text style={[styles.customChatSub, isDark && { color: '#94A3B8' }]}>
+                    Start conversation with this name or number
+                  </Text>
+                </View>
+                <Ionicons name="arrow-forward-circle" size={24} color="#10B981" />
+              </TouchableOpacity>
+            ) : null
           }
         />
 
@@ -400,10 +508,40 @@ const styles = StyleSheet.create({
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 40,
+    paddingVertical: 32,
+    paddingHorizontal: 16,
+    width: '100%',
   },
   emptyText: {
     fontSize: 14,
     color: '#64748B',
+  },
+  customChatCard: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1.5,
+    borderColor: '#10B981',
+    borderRadius: 16,
+    padding: 14,
+  },
+  customChatIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  customChatTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  customChatSub: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
   },
 });

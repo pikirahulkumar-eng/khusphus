@@ -367,6 +367,22 @@ export default function MainScreen({
           }
         });
       }
+
+      // If user typed a query, also add direct chat entry if no exact match exists
+      const cleanQ = searchQuery.trim();
+      if (cleanQ.length >= 2) {
+        const isNum = /^[0-9+]+$/.test(cleanQ);
+        const queryPhone = isNum ? cleanQ.replace(/\D/g, '') : `user_${cleanQ.toLowerCase().replace(/\s+/g, '_')}`;
+        if (!result.some((c) => c.phone === queryPhone || c.name.toLowerCase() === cleanQ.toLowerCase())) {
+          result.push({
+            phone: queryPhone,
+            name: cleanQ,
+            lastMessage: 'Tap to start new chat 👋',
+            timestamp: 'Start Chat',
+            unreadCount: 0,
+          });
+        }
+      }
     }
 
     // Filter Chips
