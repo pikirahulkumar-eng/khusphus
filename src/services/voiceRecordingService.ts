@@ -88,10 +88,66 @@ class VoiceRecordingService {
         if (!this.nativeRecording) return null;
         try {
           await this.nativeRecording.stop();
-          const uri = this.nativeRecording.uri;
+          const rawUri = this.nativeRecording.uri;
           const durationSec = Math.max(1, Math.round(this.nativeRecording.currentTime || 1));
           this.nativeRecording = null;
-          return { uri, durationSec };
+
+          let finalUri = rawUri;
+          if (rawUri && typeof rawUri === 'string' && rawUri.startsWith('file://')) {
+            try {
+              // 1. Try expo-file-system modern File API (fastest native access)
+              try {
+                const { File } = require('expo-file-system');
+                const file = new File(rawUri);
+                if (file.exists) {
+                  const b64 = await file.base64();
+                  if (b64) {
+                    finalUri = `data:audio/mp4;base64,${b64}`;
+                    console.log('[VOICE] Converted native recording via File.base64, length:', finalUri.length);
+                  }
+                }
+              } catch (fsErr) {
+                console.log('[VOICE] Modern FileSystem fallback, trying legacy/fetch:', fsErr);
+              }
+
+              // 2. Try legacy expo-file-system readAsStringAsync
+              if (finalUri === rawUri) {
+                try {
+                  const FileSystemLegacy = require('expo-file-system/legacy');
+                  const b64 = await FileSystemLegacy.readAsStringAsync(rawUri, {
+                    encoding: FileSystemLegacy.EncodingType.Base64,
+                  });
+                  if (b64) {
+                    finalUri = `data:audio/mp4;base64,${b64}`;
+                    console.log('[VOICE] Converted native recording via legacy FileSystem, length:', finalUri.length);
+                  }
+                } catch (_) {}
+              }
+
+              // 3. Fallback to React Native fetch + FileReader
+              if (finalUri === rawUri) {
+                const resp = await fetch(rawUri);
+                const blob = await resp.blob();
+                const base64Data = await new Promise<string>((resolve) => {
+                  const reader = new FileReader();
+                  reader.onloadend = () => {
+                    const res = reader.result as string;
+                    resolve(res ? res.replace(/^data:[^;]*;base64,/, 'data:audio/mp4;base64,') : rawUri);
+                  };
+                  reader.onerror = () => resolve(rawUri);
+                  reader.readAsDataURL(blob);
+                });
+                if (base64Data && base64Data.startsWith('data:')) {
+                  finalUri = base64Data;
+                  console.log('[VOICE] Converted native recording via fetch/FileReader, length:', finalUri.length);
+                }
+              }
+            } catch (convErr) {
+              console.warn('[VOICE] Base64 conversion exception:', convErr);
+            }
+          }
+
+          return { uri: finalUri, durationSec };
         } catch (e) {
           console.warn('[VOICE] Native stop error:', e);
           return null;
@@ -129,7 +185,18 @@ class VoiceRecordingService {
 
     if (Platform.OS === 'web') {
       try {
-        const audio = new Audio(uri);
+        let playUri = uri;
+        if (playUri.startsWith('data:audio/m4a;')) {
+          playUri = playUri.replace('data:audio/m4a;', 'data:audio/mp4;');
+        }
+        if (playUri.startsWith('file://')) {
+          alert('This voice note was recorded with an older app version and is stored on the phone. Please record and send a new voice message.');
+          if (this.playbackCallback) this.playbackCallback(false);
+          this.activePlaybackUrl = null;
+          return;
+        }
+
+        const audio = new Audio(playUri);
         this.currentSound = audio;
         audio.onended = () => {
           if (this.playbackCallback) this.playbackCallback(false);
@@ -147,11 +214,56 @@ class VoiceRecordingService {
       } catch (e) {
         console.warn('[VOICE] Play audio web exception:', e);
         if (this.playbackCallback) this.playbackCallback(false);
+        this.activePlaybackUrl = null;
       }
     } else {
       try {
+        let nativePlayUri = uri;
+
+        // If it is a base64 data URI on native, write to a temp cache file so ExoPlayer can play it
+        if (nativePlayUri.startsWith('data:')) {
+          try {
+            const isWebm = nativePlayUri.includes('webm');
+            const ext = isWebm ? 'webm' : 'm4a';
+            const base64Data = nativePlayUri.replace(/^data:[^;]+;base64,/, '');
+
+            // Try legacy FileSystem first
+            let wroteFile = false;
+            try {
+              const FileSystemLegacy = require('expo-file-system/legacy');
+              const tempPath = `${FileSystemLegacy.cacheDirectory}voice_${Date.now()}.${ext}`;
+              await FileSystemLegacy.writeAsStringAsync(tempPath, base64Data, {
+                encoding: FileSystemLegacy.EncodingType.Base64,
+              });
+              nativePlayUri = tempPath;
+              wroteFile = true;
+              console.log('[VOICE] Wrote base64 to temp file (legacy):', nativePlayUri);
+            } catch (_) {}
+
+            // Modern FileSystem fallback
+            if (!wroteFile) {
+              const { File, Paths } = require('expo-file-system');
+              const tempFile = new File(Paths.cache, `voice_${Date.now()}.${ext}`);
+              if (tempFile.exists) {
+                try { tempFile.delete(); } catch (_) {}
+              }
+              tempFile.create();
+              const binaryStr = atob(base64Data);
+              const bytes = new Uint8Array(binaryStr.length);
+              for (let i = 0; i < binaryStr.length; i++) {
+                bytes[i] = binaryStr.charCodeAt(i);
+              }
+              await tempFile.write(bytes);
+              nativePlayUri = tempFile.uri;
+              console.log('[VOICE] Wrote base64 to temp file (modern):', nativePlayUri);
+            }
+          } catch (writeErr) {
+            console.warn('[VOICE] Could not write base64 to temp file, attempting direct play:', writeErr);
+          }
+        }
+
         const { createAudioPlayer } = require('expo-audio');
-        const player = createAudioPlayer(uri);
+        const player = createAudioPlayer(nativePlayUri);
         this.currentSound = player;
         player.addListener('playbackStatusUpdate', (status: any) => {
           if (status?.playbackState === 'ended' || (status?.duration > 0 && status?.currentTime >= status?.duration)) {
@@ -165,6 +277,7 @@ class VoiceRecordingService {
       } catch (e) {
         console.warn('[VOICE] Play audio native exception:', e);
         if (this.playbackCallback) this.playbackCallback(false);
+        this.activePlaybackUrl = null;
       }
     }
   }
