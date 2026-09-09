@@ -689,10 +689,10 @@ io.on('connection', (socket) => {
       targetSockets.forEach((sId) => {
         io.to(sId).emit('message', data);
       });
-    } else if (targetUserId && data?.type && ['CHAT_MESSAGE', 'MESSAGE_DELIVERED', 'MESSAGE_READ', 'CHAT_READ_SYNC'].includes(data.type)) {
+    } else if (targetUserId && data?.type && ['CHAT_MESSAGE', 'MESSAGE_DELIVERED', 'MESSAGE_READ', 'CHAT_READ_SYNC', 'MESSAGE_REACTION', 'MESSAGE_EDIT', 'MESSAGE_DELETE'].includes(data.type)) {
       // Store in offline queue so it is guaranteed to be delivered as soon as target reconnects!
       try {
-        const msgId = data.payload?.id || `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        const msgId = data.payload?.id || data.payload?.messageId || `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
         await turso.execute({
           sql: `INSERT OR REPLACE INTO pending_messages (id, target_id, sender_id, type, payload, created_at)
                 VALUES (?, ?, ?, ?, ?, ?)`,
@@ -740,6 +740,48 @@ io.on('connection', (socket) => {
         }
       } catch (backupErr) {
         console.error('[CLOUD_BACKUP_ERR]', backupErr);
+      }
+    } else if (data?.type === 'MESSAGE_REACTION' && data.payload) {
+      try {
+        const { messageId, reaction } = data.payload;
+        if (messageId) {
+          try { await turso.execute('ALTER TABLE messages ADD COLUMN reaction TEXT'); } catch(_) {}
+          await turso.execute({
+            sql: 'UPDATE messages SET reaction = ? WHERE id = ?',
+            args: [reaction || null, String(messageId)]
+          });
+          console.log(`[REACTION_SYNC] Updated reaction for message ${messageId}: ${reaction}`);
+        }
+      } catch (e) {
+        console.error('[REACTION_SYNC_ERR]', e);
+      }
+    } else if (data?.type === 'MESSAGE_EDIT' && data.payload) {
+      try {
+        const { messageId, newText } = data.payload;
+        if (messageId && newText) {
+          try { await turso.execute('ALTER TABLE messages ADD COLUMN is_edited INTEGER DEFAULT 0'); } catch(_) {}
+          await turso.execute({
+            sql: 'UPDATE messages SET text = ?, is_edited = 1 WHERE id = ?',
+            args: [String(newText), String(messageId)]
+          });
+          console.log(`[EDIT_SYNC] Updated text for message ${messageId}`);
+        }
+      } catch (e) {
+        console.error('[EDIT_SYNC_ERR]', e);
+      }
+    } else if (data?.type === 'MESSAGE_DELETE' && data.payload) {
+      try {
+        const { messageId, forEveryone } = data.payload;
+        if (messageId && forEveryone) {
+          try { await turso.execute('ALTER TABLE messages ADD COLUMN is_deleted INTEGER DEFAULT 0'); } catch(_) {}
+          await turso.execute({
+            sql: "UPDATE messages SET is_deleted = 1, text = '🚫 This message was deleted' WHERE id = ?",
+            args: [String(messageId)]
+          });
+          console.log(`[DELETE_SYNC] Marked message ${messageId} deleted for everyone`);
+        }
+      } catch (e) {
+        console.error('[DELETE_SYNC_ERR]', e);
       }
     } else if (data?.type === 'MESSAGE_DELIVERED' && data.payload) {
       try {

@@ -185,7 +185,7 @@ class RealtimeBridgeManager {
       }
     } else {
       // Offline Outbox Queue: guarantee delivery of critical chat and receipt events
-      if (['CHAT_MESSAGE', 'MESSAGE_DELIVERED', 'MESSAGE_READ', 'CHAT_READ_SYNC'].includes(type)) {
+      if (['CHAT_MESSAGE', 'MESSAGE_DELIVERED', 'MESSAGE_READ', 'CHAT_READ_SYNC', 'MESSAGE_REACTION', 'MESSAGE_EDIT', 'MESSAGE_DELETE'].includes(type)) {
         console.log(`[REALTIME_BRIDGE] Socket offline/reconnecting, queued ${type} for ${targetUserId} in outbox`);
         this.outboxQueue.push({ type, payload, targetUserId });
       }
@@ -194,6 +194,51 @@ class RealtimeBridgeManager {
 
   public sendChatMessage(targetUserId: string, message: any) {
     this.broadcast('CHAT_MESSAGE', message, targetUserId);
+  }
+
+  public sendMessageReaction(targetUserId: string, messageId: string, reaction: string) {
+    const sender = this.registeredUserPhone || this.registeredUserId;
+    this.broadcast(
+      'MESSAGE_REACTION',
+      {
+        messageId,
+        reaction,
+        senderId: sender,
+        senderPhone: this.registeredUserPhone,
+        timestamp: Date.now(),
+      },
+      targetUserId
+    );
+  }
+
+  public sendMessageEdit(targetUserId: string, messageId: string, newText: string) {
+    const sender = this.registeredUserPhone || this.registeredUserId;
+    this.broadcast(
+      'MESSAGE_EDIT',
+      {
+        messageId,
+        newText,
+        senderId: sender,
+        senderPhone: this.registeredUserPhone,
+        timestamp: Date.now(),
+      },
+      targetUserId
+    );
+  }
+
+  public sendMessageDelete(targetUserId: string, messageId: string, forEveryone: boolean = true) {
+    const sender = this.registeredUserPhone || this.registeredUserId;
+    this.broadcast(
+      'MESSAGE_DELETE',
+      {
+        messageId,
+        forEveryone,
+        senderId: sender,
+        senderPhone: this.registeredUserPhone,
+        timestamp: Date.now(),
+      },
+      targetUserId
+    );
   }
 
   public sendDeliveredReceipt(targetUserId: string, messageId?: string) {

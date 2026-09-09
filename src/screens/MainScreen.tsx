@@ -116,6 +116,41 @@ export default function MainScreen({
 
   const [callsList, setCallsList] = useState<CallLogItem[]>(initialCalls);
 
+  const [pinnedPhones, setPinnedPhones] = useState<string[]>(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const raw = window.localStorage.getItem(`@sunao_pinned_${currentUserPhone}`);
+        if (raw) return JSON.parse(raw);
+      } catch (_) {}
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    AsyncStorage.getItem(`@sunao_pinned_${currentUserPhone}`).then((val) => {
+      if (val) {
+        try {
+          const parsed = JSON.parse(val);
+          if (Array.isArray(parsed)) setPinnedPhones(parsed);
+        } catch (_) {}
+      }
+    });
+  }, [currentUserPhone]);
+
+  const handleTogglePin = async (phone: string) => {
+    const next = pinnedPhones.includes(phone)
+      ? pinnedPhones.filter((p) => p !== phone)
+      : [phone, ...pinnedPhones];
+    setPinnedPhones(next);
+    await AsyncStorage.setItem(`@sunao_pinned_${currentUserPhone}`, JSON.stringify(next));
+    if (Platform.OS === 'android') {
+      ToastAndroid.show(
+        pinnedPhones.includes(phone) ? 'Chat unpinned' : 'Chat pinned to top',
+        ToastAndroid.SHORT
+      );
+    }
+  };
+
   // 1. Load Recent Chats from Local Storage on Mount & User Change + Sync Live Registered Users
   useEffect(() => {
     let isMounted = true;
@@ -341,18 +376,24 @@ export default function MainScreen({
     } else if (activeFilter === 'Groups') {
       result = result.filter((c) => c.isGroup);
     } else if (activeFilter === 'Favourites') {
-      result = result.filter((c) => c.isPinned);
+      result = result.filter((c) => pinnedPhones.includes(c.phone) || c.isPinned);
     }
 
-    return result.map((c) => {
-      const cleanP = String(c.phone || '').replace(/\D/g, '').slice(-10);
-      const isOnline = onlineUsers.has(c.phone) || (cleanP.length >= 10 && Array.from(onlineUsers).some(u => String(u).replace(/\D/g, '').slice(-10) === cleanP));
-      return {
-        ...c,
-        isOnline,
-      };
-    });
-  }, [chats, searchQuery, activeFilter, onlineUsers, contactsList]);
+    return result
+      .map((c) => {
+        const cleanP = String(c.phone || '').replace(/\D/g, '').slice(-10);
+        const isOnline =
+          onlineUsers.has(c.phone) ||
+          (cleanP.length >= 10 &&
+            Array.from(onlineUsers).some((u) => String(u).replace(/\D/g, '').slice(-10) === cleanP));
+        return {
+          ...c,
+          isPinned: pinnedPhones.includes(c.phone) || Boolean(c.isPinned),
+          isOnline,
+        };
+      })
+      .sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0));
+  }, [chats, searchQuery, activeFilter, onlineUsers, contactsList, pinnedPhones]);
 
   const totalUnreadCount = useMemo(() => {
     return chats.reduce((acc, c) => acc + (c.unreadCount || 0), 0);
@@ -501,6 +542,7 @@ export default function MainScreen({
             onOpenNewChat={() => setShowNewChatModal(true)}
             onStartCall={(phone, name, isVideo) => onStartCall(phone, name, isVideo)}
             searchQuery={searchQuery}
+            onTogglePin={handleTogglePin}
           />
         )}
 

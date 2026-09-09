@@ -14,6 +14,16 @@ export interface LocalMessage {
   type?: 'text' | 'voice' | 'image';
   audioUrl?: string;
   duration?: string;
+  reaction?: string;
+  replyTo?: {
+    id: string;
+    text: string;
+    senderId: string;
+    type?: string;
+  };
+  isEdited?: boolean;
+  isDeleted?: boolean;
+  isStarred?: boolean;
 }
 
 export const getChatKey = (myPhone: string, contactPhone: string) => {
@@ -169,9 +179,36 @@ export const ChatStorageService = {
     }
   },
 
-  /**
-   * Load all recent conversation summaries for the main screen
-   */
+  async updateMessage(myPhone: string, contactPhone: string, messageId: string, updates: Partial<LocalMessage>): Promise<LocalMessage[]> {
+    try {
+      const current = await this.getMessages(myPhone, contactPhone);
+      const updated = current.map((m) => (m.id === messageId ? { ...m, ...updates } : m));
+      const key = getChatKey(myPhone, contactPhone);
+      await AsyncStorage.setItem(key, JSON.stringify(updated));
+      return updated;
+    } catch (e) {
+      console.warn('[STORAGE] updateMessage error:', e);
+      return [];
+    }
+  },
+
+  async deleteMessage(myPhone: string, contactPhone: string, messageId: string, forEveryone: boolean = false): Promise<LocalMessage[]> {
+    try {
+      const current = await this.getMessages(myPhone, contactPhone);
+      let updated: LocalMessage[];
+      if (forEveryone) {
+        updated = current.map((m) => (m.id === messageId ? { ...m, isDeleted: true, text: '🚫 This message was deleted' } : m));
+      } else {
+        updated = current.filter((m) => m.id !== messageId);
+      }
+      const key = getChatKey(myPhone, contactPhone);
+      await AsyncStorage.setItem(key, JSON.stringify(updated));
+      return updated;
+    } catch (e) {
+      console.warn('[STORAGE] deleteMessage error:', e);
+      return [];
+    }
+  },
   async getRecentChats(myPhone: string, defaultChats: ChatItemData[] = []): Promise<ChatItemData[]> {
     try {
       const key = getRecentKey(myPhone);

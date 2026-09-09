@@ -113,6 +113,11 @@ export default function ChatScreen({
   const timerIntervalRef = useRef<any>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
+  // WhatsApp-grade Interactions: Reactions, Reply & Edit
+  const [selectedMessage, setSelectedMessage] = useState<LocalMessage | null>(null);
+  const [replyingToMessage, setReplyingToMessage] = useState<LocalMessage | null>(null);
+  const [editingMessage, setEditingMessage] = useState<LocalMessage | null>(null);
+
   // Read Receipts preference (@sunao_read_receipts)
   const [readReceiptsEnabled, setReadReceiptsEnabled] = useState<boolean>(() => {
     if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
@@ -378,6 +383,24 @@ export default function ChatScreen({
           const isOnline = users.some((u: string) => u === contactPhone || (peerClean && normalizePhone(u) === peerClean));
           setIsPeerOnline(isOnline);
         }
+      } else if (event.type === 'MESSAGE_REACTION' && event.payload) {
+        const { messageId, reaction } = event.payload;
+        setMessages((prev) =>
+          prev.map((m) => (m.id === messageId ? { ...m, reaction: reaction || undefined } : m))
+        );
+        ChatStorageService.updateMessage(currentUserPhone, contactPhone, messageId, { reaction: reaction || undefined });
+      } else if (event.type === 'MESSAGE_EDIT' && event.payload) {
+        const { messageId, newText } = event.payload;
+        setMessages((prev) =>
+          prev.map((m) => (m.id === messageId ? { ...m, text: newText, isEdited: true } : m))
+        );
+        ChatStorageService.updateMessage(currentUserPhone, contactPhone, messageId, { text: newText, isEdited: true });
+      } else if (event.type === 'MESSAGE_DELETE' && event.payload) {
+        const { messageId } = event.payload;
+        setMessages((prev) =>
+          prev.map((m) => (m.id === messageId ? { ...m, text: '🚫 This message was deleted', isDeleted: true } : m))
+        );
+        ChatStorageService.updateMessage(currentUserPhone, contactPhone, messageId, { text: '🚫 This message was deleted', isDeleted: true });
       }
     });
 
@@ -490,6 +513,20 @@ export default function ChatScreen({
     const trimmed = message.trim();
     if (trimmed.length === 0) return;
 
+    // Handle Editing existing message
+    if (editingMessage) {
+      const targetId = editingMessage.id;
+      setMessages((prev) =>
+        prev.map((m) => (m.id === targetId ? { ...m, text: trimmed, isEdited: true } : m))
+      );
+      setMessage('');
+      AsyncStorage.removeItem(draftKey).catch(() => {});
+      await ChatStorageService.updateMessage(currentUserPhone, contactPhone, targetId, { text: trimmed, isEdited: true });
+      RealtimeBridge.sendMessageEdit(contactPhone, targetId, trimmed);
+      setEditingMessage(null);
+      return;
+    }
+
     const formattedTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const newMsg: LocalMessage = {
       id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -501,6 +538,17 @@ export default function ChatScreen({
       sender: 'me',
       status: 'sent',
     };
+
+    // Attach Quoted Reply if active
+    if (replyingToMessage) {
+      newMsg.replyTo = {
+        id: replyingToMessage.id,
+        text: replyingToMessage.text || (replyingToMessage.type === 'voice' ? '🎤 Voice message' : 'Media'),
+        senderId: replyingToMessage.senderId,
+        type: replyingToMessage.type,
+      };
+      setReplyingToMessage(null);
+    }
 
     // Update UI immediately (Optimistic Update)
     setMessages((prev) => [...prev, newMsg]);
@@ -526,6 +574,72 @@ export default function ChatScreen({
     setTimeout(() => {
       flatListRef.current?.scrollToEnd({ animated: true });
     }, 100);
+  };
+
+  // WhatsApp-grade Interactions Handlers
+  const handleSelectReaction = (emoji: string) => {
+    if (!selectedMessage) return;
+    const msgId = selectedMessage.id;
+    const nextEmoji = selectedMessage.reaction === emoji ? undefined : emoji;
+    setMessages((prev) =>
+      prev.map((m) => (m.id === msgId ? { ...m, reaction: nextEmoji } : m))
+    );
+    ChatStorageService.updateMessage(currentUserPhone, contactPhone, msgId, { reaction: nextEmoji });
+    RealtimeBridge.sendMessageReaction(contactPhone, msgId, nextEmoji || '');
+    setSelectedMessage(null);
+  };
+
+  const handleStartReply = () => {
+    if (!selectedMessage) return;
+    setReplyingToMessage(selectedMessage);
+    setEditingMessage(null);
+    setSelectedMessage(null);
+  };
+
+  const handleStartEdit = () => {
+    if (!selectedMessage) return;
+    setEditingMessage(selectedMessage);
+    setReplyingToMessage(null);
+    setMessage(selectedMessage.text);
+    setSelectedMessage(null);
+  };
+
+  const handleToggleStar = () => {
+    if (!selectedMessage) return;
+    const msgId = selectedMessage.id;
+    const nextStar = !selectedMessage.isStarred;
+    setMessages((prev) =>
+      prev.map((m) => (m.id === msgId ? { ...m, isStarred: nextStar } : m))
+    );
+    ChatStorageService.updateMessage(currentUserPhone, contactPhone, msgId, { isStarred: nextStar });
+    setSelectedMessage(null);
+  };
+
+  const handleDeleteForEveryone = () => {
+    if (!selectedMessage) return;
+    const msgId = selectedMessage.id;
+    setMessages((prev) =>
+      prev.map((m) => (m.id === msgId ? { ...m, isDeleted: true, text: '🚫 You deleted this message' } : m))
+    );
+    ChatStorageService.deleteMessage(currentUserPhone, contactPhone, msgId, true);
+    RealtimeBridge.sendMessageDelete(contactPhone, msgId, true);
+    setSelectedMessage(null);
+  };
+
+  const handleDeleteForMe = () => {
+    if (!selectedMessage) return;
+    const msgId = selectedMessage.id;
+    setMessages((prev) => prev.filter((m) => m.id !== msgId));
+    ChatStorageService.deleteMessage(currentUserPhone, contactPhone, msgId, false);
+    setSelectedMessage(null);
+  };
+
+  const handleCopyMessage = () => {
+    if (!selectedMessage) return;
+    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(selectedMessage.text).catch(() => {});
+    }
+    setSelectedMessage(null);
   };
 
   // Voice recording pulse animation
@@ -836,72 +950,107 @@ export default function ChatScreen({
             const isMe = item.senderId === currentUserPhone || (item.sender === 'me' && (!item.senderId || item.senderId === currentUserPhone));
             return (
               <View style={[styles.messageWrapper, isMe ? styles.messageWrapperMe : styles.messageWrapperThem]}>
-                {item.type === 'voice' ? (
-                  <VoiceNoteBubble
-                    audioUrl={item.audioUrl}
-                    duration={item.duration}
-                    isMe={isMe}
-                    time={item.time}
-                    status={item.status}
-                    readReceipts={readReceiptsEnabled}
-                  />
-                ) : (
-                  <View
-                    style={[
-                      styles.messageBubble,
-                      isMe ? styles.messageBubbleMe : styles.messageBubbleThem,
-                      !isMe && isDark && {
-                        backgroundColor: '#0E1217',
-                        borderColor: 'rgba(255, 255, 255, 0.08)',
-                      },
-                    ]}
-                  >
-                    <Text
+                <TouchableOpacity
+                  activeOpacity={0.88}
+                  onLongPress={() => setSelectedMessage(item)}
+                  delayLongPress={260}
+                >
+                  {item.type === 'voice' ? (
+                    <VoiceNoteBubble
+                      audioUrl={item.audioUrl}
+                      duration={item.duration}
+                      isMe={isMe}
+                      time={item.time}
+                      status={item.status}
+                      readReceipts={readReceiptsEnabled}
+                    />
+                  ) : (
+                    <View
                       style={[
-                        styles.messageText,
-                        isMe ? styles.messageTextMe : styles.messageTextThem,
-                        !isMe && isDark && { color: '#FFFFFF' },
+                        styles.messageBubble,
+                        isMe ? styles.messageBubbleMe : styles.messageBubbleThem,
+                        !isMe && isDark && {
+                          backgroundColor: '#0E1217',
+                          borderColor: 'rgba(255, 255, 255, 0.08)',
+                        },
                       ]}
                     >
-                      {item.text}
-                    </Text>
-                    <View style={styles.messageMetaRow}>
+                      {/* Quoted Message Preview Header */}
+                      {item.replyTo && (
+                        <View style={[styles.quotedBubble, isMe ? styles.quotedBubbleMe : styles.quotedBubbleThem]}>
+                          <Text style={[styles.quotedSenderName, isMe ? { color: '#A7F3D0' } : { color: '#059669' }]} numberOfLines={1}>
+                            {item.replyTo.senderId === currentUserPhone ? 'You' : contactName}
+                          </Text>
+                          <Text style={[styles.quotedSnippetText, isMe ? { color: 'rgba(255, 255, 255, 0.85)' } : { color: '#64748B' }]} numberOfLines={1}>
+                            {item.replyTo.text}
+                          </Text>
+                        </View>
+                      )}
+
                       <Text
                         style={[
-                          styles.messageTime,
-                          isMe ? styles.messageTimeMe : styles.messageTimeThem,
-                          !isMe && isDark && { color: '#94A3B8' },
+                          styles.messageText,
+                          isMe ? styles.messageTextMe : styles.messageTextThem,
+                          !isMe && isDark && { color: '#FFFFFF' },
+                          item.isDeleted && { fontStyle: 'italic', color: isMe ? 'rgba(255, 255, 255, 0.7)' : '#94A3B8' },
                         ]}
                       >
-                        {item.time}
+                        {item.text}
                       </Text>
-                      {isMe && (
-                        item.status === 'read' ? (
-                          <Ionicons
-                            name="checkmark-done"
-                            size={15}
-                            color={readReceiptsEnabled ? (isDark ? '#00F2FE' : '#38BDF8') : '#94A3B8'}
-                            style={{ marginLeft: 4 }}
-                          />
-                        ) : item.status === 'delivered' ? (
-                          <Ionicons
-                            name="checkmark-done"
-                            size={15}
-                            color="#94A3B8"
-                            style={{ marginLeft: 4 }}
-                          />
-                        ) : (
-                          <Ionicons
-                            name="checkmark"
-                            size={15}
-                            color="#94A3B8"
-                            style={{ marginLeft: 4 }}
-                          />
-                        )
-                      )}
+
+                      <View style={styles.messageMetaRow}>
+                        {item.isStarred && (
+                          <Ionicons name="star" size={11} color="#FBBF24" style={{ marginRight: 3 }} />
+                        )}
+                        {item.isEdited && !item.isDeleted && (
+                          <Text style={[styles.editedBadge, isMe ? { color: 'rgba(255, 255, 255, 0.75)' } : { color: '#94A3B8' }]}>
+                            edited{' '}
+                          </Text>
+                        )}
+                        <Text
+                          style={[
+                            styles.messageTime,
+                            isMe ? styles.messageTimeMe : styles.messageTimeThem,
+                            !isMe && isDark && { color: '#94A3B8' },
+                          ]}
+                        >
+                          {item.time}
+                        </Text>
+                        {isMe && !item.isDeleted && (
+                          item.status === 'read' ? (
+                            <Ionicons
+                              name="checkmark-done"
+                              size={15}
+                              color={readReceiptsEnabled ? (isDark ? '#00F2FE' : '#38BDF8') : '#94A3B8'}
+                              style={{ marginLeft: 4 }}
+                            />
+                          ) : item.status === 'delivered' ? (
+                            <Ionicons
+                              name="checkmark-done"
+                              size={15}
+                              color="#94A3B8"
+                              style={{ marginLeft: 4 }}
+                            />
+                          ) : (
+                            <Ionicons
+                              name="checkmark"
+                              size={15}
+                              color="#94A3B8"
+                              style={{ marginLeft: 4 }}
+                            />
+                          )
+                        )}
+                      </View>
                     </View>
-                  </View>
-                )}
+                  )}
+
+                  {/* Reaction Pill Badge */}
+                  {Boolean(item.reaction) && (
+                    <View style={[styles.reactionBadgeContainer, isMe ? styles.reactionBadgeMe : styles.reactionBadgeThem]}>
+                      <Text style={styles.reactionBadgeEmoji}>{item.reaction}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
               </View>
             );
           }}
@@ -972,6 +1121,40 @@ export default function ChatScreen({
             },
           ]}
         >
+          {/* Quoted Reply Banner */}
+          {replyingToMessage && (
+            <View style={[styles.replyBar, isDark && { backgroundColor: '#0E1217', borderLeftColor: '#10B981' }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.replyBarTitle, { color: '#10B981' }]}>
+                  Replying to {replyingToMessage.sender === 'me' || replyingToMessage.senderId === currentUserPhone ? 'You' : contactName}
+                </Text>
+                <Text style={[styles.replyBarContent, isDark && { color: '#94A3B8' }]} numberOfLines={1}>
+                  {replyingToMessage.text || (replyingToMessage.type === 'voice' ? '🎤 Voice message' : 'Media')}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setReplyingToMessage(null)} style={{ padding: 6 }}>
+                <Ionicons name="close-circle" size={20} color={isDark ? '#94A3B8' : '#64748B'} />
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Edit Message Banner */}
+          {editingMessage && (
+            <View style={[styles.replyBar, isDark && { backgroundColor: '#0E1217', borderLeftColor: '#F59E0B' }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.replyBarTitle, { color: '#F59E0B' }]}>
+                  Editing message
+                </Text>
+                <Text style={[styles.replyBarContent, isDark && { color: '#94A3B8' }]} numberOfLines={1}>
+                  {editingMessage.text}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => { setEditingMessage(null); setMessage(''); }} style={{ padding: 6 }}>
+                <Ionicons name="close-circle" size={20} color={isDark ? '#94A3B8' : '#64748B'} />
+              </TouchableOpacity>
+            </View>
+          )}
+
           {isRecordingVoice ? (
             <View
               style={[
@@ -1266,6 +1449,99 @@ export default function ChatScreen({
         }}
         onThemeChange={(theme) => setWallpaperTheme(theme)}
       />
+
+      {/* WhatsApp Message Actions & Reaction Modal */}
+      <Modal
+        visible={Boolean(selectedMessage)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelectedMessage(null)}
+      >
+        <Pressable
+          style={[styles.modalOverlay, isDark && { backgroundColor: 'rgba(0, 0, 0, 0.75)' }]}
+          onPress={() => setSelectedMessage(null)}
+        >
+          {selectedMessage && (
+            <View
+              style={[
+                styles.actionModalContent,
+                isDark && { backgroundColor: '#0B0F14', borderColor: 'rgba(255, 255, 255, 0.12)' },
+              ]}
+            >
+              {/* Quick Reactions Bar */}
+              <View style={[styles.reactionBarRow, isDark && { backgroundColor: '#131922' }]}>
+                {['👍', '❤️', '😂', '😮', '😢', '🙏'].map((emoji) => (
+                  <TouchableOpacity
+                    key={emoji}
+                    style={[
+                      styles.reactionBarEmojiBtn,
+                      selectedMessage.reaction === emoji && styles.reactionBarEmojiBtnActive,
+                    ]}
+                    onPress={() => handleSelectReaction(emoji)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.reactionBarEmojiText}>{emoji}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Action Sheet Menu */}
+              <View style={styles.actionMenuItems}>
+                <TouchableOpacity style={styles.actionMenuItem} onPress={handleStartReply}>
+                  <Ionicons name="arrow-undo-outline" size={19} color={isDark ? '#38BDF8' : '#0284C7'} />
+                  <Text style={[styles.actionMenuText, isDark && { color: '#FFFFFF' }]}>Reply</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.actionMenuItem} onPress={handleToggleStar}>
+                  <Ionicons
+                    name={selectedMessage.isStarred ? 'star' : 'star-outline'}
+                    size={19}
+                    color={selectedMessage.isStarred ? '#F59E0B' : (isDark ? '#E2E8F0' : '#475569')}
+                  />
+                  <Text style={[styles.actionMenuText, isDark && { color: '#FFFFFF' }]}>
+                    {selectedMessage.isStarred ? 'Unstar' : 'Star'}
+                  </Text>
+                </TouchableOpacity>
+
+                {Boolean(selectedMessage.text) && !selectedMessage.isDeleted && (
+                  <TouchableOpacity style={styles.actionMenuItem} onPress={handleCopyMessage}>
+                    <Ionicons name="copy-outline" size={19} color={isDark ? '#E2E8F0' : '#475569'} />
+                    <Text style={[styles.actionMenuText, isDark && { color: '#FFFFFF' }]}>Copy</Text>
+                  </TouchableOpacity>
+                )}
+
+                {/* Edit (Me only, within 15 mins, not deleted, text only) */}
+                {(selectedMessage.senderId === currentUserPhone || selectedMessage.sender === 'me') &&
+                  !selectedMessage.isDeleted &&
+                  selectedMessage.type !== 'voice' &&
+                  Date.now() - (selectedMessage.timestamp || 0) < 15 * 60 * 1000 && (
+                    <TouchableOpacity style={styles.actionMenuItem} onPress={handleStartEdit}>
+                      <Ionicons name="pencil-outline" size={19} color={isDark ? '#10B981' : '#059669'} />
+                      <Text style={[styles.actionMenuText, isDark && { color: '#FFFFFF' }]}>Edit (15m)</Text>
+                    </TouchableOpacity>
+                  )}
+
+                <View style={[styles.menuDivider, isDark && { backgroundColor: 'rgba(255, 255, 255, 0.08)' }]} />
+
+                {/* Delete for me */}
+                <TouchableOpacity style={styles.actionMenuItem} onPress={handleDeleteForMe}>
+                  <Ionicons name="trash-outline" size={19} color="#EF4444" />
+                  <Text style={[styles.actionMenuText, { color: '#EF4444' }]}>Delete for me</Text>
+                </TouchableOpacity>
+
+                {/* Delete for everyone (Me only, not already deleted) */}
+                {(selectedMessage.senderId === currentUserPhone || selectedMessage.sender === 'me') &&
+                  !selectedMessage.isDeleted && (
+                    <TouchableOpacity style={styles.actionMenuItem} onPress={handleDeleteForEveryone}>
+                      <Ionicons name="trash-bin-outline" size={19} color="#EF4444" />
+                      <Text style={[styles.actionMenuText, { color: '#EF4444' }]}>Delete for everyone</Text>
+                    </TouchableOpacity>
+                  )}
+              </View>
+            </View>
+          )}
+        </Pressable>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -1636,5 +1912,129 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
+  },
+  replyBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    borderLeftWidth: 4,
+    borderLeftColor: '#10B981',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginHorizontal: 12,
+    marginBottom: 8,
+    borderRadius: 8,
+  },
+  replyBarTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  replyBarContent: {
+    fontSize: 13,
+    color: '#475569',
+  },
+  quotedBubble: {
+    borderLeftWidth: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginBottom: 4,
+  },
+  quotedBubbleMe: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderLeftColor: '#A7F3D0',
+  },
+  quotedBubbleThem: {
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    borderLeftColor: '#10B981',
+  },
+  quotedSenderName: {
+    fontSize: 11,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  quotedSnippetText: {
+    fontSize: 12,
+  },
+  reactionBadgeContainer: {
+    position: 'absolute',
+    bottom: -10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  reactionBadgeMe: {
+    right: 10,
+  },
+  reactionBadgeThem: {
+    left: 10,
+  },
+  reactionBadgeEmoji: {
+    fontSize: 13,
+  },
+  editedBadge: {
+    fontSize: 10,
+    color: '#94A3B8',
+    fontStyle: 'italic',
+    marginRight: 4,
+  },
+  actionModalContent: {
+    width: '85%',
+    maxWidth: 340,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  reactionBarRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 30,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    marginBottom: 12,
+  },
+  reactionBarEmojiBtn: {
+    padding: 6,
+    borderRadius: 20,
+  },
+  reactionBarEmojiBtnActive: {
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+  },
+  reactionBarEmojiText: {
+    fontSize: 24,
+  },
+  actionMenuItems: {
+    width: '100%',
+  },
+  actionMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+  },
+  actionMenuText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1E293B',
+    marginLeft: 12,
   },
 });

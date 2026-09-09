@@ -40,6 +40,7 @@ interface ChatsTabProps {
   archivedCount?: number;
   activeChatPhone?: string;
   searchQuery?: string;
+  onTogglePin?: (phone: string) => void;
 }
 
 export default function ChatsTab({
@@ -49,6 +50,7 @@ export default function ChatsTab({
   onStartCall,
   activeChatPhone,
   searchQuery,
+  onTogglePin,
 }: ChatsTabProps) {
   const { isDark } = useTheme();
 
@@ -183,6 +185,8 @@ export default function ChatsTab({
           isSelected && isDark && { backgroundColor: '#000000', borderColor: '#10B981' },
         ]}
         onPress={() => onSelectChat(item)}
+        onLongPress={() => onTogglePin?.(item.phone)}
+        delayLongPress={320}
         activeOpacity={0.75}
       >
         {/* Squircle Avatar with Live Dot */}
