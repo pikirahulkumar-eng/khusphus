@@ -849,7 +849,7 @@ export default function ChatScreen({
   return (
     <KeyboardAvoidingView
       style={[styles.container, isDark && { backgroundColor: '#000000' }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <StatusBar
         backgroundColor="transparent"
@@ -1308,7 +1308,7 @@ export default function ChatScreen({
               </View>
             </View>
           ) : (
-            <>
+            <View style={styles.inputRow}>
               <View
                 style={[
                   styles.inputContainer,
@@ -1386,7 +1386,7 @@ export default function ChatScreen({
                   <Ionicons name="mic" size={20} color="#FFFFFF" />
                 )}
               </TouchableOpacity>
-            </>
+            </View>
           )}
         </View>
       )}
@@ -1767,12 +1767,17 @@ const styles = StyleSheet.create({
   messageTimeMe: { color: 'rgba(255, 255, 255, 0.75)' },
   messageTimeThem: { color: '#94A3B8' },
   footer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    padding: 8,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
+    paddingHorizontal: 8,
+    paddingTop: 6,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 8,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    width: '100%',
   },
   inputContainer: {
     flex: 1,
@@ -2033,7 +2038,7 @@ const styles = StyleSheet.create({
     borderLeftColor: '#10B981',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    marginHorizontal: 12,
+    marginHorizontal: 4,
     marginBottom: 8,
     borderRadius: 8,
   },
