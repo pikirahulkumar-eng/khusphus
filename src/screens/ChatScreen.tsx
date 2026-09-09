@@ -15,7 +15,9 @@ import {
   StatusBar,
   BackHandler,
   Image,
+  PanResponder,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { Ionicons, MaterialIcons, Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { KhusPhusTheme } from '../constants/theme';
@@ -26,6 +28,106 @@ import { VoiceService } from '../services/voiceRecordingService';
 import VoiceNoteBubble from '../components/chat/VoiceNoteBubble';
 import ContactProfileModal from '../components/chat/ContactProfileModal';
 import { useTheme } from '../contexts/ThemeContext';
+
+interface SwipeableMessageRowProps {
+  children: React.ReactNode;
+  onSwipeReply: () => void;
+  isMe: boolean;
+}
+
+const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({ children, onSwipeReply, isMe }) => {
+  const pan = useRef(new Animated.Value(0)).current;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return gestureState.dx > 12 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy * 1.5);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        // Swipe right to reply (standard WhatsApp gesture)
+        if (gestureState.dx > 0) {
+          const drag = Math.min(gestureState.dx * 0.75, 75);
+          pan.setValue(drag);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dx > 36) {
+          try {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+          } catch (_) {}
+          onSwipeReply();
+        }
+        Animated.spring(pan, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 50,
+          friction: 7,
+        }).start();
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(pan, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 50,
+          friction: 7,
+        }).start();
+      },
+    })
+  ).current;
+
+  return (
+    <View style={{ width: '100%', position: 'relative', justifyContent: 'center' }}>
+      <Animated.View
+        style={{
+          position: 'absolute',
+          left: 10,
+          zIndex: 1,
+          opacity: pan.interpolate({
+            inputRange: [0, 15, 38],
+            outputRange: [0, 0.4, 1],
+            extrapolate: 'clamp',
+          }),
+          transform: [
+            {
+              scale: pan.interpolate({
+                inputRange: [0, 38],
+                outputRange: [0.6, 1.1],
+                extrapolate: 'clamp',
+              }),
+            },
+          ],
+        }}
+      >
+        <View
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: 16,
+            backgroundColor: '#10B981',
+            justifyContent: 'center',
+            alignItems: 'center',
+            elevation: 3,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.2,
+            shadowRadius: 2,
+          }}
+        >
+          <Ionicons name="arrow-undo" size={16} color="#FFFFFF" />
+        </View>
+      </Animated.View>
+
+      <Animated.View
+        {...panResponder.panHandlers}
+        style={{
+          transform: [{ translateX: pan }],
+        }}
+      >
+        {children}
+      </Animated.View>
+    </View>
+  );
+};
 
 interface ChatScreenProps {
   chatUser?: any;
@@ -949,109 +1051,119 @@ export default function ChatScreen({
           renderItem={({ item }) => {
             const isMe = item.senderId === currentUserPhone || (item.sender === 'me' && (!item.senderId || item.senderId === currentUserPhone));
             return (
-              <View style={[styles.messageWrapper, isMe ? styles.messageWrapperMe : styles.messageWrapperThem]}>
-                <TouchableOpacity
-                  activeOpacity={0.88}
-                  onLongPress={() => setSelectedMessage(item)}
-                  delayLongPress={260}
-                >
-                  {item.type === 'voice' ? (
-                    <VoiceNoteBubble
-                      audioUrl={item.audioUrl}
-                      duration={item.duration}
-                      isMe={isMe}
-                      time={item.time}
-                      status={item.status}
-                      readReceipts={readReceiptsEnabled}
-                    />
-                  ) : (
-                    <View
-                      style={[
-                        styles.messageBubble,
-                        isMe ? styles.messageBubbleMe : styles.messageBubbleThem,
-                        !isMe && isDark && {
-                          backgroundColor: '#0E1217',
-                          borderColor: 'rgba(255, 255, 255, 0.08)',
-                        },
-                      ]}
-                    >
-                      {/* Quoted Message Preview Header */}
-                      {item.replyTo && (
-                        <View style={[styles.quotedBubble, isMe ? styles.quotedBubbleMe : styles.quotedBubbleThem]}>
-                          <Text style={[styles.quotedSenderName, isMe ? { color: '#A7F3D0' } : { color: '#059669' }]} numberOfLines={1}>
-                            {item.replyTo.senderId === currentUserPhone ? 'You' : contactName}
-                          </Text>
-                          <Text style={[styles.quotedSnippetText, isMe ? { color: 'rgba(255, 255, 255, 0.85)' } : { color: '#64748B' }]} numberOfLines={1}>
-                            {item.replyTo.text}
-                          </Text>
-                        </View>
-                      )}
-
-                      <Text
+              <SwipeableMessageRow
+                key={item.id}
+                onSwipeReply={() => {
+                  if (!item.isDeleted) {
+                    setReplyingToMessage(item);
+                  }
+                }}
+                isMe={isMe}
+              >
+                <View style={[styles.messageWrapper, isMe ? styles.messageWrapperMe : styles.messageWrapperThem]}>
+                  <TouchableOpacity
+                    activeOpacity={0.88}
+                    onLongPress={() => setSelectedMessage(item)}
+                    delayLongPress={260}
+                  >
+                    {item.type === 'voice' ? (
+                      <VoiceNoteBubble
+                        audioUrl={item.audioUrl}
+                        duration={item.duration}
+                        isMe={isMe}
+                        time={item.time}
+                        status={item.status}
+                        readReceipts={readReceiptsEnabled}
+                      />
+                    ) : (
+                      <View
                         style={[
-                          styles.messageText,
-                          isMe ? styles.messageTextMe : styles.messageTextThem,
-                          !isMe && isDark && { color: '#FFFFFF' },
-                          item.isDeleted && { fontStyle: 'italic', color: isMe ? 'rgba(255, 255, 255, 0.7)' : '#94A3B8' },
+                          styles.messageBubble,
+                          isMe ? styles.messageBubbleMe : styles.messageBubbleThem,
+                          !isMe && isDark && {
+                            backgroundColor: '#0E1217',
+                            borderColor: 'rgba(255, 255, 255, 0.08)',
+                          },
                         ]}
                       >
-                        {item.text}
-                      </Text>
+                        {/* Quoted Message Preview Header */}
+                        {item.replyTo && (
+                          <View style={[styles.quotedBubble, isMe ? styles.quotedBubbleMe : styles.quotedBubbleThem]}>
+                            <Text style={[styles.quotedSenderName, isMe ? { color: '#A7F3D0' } : { color: '#059669' }]} numberOfLines={1}>
+                              {item.replyTo.senderId === currentUserPhone ? 'You' : contactName}
+                            </Text>
+                            <Text style={[styles.quotedSnippetText, isMe ? { color: 'rgba(255, 255, 255, 0.85)' } : { color: '#64748B' }]} numberOfLines={1}>
+                              {item.replyTo.text}
+                            </Text>
+                          </View>
+                        )}
 
-                      <View style={styles.messageMetaRow}>
-                        {item.isStarred && (
-                          <Ionicons name="star" size={11} color="#FBBF24" style={{ marginRight: 3 }} />
-                        )}
-                        {item.isEdited && !item.isDeleted && (
-                          <Text style={[styles.editedBadge, isMe ? { color: 'rgba(255, 255, 255, 0.75)' } : { color: '#94A3B8' }]}>
-                            edited{' '}
-                          </Text>
-                        )}
                         <Text
                           style={[
-                            styles.messageTime,
-                            isMe ? styles.messageTimeMe : styles.messageTimeThem,
-                            !isMe && isDark && { color: '#94A3B8' },
+                            styles.messageText,
+                            isMe ? styles.messageTextMe : styles.messageTextThem,
+                            !isMe && isDark && { color: '#FFFFFF' },
+                            item.isDeleted && { fontStyle: 'italic', color: isMe ? 'rgba(255, 255, 255, 0.7)' : '#94A3B8' },
                           ]}
                         >
-                          {item.time}
+                          {item.text}
                         </Text>
-                        {isMe && !item.isDeleted && (
-                          item.status === 'read' ? (
-                            <Ionicons
-                              name="checkmark-done"
-                              size={15}
-                              color={readReceiptsEnabled ? (isDark ? '#00F2FE' : '#38BDF8') : '#94A3B8'}
-                              style={{ marginLeft: 4 }}
-                            />
-                          ) : item.status === 'delivered' ? (
-                            <Ionicons
-                              name="checkmark-done"
-                              size={15}
-                              color="#94A3B8"
-                              style={{ marginLeft: 4 }}
-                            />
-                          ) : (
-                            <Ionicons
-                              name="checkmark"
-                              size={15}
-                              color="#94A3B8"
-                              style={{ marginLeft: 4 }}
-                            />
-                          )
-                        )}
-                      </View>
-                    </View>
-                  )}
 
-                  {/* Reaction Pill Badge */}
-                  {Boolean(item.reaction) && (
-                    <View style={[styles.reactionBadgeContainer, isMe ? styles.reactionBadgeMe : styles.reactionBadgeThem]}>
-                      <Text style={styles.reactionBadgeEmoji}>{item.reaction}</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              </View>
+                        <View style={styles.messageMetaRow}>
+                          {item.isStarred && (
+                            <Ionicons name="star" size={11} color="#FBBF24" style={{ marginRight: 3 }} />
+                          )}
+                          {item.isEdited && !item.isDeleted && (
+                            <Text style={[styles.editedBadge, isMe ? { color: 'rgba(255, 255, 255, 0.75)' } : { color: '#94A3B8' }]}>
+                              edited{' '}
+                            </Text>
+                          )}
+                          <Text
+                            style={[
+                              styles.messageTime,
+                              isMe ? styles.messageTimeMe : styles.messageTimeThem,
+                              !isMe && isDark && { color: '#94A3B8' },
+                            ]}
+                          >
+                            {item.time}
+                          </Text>
+                          {isMe && !item.isDeleted && (
+                            item.status === 'read' ? (
+                              <Ionicons
+                                name="checkmark-done"
+                                size={15}
+                                color={readReceiptsEnabled ? (isDark ? '#00F2FE' : '#38BDF8') : '#94A3B8'}
+                                style={{ marginLeft: 4 }}
+                              />
+                            ) : item.status === 'delivered' ? (
+                              <Ionicons
+                                name="checkmark-done"
+                                size={15}
+                                color="#94A3B8"
+                                style={{ marginLeft: 4 }}
+                              />
+                            ) : (
+                              <Ionicons
+                                name="checkmark"
+                                size={15}
+                                color="#94A3B8"
+                                style={{ marginLeft: 4 }}
+                              />
+                            )
+                          )}
+                        </View>
+                      </View>
+                    )}
+
+                    {/* Reaction Pill Badge */}
+                    {Boolean(item.reaction) && (
+                      <View style={[styles.reactionBadgeContainer, isMe ? styles.reactionBadgeMe : styles.reactionBadgeThem]}>
+                        <Text style={styles.reactionBadgeEmoji}>{item.reaction}</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </SwipeableMessageRow>
             );
           }}
         />
