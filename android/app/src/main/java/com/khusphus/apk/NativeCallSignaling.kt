@@ -1,4 +1,4 @@
-package com.khusphus.apk
+﻿package com.khusphus.apk
 
 import android.content.Context
 import android.util.Log
@@ -11,8 +11,8 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 object NativeCallSignaling {
-    private const val TAG = "KHUSPHUS_SIGNALING"
-    private const val SERVER_URL = "https://p01--sunao-server--njm6yd7449gk.code.run/api/call-signal"
+    private const val TAG = "SYNKING_SIGNALING"
+    private const val SERVER_URL = "http://3.108.217.155:8082/api/call-signal"
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(5, TimeUnit.SECONDS)
@@ -21,6 +21,10 @@ object NativeCallSignaling {
         .build()
 
     private val executor = Executors.newSingleThreadExecutor()
+
+    fun sendRingingNatively(callId: String, callerId: String, callType: String = "audio") {
+        sendSignal("CALL_RINGING", callId, callerId, callType)
+    }
 
     fun sendAcceptNatively(callId: String, callerId: String, callType: String = "audio") {
         sendSignal("CALL_ACCEPTED", callId, callerId, callType)
@@ -39,7 +43,7 @@ object NativeCallSignaling {
 
         executor.execute {
             try {
-                Log.d(TAG, "🚀 [NATIVE_DIRECT_SIGNAL] Dispatching $type to $SERVER_URL (callId=$callId, target=$targetUserId)")
+                Log.d(TAG, "ðŸš€ [NATIVE_DIRECT_SIGNAL] Dispatching $type to $SERVER_URL (callId=$callId, target=$targetUserId)")
                 val json = JSONObject().apply {
                     put("type", type)
                     put("callId", callId)
@@ -56,11 +60,12 @@ object NativeCallSignaling {
                     .build()
 
                 client.newCall(request).execute().use { response ->
-                    Log.d(TAG, "✅ [NATIVE_DIRECT_SIGNAL_SUCCESS] $type -> HTTP ${response.code} (delivered)")
+                    Log.d(TAG, "âœ… [NATIVE_DIRECT_SIGNAL_SUCCESS] $type -> HTTP ${response.code} (delivered)")
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "❌ [NATIVE_DIRECT_SIGNAL_ERROR] $type failed: ${e.message}")
+                Log.e(TAG, "âŒ [NATIVE_DIRECT_SIGNAL_ERROR] $type failed: ${e.message}")
             }
         }
     }
 }
+

@@ -1,4 +1,4 @@
-package com.khusphus.apk
+﻿package com.khusphus.apk
 
 import android.app.Activity
 import android.content.BroadcastReceiver
@@ -67,7 +67,7 @@ class IncomingCallActivity : Activity() {
 
     private val webrtcConnectedReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            Log.d("SYNKING_DEBUG", "[UI] WEBRTC_CONNECTED broadcast received — handing off to MainActivity")
+            Log.d("SYNKING_DEBUG", "[UI] WEBRTC_CONNECTED broadcast received â€” handing off to MainActivity")
             performHandoffToMainActivity()
         }
     }
@@ -89,6 +89,12 @@ class IncomingCallActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         setTheme(R.style.AppTheme)
         super.onCreate(savedInstanceState)
+
+        // ðŸ”’ Privacy DRM: Block screenshots and screen recording on incoming calls
+        window.setFlags(
+            android.view.WindowManager.LayoutParams.FLAG_SECURE,
+            android.view.WindowManager.LayoutParams.FLAG_SECURE
+        )
 
         TelecomModule.incomingActivityInstance = this
 
@@ -122,8 +128,8 @@ class IncomingCallActivity : Activity() {
         }
 
         val cancelFilter = IntentFilter().apply {
-            addAction("com.khusphus.apk.CALL_ENDED_FROM_JS")
-            addAction("com.khusphus.apk.CLOSE_CALL_SCREEN")
+            addAction("com.synking.CALL_ENDED_FROM_JS")
+            addAction("com.synking.CLOSE_CALL_SCREEN")
         }
         val connectedFilter = IntentFilter("com.synking.WEBRTC_CONNECTED")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -167,7 +173,7 @@ class IncomingCallActivity : Activity() {
             )
         }
 
-        // 1. 🔒 Frosted Glass Header Security Pill
+        // 1. ðŸ”’ Frosted Glass Header Security Pill
         val brandHeader = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
@@ -179,7 +185,7 @@ class IncomingCallActivity : Activity() {
             }
         }
         val brandText = TextView(this).apply {
-            text = "🔒 End-to-End Encrypted HD"
+            text = "ðŸ”’ End-to-End Encrypted HD"
             textSize = 12f
             setTextColor(Color.parseColor("#E2E8F0"))
             typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -190,7 +196,7 @@ class IncomingCallActivity : Activity() {
 
         root.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dpToPx(48)) })
 
-        // 2. 🪞 Holographic Iridescent Avatar Container
+        // 2. ðŸªž Holographic Iridescent Avatar Container
         val avatarContainer = FrameLayout(this).apply {
             val size = dpToPx(150)
             layoutParams = LinearLayout.LayoutParams(size, size).apply { gravity = Gravity.CENTER_HORIZONTAL }
@@ -280,7 +286,7 @@ class IncomingCallActivity : Activity() {
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         }
 
-        // 🔴 Deep Crimson Frosted Glass Decline Pod
+        // ðŸ”´ Deep Crimson Frosted Glass Decline Pod
         val declineCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
         val declineBtn = FrameLayout(this).apply {
             val size = dpToPx(80)
@@ -300,7 +306,7 @@ class IncomingCallActivity : Activity() {
                 val finalCallId = if (callId.isNotEmpty()) callId else (intent.getStringExtra("callId") ?: "")
                 val finalCallerId = if (callerId.isNotEmpty()) callerId else (intent.getStringExtra("callerId") ?: "")
 
-                // 🚀 Direct Native HTTP Signal to Server (Immediate 0ms Laptop Ring Cancel)
+                // ðŸš€ Direct Native HTTP Signal to Server (Immediate 0ms Laptop Ring Cancel)
                 NativeCallSignaling.sendDeclineNatively(finalCallId, finalCallerId)
 
                 TelecomModule.emitDeclineEvent(finalCallId)
@@ -311,11 +317,11 @@ class IncomingCallActivity : Activity() {
                 finish()
             }
         }
-        declineBtn.addView(TextView(this).apply { text = "✕"; textSize = 28f; setTextColor(Color.parseColor("#EF4444")); gravity = Gravity.CENTER })
+        declineBtn.addView(TextView(this).apply { text = "âœ•"; textSize = 28f; setTextColor(Color.parseColor("#EF4444")); gravity = Gravity.CENTER })
         declineCol.addView(declineBtn)
         declineCol.addView(TextView(this).apply { text = "Decline"; textSize = 13f; setTextColor(Color.parseColor("#94A3B8")); setPadding(0, dpToPx(10), 0, 0) })
 
-        // 🟢 Luxury Emerald Gradient Accept Pod
+        // ðŸŸ¢ Luxury Emerald Gradient Accept Pod
         val acceptCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
         val acceptBtn = FrameLayout(this).apply {
             val size = dpToPx(80)
@@ -328,7 +334,7 @@ class IncomingCallActivity : Activity() {
                 handleAccept()
             }
         }
-        acceptBtn.addView(TextView(this).apply { text = "✔"; textSize = 28f; setTextColor(Color.WHITE); gravity = Gravity.CENTER })
+        acceptBtn.addView(TextView(this).apply { text = "âœ”"; textSize = 28f; setTextColor(Color.WHITE); gravity = Gravity.CENTER })
         val acceptPulse = ScaleAnimation(1.0f, 1.10f, 1.0f, 1.10f, Animation.RELATIVE_TO_SELF, 0.5f, Animation.RELATIVE_TO_SELF, 0.5f).apply {
             duration = 600; repeatCount = Animation.INFINITE; repeatMode = Animation.REVERSE
         }
@@ -358,7 +364,7 @@ class IncomingCallActivity : Activity() {
         stopRingtoneAndVibration()
         CallConnectionManager.answerCall()
 
-        // 🟡 Show "Connecting..." UI (same screen, no activity jump!)
+        // ðŸŸ¡ Show "Connecting..." UI (same screen, no activity jump!)
         showConnectingUI()
 
         val call = PendingCall(
@@ -369,16 +375,16 @@ class IncomingCallActivity : Activity() {
             callType = finalCallType
         )
 
-        // 🚀 1. DIRECT NATIVE HTTP SIGNAL (Immediate 0ms Laptop Handshake!)
+        // ðŸš€ 1. DIRECT NATIVE HTTP SIGNAL (Immediate 0ms Laptop Handshake!)
         NativeCallSignaling.sendAcceptNatively(finalCallId, finalCallerId, finalCallType)
 
-        // 🚀 2. React Native Event Bridge
+        // ðŸš€ 2. React Native Event Bridge
         TelecomModule.emitAcceptEvent(call)
 
-        // 🚀 3. Save pending call for JS cold-boot recovery
+        // ðŸš€ 3. Save pending call for JS cold-boot recovery
         PendingCallStore.save(this, call)
 
-        // 🚀 4. Launch MainActivity in BACKGROUND (don't finish yet!)
+        // ðŸš€ 4. Launch MainActivity in BACKGROUND (don't finish yet!)
         try {
             val mainIntent = Intent(this, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -395,7 +401,7 @@ class IncomingCallActivity : Activity() {
             Log.w("SYNKING_DEBUG", "MainActivity handoff note: ${e.message}")
         }
 
-        // 🕐 5. Timeout fallback: if WebRTC doesn't connect in 15s, hand off anyway
+        // ðŸ• 5. Timeout fallback: if WebRTC doesn't connect in 15s, hand off anyway
         connectingTimeoutHandler = Handler(Looper.getMainLooper())
         connectingTimeoutHandler?.postDelayed({
             if (!hasHandedOff) {
@@ -447,9 +453,9 @@ class IncomingCallActivity : Activity() {
         connectingText.startAnimation(pulseAnim)
         root.addView(connectingText)
 
-        // 🔒 Encrypted badge
+        // ðŸ”’ Encrypted badge
         val badge = TextView(this).apply {
-            text = "🔒 End-to-End Encrypted"
+            text = "ðŸ”’ End-to-End Encrypted"
             textSize = 12f
             setTextColor(Color.parseColor("#64748B"))
             gravity = Gravity.CENTER
@@ -486,34 +492,9 @@ class IncomingCallActivity : Activity() {
 
     private fun playRingtoneAndVibrate() {
         try {
-            Log.d("SYNKING_DEBUG", "[AUDIO] START_RINGTONE_AND_VIBRATION: Initiating audio & haptics")
-            val resId = resources.getIdentifier("synk_signature", "raw", packageName)
-            if (resId != 0) {
-                val soundUri = android.net.Uri.parse("android.resource://$packageName/$resId")
-                activeRingtone = RingtoneManager.getRingtone(applicationContext, soundUri)
-            } else {
-                val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-                activeRingtone = RingtoneManager.getRingtone(applicationContext, uri)
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                activeRingtone?.audioAttributes = AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build()
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                activeRingtone?.isLooping = true
-            }
-            activeRingtone?.play()
-
-            activeVibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                activeVibrator?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 1000, 1000), 0))
-            } else {
-                @Suppress("DEPRECATION")
-                activeVibrator?.vibrate(longArrayOf(0, 1000, 1000), 0)
-            }
-            Log.d("SYNKING_DEBUG", "[AUDIO] RINGTONE_AND_VIBRATION: Active and playing")
+            Log.d("SYNKING_DEBUG", "[AUDIO] START_RINGTONE_AND_VIBRATION: Initiating audio & haptics via AudioRouteModule")
+            AudioRouteModule.startGlobalIncomingRingtone(applicationContext)
+            AudioRouteModule.startGlobalVibration(applicationContext)
         } catch (e: Exception) {
             Log.e("SYNKING_DEBUG", "[AUDIO] RINGTONE_ERROR: ${e.message}")
         }
@@ -521,7 +502,7 @@ class IncomingCallActivity : Activity() {
 
     private fun stopRingtoneAndVibration() {
         Log.d("SYNKING_DEBUG", "[AUDIO] STOP_RINGTONE_AND_VIBRATION: Cancelling all audio and vibration globally")
-        stopRingtoneGlobally()
+        stopRingtoneGlobally(applicationContext)
     }
 
     override fun onDestroy() {
@@ -540,3 +521,4 @@ class IncomingCallActivity : Activity() {
         TelecomModule.incomingActivityInstance = null
     }
 }
+

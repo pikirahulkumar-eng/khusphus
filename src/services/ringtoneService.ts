@@ -10,7 +10,7 @@ try {
   ExpoAudioModule = require('expo-audio');
 } catch (e) {}
 
-const INCOMING_RINGTONE_URL = 'https://raw.githubusercontent.com/pikirahulkumar-eng/khusphus/main/assets/sounds/synk_signature.mp3';
+const INCOMING_RINGTONE_URL = 'https://raw.githubusercontent.com/pikirahulkumar-eng/synking/main/assets/sounds/synk_signature.mp3';
 const OUTGOING_RINGTONE_URL = 'https://assets.mixkit.co/active_storage/sfx/1360/1360-preview.mp3';
 
 class RingtoneServiceClass {
@@ -40,7 +40,7 @@ class RingtoneServiceClass {
   }
 
   // 1. OUTGOING CALL: Pleasant Ringback Tone (looping "Tuuu... Tuuu...")
-  public async playOutgoingRing() {
+  public async playOutgoingRing(isVideo: boolean = false) {
     if ((globalThis as any).__SYNKING_RINGTONE_PLAYING__ && (globalThis as any).__SYNKING_RINGTONE_MODE__ === 'outgoing') {
       return;
     }
@@ -49,13 +49,16 @@ class RingtoneServiceClass {
     this.currentMode = 'outgoing';
     (globalThis as any).__SYNKING_RINGTONE_PLAYING__ = true;
     (globalThis as any).__SYNKING_RINGTONE_MODE__ = 'outgoing';
-    CallDebugger.logStage('RINGTONE', 'OK', { mode: 'outgoing' });
+    CallDebugger.logStage('RINGTONE', 'OK', { mode: 'outgoing', isVideo });
 
     // Use native Android ToneGenerator for reliable ringback
     if (Platform.OS === 'android') {
       try {
         const { NativeModules } = require('react-native');
-        if (NativeModules.AudioRouteModule?.startRingbackTone) {
+        if (isVideo && NativeModules.AudioRouteModule?.startRingbackToneWithSpeaker) {
+          NativeModules.AudioRouteModule.startRingbackToneWithSpeaker(true);
+          return;
+        } else if (NativeModules.AudioRouteModule?.startRingbackTone) {
           NativeModules.AudioRouteModule.startRingbackTone();
           return;
         }
@@ -244,6 +247,65 @@ class RingtoneServiceClass {
 
       osc.start(now);
       osc.stop(now + 0.35);
+    } catch (e) {}
+  }
+
+  // 5. CALL DISCONNECT CHIME: WhatsApp-style 340ms millisecond tone + light haptics
+  public playCallEndTone() {
+    try {
+      // 1. Light haptic double-tap feedback
+      if (Platform.OS !== 'web') {
+        try {
+          const Haptics = require('expo-haptics');
+          Haptics?.impactAsync?.(Haptics.ImpactFeedbackStyle.Light)?.catch?.(() => {});
+        } catch (e) {}
+      }
+
+      // 2. Play 340ms local native audio tone via expo-audio
+      if (Platform.OS !== 'web' && ExpoAudioModule && typeof ExpoAudioModule.createAudioPlayer === 'function') {
+        try {
+          const endTonePlayer = ExpoAudioModule.createAudioPlayer(require('../../assets/sounds/call_end.wav'));
+          endTonePlayer.volume = 0.85;
+          endTonePlayer.play();
+          setTimeout(() => {
+            try {
+              endTonePlayer.pause();
+              if (typeof endTonePlayer.release === 'function') {
+                endTonePlayer.release();
+              }
+            } catch (e) {}
+          }, 600);
+          return;
+        } catch (e) {
+          console.warn('[CALL_END_TONE_NATIVE_WARN]', e);
+        }
+      }
+
+      // 3. Web Audio Oscillator fallback (340ms 3-tone chime)
+      const ctx = this.getAudioContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+
+      const playBeep = (freq: number, startDelay: number, duration: number) => {
+        const start = now + startDelay;
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0, start);
+        gain.gain.linearRampToValueAtTime(0.2, start + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+        gain.connect(ctx.destination);
+
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, start);
+        osc.connect(gain);
+
+        osc.start(start);
+        osc.stop(start + duration);
+      };
+
+      playBeep(520, 0, 0.08);
+      playBeep(440, 0.105, 0.08);
+      playBeep(350, 0.21, 0.13);
     } catch (e) {}
   }
 }

@@ -5,51 +5,28 @@ import { RealtimeBridge } from './realtimeBridge';
 import { RingtoneService } from './ringtoneService';
 import { AudioRouteService } from './audioRouteService';
 import { UserProfile, CallSession } from '../types';
-import { PermissionsAndroid, Platform, NativeModules } from 'react-native';
+import { PermissionsAndroid, Platform, NativeModules, Alert, AppState, AppStateStatus, DeviceEventEmitter } from 'react-native';
 import { MediaDevices, PeerConnection, SessionDescription, IceCandidate } from './webrtcCore';
 import { NotificationService } from './notificationService';
 import { CallDebugger } from './callDebugger';
-import { getBackendUrl } from './firebase';
 
-// Multi-Transport Carrier-Grade WebRTC ICE Server Pool (Engineered for Jio 5G / Airtel 4G Symmetric NAT & Mobile Firewalls)
-let ICE_SERVERS: any = {
+// High-Speed WebRTC Ice Server Configuration (Google STUN + Free OpenRelay TURN Fallback)
+const ICE_SERVERS: any = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
-    { urls: 'stun:stun.relay.metered.ca:80' },
     {
       urls: [
         'turn:openrelay.metered.ca:80',
-        'turn:openrelay.metered.ca:80?transport=tcp',
         'turn:openrelay.metered.ca:443',
         'turn:openrelay.metered.ca:443?transport=tcp',
-        'turns:openrelay.metered.ca:443?transport=tcp',
-        'turns:openrelay.metered.ca:5349?transport=tcp',
       ],
       username: 'openrelayproject',
       credential: 'openrelayproject',
-    },
+    }
   ],
   iceCandidatePoolSize: 10,
-  iceTransportPolicy: 'all',
 };
-
-// Dynamically refresh ICE servers from backend on launch (supports custom dedicated TURN credentials)
-async function refreshIceServers() {
-  try {
-    const baseUrl = getBackendUrl();
-    const res = await fetch(`${baseUrl}/api/ice-servers`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data && Array.isArray(data.iceServers) && data.iceServers.length > 0) {
-        ICE_SERVERS = data;
-        console.log('[WEBRTC_ICE] Dynamic cellular TURN configuration loaded from server:', data.iceServers.length, 'servers');
-      }
-    }
-  } catch (_) {}
-}
-refreshIceServers();
 
 type CallStateListener = (session: CallSession | null) => void;
 type FrameListener = (frame: string | null) => void;
@@ -81,6 +58,18 @@ class WebRTCManager {
   private isCallMinimized: boolean = false;
 
   private targetChatUserId: string | null = null;
+  private blockedUserIds: Set<string> = new Set();
+  private appStateSubscription: any = null;
+  private currentAppState: AppStateStatus = AppState.currentState || 'active';
+  private isResumingCamera: boolean = false;
+
+  public setBlockedUsers(ids: string[] | Set<string>) {
+    this.blockedUserIds = new Set(ids);
+  }
+
+  public isUserBlocked(userId: string): boolean {
+    return this.blockedUserIds.has(userId);
+  }
 
   public setMinimized(minimized: boolean) {
     this.isCallMinimized = minimized;
@@ -100,23 +89,35 @@ class WebRTCManager {
   }
 
   constructor() {
+    // 📱 AppState Monitoring: Automatically resume camera capturer when app returns to foreground
+    this.appStateSubscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      const prevAppState = this.currentAppState;
+      this.currentAppState = nextAppState;
+      this.log(`📱 AppState transition: ${prevAppState} -> ${nextAppState}`);
+
+      if ((prevAppState === 'background' || prevAppState === 'inactive') && nextAppState === 'active') {
+        if (this.currentSession && (this.currentSession.status === 'connected' || this.currentSession.status === 'calling' || this.currentSession.status === 'ringing')) {
+          const isVideo = this.currentSession.type === 'video' || this.currentSession.isVideoEnabled;
+          if (isVideo) {
+            this.resumeLocalVideoCapturer();
+          }
+        }
+      } else if (nextAppState === 'background' || nextAppState === 'inactive') {
+        // 🛑 BATTERY FIX: If app goes to background without an active call, kill any leaked camera hardware!
+        if (!this.currentSession || (this.currentSession.status !== 'connected' && this.currentSession.status !== 'calling' && this.currentSession.status !== 'ringing')) {
+          if (this.localStream) {
+            this.cleanup();
+          }
+        }
+      }
+    });
+
     // Listen for Targeted Real-Time Call Signaling from peer
     RealtimeBridge.subscribe(async ({ type, payload, targetUserId }) => {
       // We rely on the WebSocket server and AppContext to route messages correctly.
       // If a WebRTC signaling message reaches here with a targetUserId, it was meant for us.
 
-      if (type === 'INCOMING_CALL' && payload) {
-        CallDebugger.logStage('WEBSOCKET', 'OK', { signal: 'INCOMING_CALL' });
-        this.log(`📲 INCOMING_CALL received from ${payload.callerUser?.name || payload.from || 'caller'}`);
-        const callerUser: UserProfile = payload.callerUser || {
-          id: payload.from || payload.callerId || 'unknown',
-          name: payload.callerName || payload.from || 'Incoming Call',
-          phone: payload.from || payload.callerId || '',
-        };
-        const callType: 'audio' | 'video' = payload.callType || payload.type || (payload.isVideo ? 'video' : 'audio');
-        const callId: string = payload.callId || `call_${Date.now()}`;
-        this.receiveIncomingCall(callerUser, callType, callId);
-      } else if (type === 'CALL_RINGING' && payload) {
+      if (type === 'CALL_RINGING' && payload) {
         if (this.currentSession && (this.currentSession.id === payload.callId || !payload.callId) && this.currentSession.status === 'calling') {
           this.currentSession.status = 'ringing';
           CallDebugger.logStage('WEBSOCKET', 'OK', { signal: 'CALL_RINGING' });
@@ -129,16 +130,23 @@ class WebRTCManager {
           RingtoneService.stop();
           CallDebugger.logStage('WEBSOCKET', 'OK', { signal: 'CALL_ACCEPTED' });
           this.log('📞 CALL_ACCEPTED received from peer. Initiating WebRTC SDP offer handshake...');
+          const isVideo = this.currentSession.type === 'video' || this.currentSession.isVideoEnabled;
+          AudioRouteService.setSpeakerOn(!!isVideo).catch(() => {});
           this.notify();
           this.cleanupRingingPulse();
           this.startConnectionWatchdog();
           this.startTimer();
           if (Platform.OS === 'android' && NativeModules.TelecomModule?.startOngoingCall) {
-            NativeModules.TelecomModule.startOngoingCall(this.currentSession.callerName || 'Sunao Call').catch(() => {});
+            const photo = this.currentSession.callerPhoto || '';
+            if (NativeModules.TelecomModule.startOngoingCallWithDetails) {
+              NativeModules.TelecomModule.startOngoingCallWithDetails(this.currentSession.callerName || 'Synkin Call', photo, !!isVideo).catch(() => {});
+            } else {
+              NativeModules.TelecomModule.startOngoingCall(this.currentSession.callerName || 'Synkin Call').catch(() => {});
+            }
           }
 
           // Create SDP Offer if I am caller
-          if (!this.currentSession.isIncoming) {
+          if (this.currentSession.id.startsWith('call_')) {
             this.createAndSendOffer();
           }
         }
@@ -178,6 +186,12 @@ class WebRTCManager {
         if (this.currentSession && (!payload.callId || this.currentSession.id === payload.callId)) {
           this.handleCallEnded();
         }
+      } else if (type === 'CALL_NO_ANSWER' && payload) {
+        if (this.currentSession && (!payload.callId || this.currentSession.id === payload.callId)) {
+          const sessionCopy = { ...this.currentSession, status: 'missed' as const };
+          DeviceEventEmitter.emit('CALL_TIMEOUT_NO_ANSWER', { session: sessionCopy });
+          this.cleanup();
+        }
       } else if (type === 'CALL_UPGRADED_TO_VIDEO' && payload) {
         if (this.currentSession && this.currentSession.id === payload.callId) {
           this.log('📹 Peer upgraded the call to Live Video!');
@@ -193,12 +207,14 @@ class WebRTCManager {
 
   private getPeerUserId(): string {
     if (!this.currentSession) return '';
-    // If incoming call, peer is caller
-    if (this.currentSession.isIncoming) {
+    const myId = RealtimeBridge.myUserId;
+    if (myId && this.currentSession.callerId === myId) {
+      return this.currentSession.receiverId || '';
+    }
+    if (myId && this.currentSession.receiverId === myId) {
       return this.currentSession.callerId || '';
     }
-    // If outgoing call, peer is receiver
-    return this.currentSession.receiverId || '';
+    return this.currentSession.callerId || this.currentSession.receiverId || '';
   }
 
   public onLog(listener: (msg: string) => void): () => void {
@@ -231,21 +247,16 @@ class WebRTCManager {
     this.listeners.forEach(cb => cb(this.currentSession ? { ...this.currentSession } : null));
   }
 
-  private isStartingCall = false;
-
   // 1. Initiate Outgoing Call
   public async startCall(params: {
     callerUser: UserProfile;
     targetUser: UserProfile;
     type: 'audio' | 'video';
-  }): Promise<CallSession> {
-    if (this.isStartingCall) {
-      this.log('⚠️ startCall already in progress, ignoring double click.');
-      if (this.currentSession) return this.currentSession;
+  }): Promise<CallSession | null> {
+    if (this.blockedUserIds.has(params.targetUser.id)) {
+      Alert.alert('Contact Blocked', 'You have blocked this contact. Unblock them to make calls.');
+      return null;
     }
-    this.isStartingCall = true;
-    setTimeout(() => { this.isStartingCall = false; }, 1500);
-
     this.cleanup();
 
     const newSession: CallSession = {
@@ -274,14 +285,21 @@ class WebRTCManager {
     this.log(`🚀 Starting outgoing ${params.type} call to ${params.targetUser.name}...`);
     this.notify();
 
+    // Route audio: Loudspeaker for video call, In-ear Handset Earpiece for voice call
+    const isVideo = params.type === 'video';
+    if (isVideo) {
+      AudioRouteService.setSpeakerOn(true).catch(() => {});
+    }
+
     // Play Outgoing Ringtone (Tring... Tring...)
-    RingtoneService.playOutgoingRing();
+    RingtoneService.playOutgoingRing(isVideo);
 
     // Capture Local Hardware Microphone & Camera (This resets the audio route)
     await this.initLocalStream(params.type === 'video');
 
-    // Route audio: Loudspeaker for video call, In-ear Handset Earpiece for voice call
-    const isVideo = params.type === 'video';
+    if (isVideo) {
+      AudioRouteService.setSpeakerOn(true).catch(() => {});
+    }
     setTimeout(() => {
         AudioRouteService.setSpeakerOn(isVideo).catch(() => {});
     }, 500);
@@ -329,13 +347,16 @@ class WebRTCManager {
   }
 
   // 2. Receive Incoming Call
-  public receiveIncomingCall(callerUser: UserProfile, type: 'audio' | 'video' = 'audio', callId?: string, autoAccept: boolean = false): CallSession {
-    // 🛡️ Comprehensive de-duplication: If a call is already active or ringing, ignore duplicate!
-    if (this.currentSession && (this.currentSession.status === 'ringing' || this.currentSession.status === 'connected' || this.currentSession.status === 'calling')) {
-      if ((callId && this.currentSession.id === callId) || (callerUser && this.currentSession.callerId === callerUser.id)) {
-        this.log(`📲 Duplicate call event ignored for caller=${callerUser?.name || callerUser?.id}, callId=${callId}`);
-        return this.currentSession;
-      }
+  public receiveIncomingCall(callerUser: UserProfile, type: 'audio' | 'video' = 'audio', callId?: string, autoAccept: boolean = false): CallSession | null {
+    if (this.blockedUserIds.has(callerUser.id)) {
+      this.log(`🚫 Incoming call from blocked user ${callerUser.id} rejected.`);
+      RealtimeBridge.broadcast('CALL_REJECTED', { callId: callId || 'blocked' }, callerUser.id);
+      return null;
+    }
+
+    if (callId && this.currentSession && this.currentSession.id === callId && (this.currentSession.status === 'ringing' || this.currentSession.status === 'connected')) {
+      this.log(`📲 Duplicate call event ignored for callId=${callId}`);
+      return this.currentSession;
     }
 
     this.cleanupPeerConnectionOnly();
@@ -366,10 +387,23 @@ class WebRTCManager {
     this.log(`📲 Incoming ${type} call from ${callerUser.name} (autoAccept: ${autoAccept})...`);
     this.notify();
 
+    if (!autoAccept && type === 'video') {
+      this.initCameraPreviewOnly().catch(() => {});
+    }
+
     if (autoAccept) {
       // Native lockscreen already accepted it, skip ringtone and timer!
       this.startTimer();
     } else {
+      if (Platform.OS === 'android' && NativeModules.TelecomModule?.showIncomingCallNotification) {
+        NativeModules.TelecomModule.showIncomingCallNotification(
+          incomingSession.id,
+          callerUser.id,
+          callerUser.name,
+          incomingSession.callerPhoto || '',
+          type
+        ).catch(() => {});
+      }
       // Normal React Native incoming call flow
       RingtoneService.playIncomingRing();
       this.startRingingTimeout(50);
@@ -409,15 +443,28 @@ class WebRTCManager {
 
       const isVideo = this.currentSession?.type === 'video';
       
-      if (!this.localStream) {
+      if (!this.localStream || this.localStream.getAudioTracks().length === 0) {
         await this.initLocalStream(isVideo);
       }
 
       // Route audio: Loudspeaker for video call, In-ear Handset Earpiece for voice call
       const isVideoCall = this.currentSession?.type === 'video' || this.currentSession?.isVideoEnabled;
-      setTimeout(() => {
-        AudioRouteService.setSpeakerOn(!!isVideoCall).catch(() => {});
-      }, 500);
+      if (isVideoCall) {
+        AudioRouteService.setSpeakerOn(true).catch(() => {});
+        setTimeout(() => {
+          AudioRouteService.setSpeakerOn(true).catch(() => {});
+        }, 300);
+        setTimeout(() => {
+          AudioRouteService.setSpeakerOn(true).catch(() => {});
+        }, 800);
+        setTimeout(() => {
+          AudioRouteService.setSpeakerOn(true).catch(() => {});
+        }, 1500);
+      } else {
+        setTimeout(() => {
+          AudioRouteService.setSpeakerOn(false).catch(() => {});
+        }, 300);
+      }
 
       this.currentSession.status = 'connected';
       this.notify();
@@ -425,7 +472,13 @@ class WebRTCManager {
       this.startConnectionWatchdog();
       this.startTimer();
       if (Platform.OS === 'android' && NativeModules.TelecomModule?.startOngoingCall) {
-        NativeModules.TelecomModule.startOngoingCall(this.currentSession.callerName || 'Sunao Call').catch(() => {});
+        const isVideo = this.currentSession.type === 'video' || this.currentSession.isVideoEnabled;
+        const photo = this.currentSession.callerPhoto || '';
+        if (NativeModules.TelecomModule.startOngoingCallWithDetails) {
+          NativeModules.TelecomModule.startOngoingCallWithDetails(this.currentSession.callerName || 'Synkin Call', photo, !!isVideo).catch(() => {});
+        } else {
+          NativeModules.TelecomModule.startOngoingCall(this.currentSession.callerName || 'Synkin Call').catch(() => {});
+        }
       }
 
       const peerId = this.getPeerUserId();
@@ -469,8 +522,35 @@ class WebRTCManager {
     const peerId = this.getPeerUserId();
     this.log(`🛑 Ending ongoing call (${durationFormatted}).`);
     this.cleanup();
+    RingtoneService.playCallEndTone();
     RealtimeBridge.broadcast('CALL_ENDED', { callId, callerName }, peerId);
     return { session: sessionCopy, durationFormatted };
+  }
+
+  public async initCameraPreviewOnly() {
+    try {
+      if (this.localStream) return;
+      if (Platform.OS === 'android') {
+        const hasPermission = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.CAMERA);
+        if (!hasPermission) {
+          const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA);
+          if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+            this.log('❌ Camera permission denied for incoming video preview.');
+            return;
+          }
+        }
+      }
+      if (MediaDevices && MediaDevices.getUserMedia) {
+        this.localStream = await MediaDevices.getUserMedia({
+          audio: false, // ⚠️ CRITICAL: Audio is FALSE so ringtone & loudspeaker are 100% unaffected!
+          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24, max: 30 } },
+        });
+        this.log(`📸 Front camera preview active for incoming video call (tracks: ${this.localStream.getVideoTracks().length})`);
+        this.notify();
+      }
+    } catch (err: any) {
+      this.log(`⚠️ Camera preview capture error: ${err?.message}`);
+    }
   }
 
   private async initLocalStream(includeVideo: boolean) {
@@ -490,15 +570,29 @@ class WebRTCManager {
       }
 
       if (MediaDevices && MediaDevices.getUserMedia) {
-        // HACK: Always request video! If we don't request video, mobile Chrome/Safari routes audio to the EARPIECE and sometimes uses the wrong muted mic!
-        this.localStream = await MediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          },
-          video: includeVideo ? { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } : false,
-        });
+        if (!this.localStream) {
+          this.localStream = await MediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
+            video: includeVideo ? { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24, max: 30 } } : false,
+          });
+        } else if (this.localStream.getAudioTracks().length === 0) {
+          // Attach audio track to existing camera preview stream
+          const audioStream = await MediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
+            video: false,
+          });
+          audioStream.getAudioTracks().forEach((track: any) => {
+            this.localStream.addTrack(track);
+          });
+        }
 
         const audioTracks = this.localStream?.getAudioTracks?.() || [];
         this.log(`🎙️ AUDIO TRACK COUNT: ${audioTracks.length}`);
@@ -610,8 +704,14 @@ class WebRTCManager {
           NativeModules.TelecomModule.updateDebugStatus('WEBRTC', pc.connectionState.toUpperCase()).catch(() => {});
         }
         // 🚀 Signal IncomingCallActivity to hand off when WebRTC is connected
-        if (pc.connectionState === 'connected' && Platform.OS === 'android' && NativeModules.TelecomModule?.notifyWebRTCConnected) {
-          NativeModules.TelecomModule.notifyWebRTCConnected().catch(() => {});
+        if (pc.connectionState === 'connected') {
+          const isVideoCall = this.currentSession?.type === 'video' || this.currentSession?.isVideoEnabled;
+          if (isVideoCall) {
+            AudioRouteService.setSpeakerOn(true).catch(() => {});
+          }
+          if (Platform.OS === 'android' && NativeModules.TelecomModule?.notifyWebRTCConnected) {
+            NativeModules.TelecomModule.notifyWebRTCConnected().catch(() => {});
+          }
         }
         if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
           this.log('🛑 Remote peer disconnected. Auto cleaning up...');
@@ -817,7 +917,7 @@ class WebRTCManager {
         this.log('📹 Upgrading Audio Call to Video: Capturing camera stream...');
         if (MediaDevices && MediaDevices.getUserMedia) {
           const videoStream = await MediaDevices.getUserMedia({
-            video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+            video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24, max: 30 } },
             audio: false,
           });
 
@@ -917,20 +1017,26 @@ class WebRTCManager {
             let newVideoStream: any = null;
             try {
               newVideoStream = await MediaDevices.getUserMedia({
-                video: { facingMode: targetFacingMode, width: { ideal: 640 }, height: { ideal: 480 } },
+                video: { facingMode: targetFacingMode, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24, max: 30 } },
                 audio: false,
               });
             } catch (facingErr) {
               newVideoStream = await MediaDevices.getUserMedia({
-                video: { facingMode: targetFacingMode },
+                video: { facingMode: targetFacingMode, frameRate: { ideal: 24, max: 30 } },
                 audio: false,
               });
             }
 
             const newVideoTrack = newVideoStream?.getVideoTracks()?.[0];
             if (newVideoTrack) {
-              videoTrack.stop();
-              this.localStream.removeTrack(videoTrack);
+              try { videoTrack.enabled = false; } catch (e) {}
+              try { videoTrack.stop(); } catch (e) {}
+              try { this.localStream.removeTrack(videoTrack); } catch (e) {}
+              try {
+                if (typeof videoTrack.release === 'function') {
+                  videoTrack.release();
+                }
+              } catch (e) {}
               this.localStream.addTrack(newVideoTrack);
 
               if (this.peerConnection) {
@@ -958,8 +1064,94 @@ class WebRTCManager {
     }
   }
 
+  // 🔄 Resume Camera Capturer when App returns to Foreground from Multitasking
+  public async resumeLocalVideoCapturer(): Promise<void> {
+    if (!this.currentSession) return;
+    const isVideo = this.currentSession.type === 'video' || this.currentSession.isVideoEnabled;
+    if (!isVideo) return;
+
+    if (this.isResumingCamera || this.isSwitchingCamera) {
+      this.log('⏳ Camera resumption or switch already in progress, skipping duplicate.');
+      return;
+    }
+    this.isResumingCamera = true;
+
+    try {
+      this.log('📱 App resumed active: Re-capturing camera to restore live video feed...');
+      const isFront = this.currentSession.isFrontCamera !== false;
+      const targetFacing = isFront ? 'user' : 'environment';
+
+      if (MediaDevices && MediaDevices.getUserMedia) {
+        let newVideoStream: any = null;
+        try {
+          newVideoStream = await MediaDevices.getUserMedia({
+            video: { facingMode: targetFacing, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24, max: 30 } },
+            audio: false, // ⚠️ Audio is untouched to prevent echo / route disruption
+          });
+        } catch (err1) {
+          try {
+            newVideoStream = await MediaDevices.getUserMedia({
+              video: { facingMode: targetFacing, frameRate: { ideal: 24, max: 30 } },
+              audio: false,
+            });
+          } catch (err2) {
+            this.log(`❌ Failed to re-capture camera on resume: ${err2}`);
+            return;
+          }
+        }
+
+        const newVideoTrack = newVideoStream?.getVideoTracks()?.[0];
+        if (newVideoTrack) {
+          if (!this.localStream) {
+            this.localStream = newVideoStream;
+          } else {
+            // Stop and cleanly release old frozen video tracks to prevent battery drain
+            const oldVideoTracks = this.localStream.getVideoTracks ? this.localStream.getVideoTracks() : [];
+            oldVideoTracks.forEach((t: any) => {
+              try { t.enabled = false; } catch (e) {}
+              try { t.stop(); } catch (e) {}
+              try { this.localStream.removeTrack(t); } catch (e) {}
+              try {
+                if (typeof t.release === 'function') {
+                  t.release();
+                }
+              } catch (e) {}
+            });
+            this.localStream.addTrack(newVideoTrack);
+          }
+
+          // Seamlessly swap track on RTCRtpSender for the active PeerConnection
+          if (this.peerConnection) {
+            const senders = typeof this.peerConnection.getSenders === 'function' ? this.peerConnection.getSenders() : [];
+            const videoSender = senders.find((s: any) => s.track && s.track.kind === 'video');
+            if (videoSender && typeof videoSender.replaceTrack === 'function') {
+              await videoSender.replaceTrack(newVideoTrack);
+              this.log('✅ Outgoing RTCRtpSender video track replaced successfully on resume.');
+            }
+          }
+
+          this.notifyNativeVideoStreams();
+          this.log(`✅ Camera hardware resumed active: track id=${newVideoTrack.id}, readyState=${newVideoTrack.readyState}`);
+          this.notify();
+        }
+      }
+    } catch (e) {
+      this.log(`⚠️ Error in resumeLocalVideoCapturer: ${e}`);
+    } finally {
+      this.isResumingCamera = false;
+    }
+  }
+
   public async setSpeaker(on: boolean): Promise<boolean> {
     if (!this.currentSession) return false;
+    const isVideo = this.currentSession.type === 'video' || this.currentSession.isVideoEnabled;
+    if (isVideo && !on) {
+      const isBt = await AudioRouteService.isBluetoothConnected();
+      if (!isBt) {
+        this.log('⚠️ setSpeaker(false) ignored: Video call without headset remains on Loudspeaker');
+        return true;
+      }
+    }
     if (this.currentSession.isSpeakerOn === on) return on;
     this.currentSession.isSpeakerOn = on;
     AudioRouteService.setSpeakerOn(on).catch(() => {});
@@ -969,7 +1161,7 @@ class WebRTCManager {
     if (this.currentSession.status === 'connected' && this.currentSession.type === 'audio') {
       AudioRouteService.setProximitySensorEnabled(!on).catch(() => {});
     }
-    this.log(on ? '🔊 SPEAKER SET: Loudspeaker active' : '🔈 EARPIECE SET: Internal receiver active');
+    this.log(on ? '🔊 SPEAKER SET: Loudspeaker active' : '🔈 HEADSET/EARPIECE SET: Active');
     this.notify();
     return on;
   }
@@ -990,8 +1182,22 @@ class WebRTCManager {
     }
     this.ringingTimeoutTimer = setTimeout(() => {
       if (this.currentSession && (this.currentSession.status === 'calling' || this.currentSession.status === 'ringing')) {
-        this.log(`⏱️ ${seconds}s Call Timeout: No answer received within ${seconds} seconds. Automatically ending call.`);
-        this.endCall();
+        this.log(`⏱️ ${seconds}s Call Timeout: No answer received within ${seconds} seconds. Gracefully terminating.`);
+        const sessionCopy = { ...this.currentSession, status: 'missed' as const };
+        const peerId = this.getPeerUserId();
+        
+        this.currentSession.status = 'missed';
+        this.notify();
+        RingtoneService.stop();
+
+        RealtimeBridge.broadcast('CALL_NO_ANSWER', { callId: sessionCopy.id, callerId: sessionCopy.callerId }, peerId);
+        DeviceEventEmitter.emit('CALL_TIMEOUT_NO_ANSWER', { session: sessionCopy });
+
+        if (this.declineDismissTimer) clearTimeout(this.declineDismissTimer);
+        this.declineDismissTimer = setTimeout(() => {
+          this.declineDismissTimer = null;
+          this.cleanup();
+        }, 1800);
       }
     }, seconds * 1000);
   }
@@ -1088,9 +1294,18 @@ class WebRTCManager {
       this.iceCandidateQueue = [];
       this.remoteVideoFrame = null;
 
+      // 🛑 BATTERY FIX: Complete hardware camera and microphone release
       if (this.localStream) {
         try {
-          this.localStream.getTracks().forEach((track: any) => track.stop());
+          // stream.release(true) internally: removeTrack → track.release() → mediaStreamRelease
+          // Do NOT call track.release() separately as it disposes native track before removeTrack can run
+          this.localStream.getTracks().forEach((track: any) => {
+            try { track.enabled = false; } catch (e) {}
+            try { track.stop(); } catch (e) {}
+          });
+          if (typeof this.localStream.release === 'function') {
+            this.localStream.release(true);
+          }
         } catch (e) {}
         this.localStream = null;
       }
@@ -1112,6 +1327,7 @@ class WebRTCManager {
 
     // 1. Instantly stop outgoing ringtone, ringback, and any vibrations
     RingtoneService.stop();
+    RingtoneService.playCallEndTone();
     try {
       const { Vibration } = require('react-native');
       Vibration.cancel();
@@ -1146,6 +1362,7 @@ class WebRTCManager {
 
     // 1. Instantly stop all audio & ringtones
     RingtoneService.stop();
+    RingtoneService.playCallEndTone();
     try {
       const { Vibration } = require('react-native');
       Vibration.cancel();
@@ -1188,14 +1405,36 @@ class WebRTCManager {
         NativeModules.TelecomModule.endCall().catch(() => {});
       }
 
+      // 🛑 BATTERY FIX 1: RELEASE ALL KEEP-AWAKE LOCKS & SCREEN WAKELOCKS IMMEDIATELY
+      try {
+        const { deactivateKeepAwake } = require('expo-keep-awake');
+        deactivateKeepAwake('synkin_call_screen').catch(() => {});
+        deactivateKeepAwake('synkin_global_call').catch(() => {});
+        deactivateKeepAwake('synkin_callapp_screen').catch(() => {});
+        deactivateKeepAwake().catch(() => {});
+      } catch (e) {}
+
+      if (Platform.OS === 'android' && NativeModules.CallWakeLockModule?.releaseScreenWakeLock) {
+        NativeModules.CallWakeLockModule.releaseScreenWakeLock().catch(() => {});
+      }
+
       this.iceStatus = 'disconnected';
       this.pendingOffer = null;
       this.iceCandidateQueue = [];
       this.remoteVideoFrame = null;
 
+      // 🛑 BATTERY FIX 2: FORCE-RELEASE HARDWARE CAMERA & MICROPHONE SENSORS
       if (this.localStream) {
         try {
-          this.localStream.getTracks().forEach((track: any) => track.stop());
+          // stream.release(true) internally: removeTrack → track.release() → mediaStreamRelease
+          // Do NOT call track.release() separately as it disposes native track before removeTrack can run
+          this.localStream.getTracks().forEach((track: any) => {
+            try { track.enabled = false; } catch (e) {}
+            try { track.stop(); } catch (e) {}
+          });
+          if (typeof this.localStream.release === 'function') {
+            this.localStream.release(true);
+          }
         } catch (e) {}
         this.localStream = null;
       }
@@ -1209,7 +1448,19 @@ class WebRTCManager {
         } catch (e) {}
       }
 
-      this.remoteStream = null;
+      if (this.remoteStream) {
+        try {
+          this.remoteStream.getTracks().forEach((track: any) => {
+            try { track.enabled = false; } catch (e) {}
+            try { track.stop(); } catch (e) {}
+          });
+          if (typeof this.remoteStream.release === 'function') {
+            this.remoteStream.release(true);
+          }
+        } catch (e) {}
+        this.remoteStream = null;
+      }
+
       this.currentSession = null;
       this.notify();
     } finally {

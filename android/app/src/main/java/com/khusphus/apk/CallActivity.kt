@@ -1,7 +1,8 @@
-package com.khusphus.apk
+﻿package com.khusphus.apk
 
 import android.app.NotificationManager
 import android.app.PictureInPictureParams
+import android.util.Rational
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -9,8 +10,8 @@ import android.content.IntentFilter
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.util.Log
-import android.util.Rational
 import android.view.WindowManager
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -30,9 +31,11 @@ class CallActivity : ReactActivity() {
         var currentCallActivity: CallActivity? = null
     }
 
+    private var nativeScreenWakeLock: PowerManager.WakeLock? = null
+
     private val callEndedReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            Log.d("SYNKING_DEBUG", "CallActivity: CALL_ENDED received — dismissing CallActivity immediately")
+            Log.d("SYNKING_DEBUG", "CallActivity: CALL_ENDED received â€” dismissing CallActivity immediately")
             CallIntentModule.clear()
             context?.let { PendingCallStore.clear(it) }
             runOnUiThread {
@@ -53,19 +56,35 @@ class CallActivity : ReactActivity() {
         super.onCreate(null)
         currentCallActivity = this
 
-        // Temporarily disabled for screenshots during development/testing:
-        // window.setFlags(
-        //     WindowManager.LayoutParams.FLAG_SECURE,
-        //     WindowManager.LayoutParams.FLAG_SECURE
-        // )
+        // ðŸ”’ Privacy DRM: Block screenshots and recording during calls
+        window.setFlags(
+            WindowManager.LayoutParams.FLAG_SECURE,
+            WindowManager.LayoutParams.FLAG_SECURE
+        )
 
-        // 🔒 Lock orientation strictly to Portrait (no rotation during calls)
+        // ðŸ”’ Lock orientation strictly to Portrait (no rotation during calls)
         try {
             requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         } catch (e: Exception) {}
 
-        // 💡 Keep screen and CPU awake during call to prevent OEM battery freezing
+        // ðŸ’¡ Keep screen and CPU awake during call to prevent OEM battery freezing
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        window.decorView.keepScreenOn = true
+
+        // ðŸ’¡ Hardware Screen WakeLock: Guarantee screen stays bright & awake throughout entire call
+        try {
+            val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager
+            @Suppress("DEPRECATION")
+            nativeScreenWakeLock = pm?.newWakeLock(
+                PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP or PowerManager.ON_AFTER_RELEASE,
+                "synking:call_activity_screen_awake"
+            )
+            nativeScreenWakeLock?.setReferenceCounted(false)
+            nativeScreenWakeLock?.acquire(2 * 60 * 60 * 1000L)
+            Log.d("SYNKING_WAKELOCK", "âœ… Acquired native SCREEN_BRIGHT_WAKE_LOCK in CallActivity")
+        } catch (e: Exception) {
+            Log.e("SYNKING_WAKELOCK", "Error acquiring wake lock: ${e.message}")
+        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
@@ -81,7 +100,7 @@ class CallActivity : ReactActivity() {
         handleIncomingCallIntent(intent)
 
         try {
-            val filter = IntentFilter("com.khusphus.apk.CALL_ENDED_FROM_JS")
+            val filter = IntentFilter("com.synking.CALL_ENDED_FROM_JS")
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 registerReceiver(callEndedReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
             } else {
@@ -90,41 +109,45 @@ class CallActivity : ReactActivity() {
         } catch (e: Exception) {}
     }
 
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        handleIncomingCallIntent(intent)
+    override fun onResume() {
+        super.onResume()
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        window.decorView.keepScreenOn = true
+        if (nativeScreenWakeLock?.isHeld != true) {
+            try {
+                nativeScreenWakeLock?.acquire(2 * 60 * 60 * 1000L)
+            } catch (e: Exception) {}
+        }
     }
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        enterPipModeIfActive()
-    }
-
-    fun enterPipModeIfActive() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        if (CallIntentModule.pendingCallType == "video" && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             try {
-                val conn = CallConnectionManager.currentConnection
-                val isCallActive = TelecomModule.isCallActive || (conn != null && conn.state == android.telecom.Connection.STATE_ACTIVE)
-                if (isCallActive) {
-                    val aspectRatio = Rational(9, 16)
-                    val builder = PictureInPictureParams.Builder()
-                        .setAspectRatio(aspectRatio)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        builder.setAutoEnterEnabled(true)
-                    }
-                    enterPictureInPictureMode(builder.build())
-                }
+                TelecomModule.emitPipChangeEvent(true)
+                val params = PictureInPictureParams.Builder()
+                    .setAspectRatio(Rational(9, 16))
+                    .setActions(emptyList())
+                    .build()
+                enterPictureInPictureMode(params)
+                Log.d("SYNKING_PIP", "âœ… CallActivity: Auto-entered native PiP on Home press during video call")
             } catch (e: Exception) {
-                Log.e("SYNKING_DEBUG", "CallActivity enterPictureInPictureMode error: ${e.message}")
+                Log.e("SYNKING_PIP", "CallActivity Auto PiP failed: ${e.message}")
             }
         }
     }
 
+    @Suppress("DEPRECATION")
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
-        Log.d("SYNKING_DEBUG", "CallActivity onPictureInPictureModeChanged: isInPictureInPictureMode=$isInPictureInPictureMode")
-        TelecomModule.emitPipModeChanged(isInPictureInPictureMode)
+        Log.d("SYNKING_PIP", "CallActivity PiP mode changed: isInPiP=$isInPictureInPictureMode")
+        TelecomModule.emitPipChangeEvent(isInPictureInPictureMode)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIncomingCallIntent(intent)
     }
 
     private fun handleIncomingCallIntent(intent: Intent?) {
@@ -150,7 +173,7 @@ class CallActivity : ReactActivity() {
             PendingCallStore.save(this, pending)
             if (autoAccept) {
                 CallState.markAnswered(this)
-                SynkingConnectionService.updateOngoingCallForeground(callerName)
+                SynkingConnectionService.updateOngoingCallForeground(callerName, callerPhoto ?: "", callType == "video")
                 try {
                     val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                     nm.cancel(MyFirebaseMessagingService.NOTIFICATION_ID)
@@ -172,6 +195,12 @@ class CallActivity : ReactActivity() {
             PendingCallStore.clear(this)
         } catch (e: Exception) {}
         try {
+            if (nativeScreenWakeLock?.isHeld == true) {
+                nativeScreenWakeLock?.release()
+                Log.d("SYNKING_WAKELOCK", "ðŸ›‘ Released native SCREEN_BRIGHT_WAKE_LOCK in CallActivity onDestroy")
+            }
+        } catch (e: Exception) {}
+        try {
             unregisterReceiver(callEndedReceiver)
         } catch (e: Exception) {}
     }
@@ -190,3 +219,4 @@ class CallActivity : ReactActivity() {
         )
     }
 }
+

@@ -115,6 +115,13 @@ export function ensureTelecomBridgeReady() {
 
   // 4. Speaker Toggle (Sync explicit state to prevent feedback loop)
   DeviceEventEmitter.addListener('onTelecomSpeakerToggled', (isSpeakerOn?: boolean) => {
+    const cur = WebRTCService.getSession();
+    const isVideo = cur?.type === 'video' || cur?.isVideoEnabled;
+    if (isVideo && isSpeakerOn === false) {
+      console.log('[TelecomBridge] Video call ignoring speaker=false from Telecom, forcing speaker ON');
+      WebRTCService.setSpeaker(true);
+      return;
+    }
     if (typeof isSpeakerOn === 'boolean') {
       WebRTCService.setSpeaker(isSpeakerOn);
     } else {

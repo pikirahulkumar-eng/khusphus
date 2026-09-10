@@ -1,9 +1,10 @@
-package com.khusphus.apk
+﻿package com.khusphus.apk
 
 import android.app.Activity
 import android.app.NotificationManager
-import android.app.PictureInPictureParams
 import android.app.KeyguardManager
+import android.app.PictureInPictureParams
+import android.util.Rational
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
@@ -13,7 +14,6 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import android.util.Rational
 import android.view.WindowManager
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
@@ -41,7 +41,7 @@ class TelecomModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
     @ReactMethod
     fun signalJSBridgeReady(promise: Promise) {
         try {
-            Log.i("SYNKING_DEBUG", "✅ [BRIDGE] signalJSBridgeReady received from JS — flushing ${pendingEvents.size} queued call events")
+            Log.i("SYNKING_DEBUG", "âœ… [BRIDGE] signalJSBridgeReady received from JS â€” flushing ${pendingEvents.size} queued call events")
             isJSBridgeReady.set(true)
             flushPendingEvents()
             promise.resolve(true)
@@ -53,14 +53,31 @@ class TelecomModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
     override fun onCatalystInstanceDestroy() {
         super.onCatalystInstanceDestroy()
         isJSBridgeReady.set(false)
-        Log.w("SYNKING_DEBUG", "⚠️ CatalystInstance destroyed — JS bridge marked NOT ready")
+        Log.w("SYNKING_DEBUG", "âš ï¸ CatalystInstance destroyed â€” JS bridge marked NOT ready")
     }
 
     @ReactMethod
     fun acknowledgeEvent(callId: String, action: String, promise: Promise) {
         try {
-            Log.i("SYNKING_DEBUG", "✅ [BRIDGE] ACK received from JS: callId=$callId, action=$action")
+            Log.i("SYNKING_DEBUG", "âœ… [BRIDGE] ACK received from JS: callId=$callId, action=$action")
             acknowledgedEvents[callId] = true
+            promise.resolve(true)
+        } catch (e: Exception) {
+            promise.resolve(false)
+        }
+    }
+
+    @ReactMethod
+    fun setActiveChatUserId(userId: String?, promise: Promise) {
+        try {
+            val prefs = reactApplicationContext.getSharedPreferences("synking_call_state", Context.MODE_PRIVATE)
+            if (userId.isNullOrEmpty()) {
+                prefs.edit().remove("active_chat_user_id").apply()
+                Log.d("SYNKING_DEBUG", "Active chat cleared from native state.")
+            } else {
+                prefs.edit().putString("active_chat_user_id", userId).apply()
+                Log.d("SYNKING_DEBUG", "Active chat set to $userId in native state.")
+            }
             promise.resolve(true)
         } catch (e: Exception) {
             promise.resolve(false)
@@ -147,6 +164,32 @@ class TelecomModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
     }
 
     @ReactMethod
+    fun showIncomingCallNotification(callId: String, callerId: String, callerName: String, callerPhoto: String, callType: String, promise: Promise) {
+        try {
+            val ctx = reactApplicationContext
+            if (lastNotifiedCallId == callId) {
+                Log.d("SYNKING_TELECOM", "[TelecomModule] Call notification already active for callId=$callId, skipping duplicate.")
+                promise.resolve(true)
+                return
+            }
+            val existing = CallConnectionManager.currentConnection
+            if (existing != null && (existing as? SynkingConnection)?.callId == callId) {
+                Log.d("SYNKING_TELECOM", "[TelecomModule] Call connection already active for callId=$callId, skipping duplicate.")
+                lastNotifiedCallId = callId
+                promise.resolve(true)
+                return
+            }
+            lastNotifiedCallId = callId
+            val conn = SynkingConnection(ctx, callId, callerId, callerName, callType, callerPhoto)
+            CallConnectionManager.currentConnection = conn
+            conn.onShowIncomingCallUi()
+            promise.resolve(true)
+        } catch (e: Exception) {
+            promise.resolve(false)
+        }
+    }
+
+    @ReactMethod
     fun requestVoipPermissions(promise: Promise) {
         try {
             CallReliabilityHelper.runOnboardingReliabilityCheck(reactApplicationContext)
@@ -187,11 +230,22 @@ class TelecomModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
 
     @ReactMethod
     fun startOngoingCall(callerName: String, promise: Promise) {
+        val photo = CallIntentModule.pendingCallerPhoto ?: ""
+        val isVideo = CallIntentModule.pendingCallType == "video"
+        startOngoingCallInternal(callerName, photo, isVideo, promise)
+    }
+
+    @ReactMethod
+    fun startOngoingCallWithDetails(callerName: String, callerPhoto: String?, isVideo: Boolean?, promise: Promise) {
+        startOngoingCallInternal(callerName, callerPhoto ?: (CallIntentModule.pendingCallerPhoto ?: ""), isVideo ?: (CallIntentModule.pendingCallType == "video"), promise)
+    }
+
+    private fun startOngoingCallInternal(callerName: String, callerPhoto: String, isVideo: Boolean, promise: Promise) {
         try {
             isCallActive = true
             CallState.markAnswered(reactApplicationContext)
             CallConnectionManager.answerCall()
-            SynkingConnectionService.updateOngoingCallForeground(callerName)
+            SynkingConnectionService.updateOngoingCallForeground(callerName, callerPhoto, isVideo)
             val activity: Activity? = CallActivity.currentCallActivity ?: reactApplicationContext.currentActivity
             activity?.let { act ->
                 act.runOnUiThread {
@@ -233,8 +287,6 @@ class TelecomModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
                 if (on) {
                     val targetDevice = audioManager.availableCommunicationDevices.find { 
                         it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER 
-                    } ?: audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).find {
-                        it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
                     }
                     if (targetDevice != null) {
                         val res = audioManager.setCommunicationDevice(targetDevice)
@@ -243,8 +295,6 @@ class TelecomModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
                 } else {
                     val targetDevice = audioManager.availableCommunicationDevices.find { 
                         it.type == AudioDeviceInfo.TYPE_BUILTIN_EARPIECE 
-                    } ?: audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).find {
-                        it.type == AudioDeviceInfo.TYPE_BUILTIN_EARPIECE
                     }
                     if (targetDevice != null) {
                         audioManager.setCommunicationDevice(targetDevice)
@@ -262,40 +312,14 @@ class TelecomModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
 
     @ReactMethod
     fun setAutoPipEnabled(enabled: Boolean, promise: Promise) {
-        promise.resolve(false)
-    }
-
-    @ReactMethod
-    fun enterPipMode(promise: Promise) {
-        try {
-            val act = CallActivity.currentCallActivity ?: reactApplicationContext.currentActivity
-            if (act != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                act.runOnUiThread {
-                    try {
-                        val aspectRatio = Rational(9, 16)
-                        val builder = PictureInPictureParams.Builder()
-                            .setAspectRatio(aspectRatio)
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                            builder.setAutoEnterEnabled(true)
-                        }
-                        val success = act.enterPictureInPictureMode(builder.build())
-                        promise.resolve(success)
-                    } catch (e: Exception) {
-                        promise.resolve(false)
-                    }
-                }
-            } else {
-                promise.resolve(false)
-            }
-        } catch (e: Exception) {
-            promise.resolve(false)
-        }
+        MainActivity.isVideoCallActive = enabled
+        promise.resolve(true)
     }
 
     @ReactMethod
     fun setCurrentUser(userId: String, userName: String, promise: Promise) {
         try {
-            val prefs = reactApplicationContext.getSharedPreferences("khusphus_call_state", Context.MODE_PRIVATE)
+            val prefs = reactApplicationContext.getSharedPreferences("synking_call_state", Context.MODE_PRIVATE)
             prefs.edit()
                 .putString("current_user_id", userId)
                 .putString("current_user_name", userName)
@@ -315,6 +339,7 @@ class TelecomModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
     fun endCall(promise: Promise) {
         try {
             isCallActive = false
+            lastNotifiedCallId = null
             CallState.clear(reactApplicationContext)
             PendingCallStore.clear(reactApplicationContext)
             CallConnectionManager.endCall()
@@ -330,7 +355,7 @@ class TelecomModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
                 }
             }
 
-            val intent = Intent("com.khusphus.apk.CALL_ENDED_FROM_JS")
+            val intent = Intent("com.synking.CALL_ENDED_FROM_JS")
             reactContextInstance?.sendBroadcast(intent)
             Log.d("SYNKING_TELECOM", "[TELECOM] CALL_ENDED: Broadcast sent from React Native")
 
@@ -405,6 +430,38 @@ class TelecomModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
         }
     }
 
+    // ðŸŽ¬ JS calls this when video call connects/disconnects to tell native whether to enter PiP on Home press
+    @ReactMethod
+    fun setVideoCallActive(active: Boolean, promise: Promise) {
+        MainActivity.isVideoCallActive = active
+        Log.d("SYNKING_PIP", "setVideoCallActive: $active")
+        promise.resolve(true)
+    }
+
+    // ðŸŽ¬ JS calls this to manually enter native system PiP mode (e.g., from minimize button)
+    @ReactMethod
+    fun enterPipMode(promise: Promise) {
+        val activity: Activity? = CallActivity.currentCallActivity ?: reactApplicationContext.currentActivity ?: MainActivity.instance
+        if (activity == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            promise.resolve(false)
+            return
+        }
+        activity.runOnUiThread {
+            try {
+                val params = PictureInPictureParams.Builder()
+                    .setAspectRatio(Rational(9, 16))
+                    .setActions(emptyList())
+                    .build()
+                val entered = activity.enterPictureInPictureMode(params)
+                Log.d("SYNKING_PIP", "enterPipMode called from JS: entered=$entered")
+                promise.resolve(entered)
+            } catch (e: Exception) {
+                Log.e("SYNKING_PIP", "enterPipMode error: ${e.message}")
+                promise.resolve(false)
+            }
+        }
+    }
+
     companion object {
         var incomingActivityInstance: IncomingCallActivity? = null
         var globalReactContext: ReactApplicationContext? = null
@@ -412,6 +469,7 @@ class TelecomModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
         val reactContext: ReactContext?
             get() = reactContextInstance
         @Volatile var isCallActive = false
+        @Volatile var lastNotifiedCallId: String? = null
 
         private val pendingEvents = ConcurrentLinkedQueue<PendingCall>()
         private val isJSBridgeReady = AtomicBoolean(false)
@@ -432,7 +490,7 @@ class TelecomModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
                 putString("callType", call.callType)
             }
 
-            Log.d("SYNKING_DEBUG", "📤 [BRIDGE] emitIncomingCallEvent -> onTelecomIncomingCall: callId=${call.callId}")
+            Log.d("SYNKING_DEBUG", "ðŸ“¤ [BRIDGE] emitIncomingCallEvent -> onTelecomIncomingCall: callId=${call.callId}")
             ctx.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                 .emit("onTelecomIncomingCall", params)
         }
@@ -440,12 +498,12 @@ class TelecomModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
         fun emitAcceptEvent(call: PendingCall) {
             reactContext?.let { ctx ->
                 CallState.markAnswered(ctx)
-                SynkingConnectionService.updateOngoingCallForeground(call.callerName)
+                SynkingConnectionService.updateOngoingCallForeground(call.callerName, call.callerPhoto ?: "", call.callType == "video")
             }
             if (isJSBridgeReady.get() && reactContext?.hasActiveCatalystInstance() == true) {
                 sendAcceptDirect(call)
             } else {
-                Log.w("SYNKING_DEBUG", "⏳ [BRIDGE] JS not ready yet, QUEUING call event: ${call.callId}")
+                Log.w("SYNKING_DEBUG", "â³ [BRIDGE] JS not ready yet, QUEUING call event: ${call.callId}")
                 pendingEvents.add(call)
             }
         }
@@ -464,7 +522,7 @@ class TelecomModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
                 putInt("retryCount", retryCount)
             }
 
-            Log.d("SYNKING_DEBUG", "📤 [BRIDGE] emitAcceptEvent -> onTelecomCallAnswered: callId=${call.callId} (attempt ${retryCount + 1})")
+            Log.d("SYNKING_DEBUG", "ðŸ“¤ [BRIDGE] emitAcceptEvent -> onTelecomCallAnswered: callId=${call.callId} (attempt ${retryCount + 1})")
             ctx.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                 .emit("onTelecomCallAnswered", params)
 
@@ -474,15 +532,15 @@ class TelecomModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
         private fun scheduleAckCheck(call: PendingCall, retryCount: Int) {
             handler.postDelayed({
                 if (acknowledgedEvents.containsKey(call.callId)) {
-                    Log.i("SYNKING_DEBUG", "✅ [BRIDGE] ACK confirmed for callId=${call.callId} after $retryCount retries")
+                    Log.i("SYNKING_DEBUG", "âœ… [BRIDGE] ACK confirmed for callId=${call.callId} after $retryCount retries")
                     acknowledgedEvents.remove(call.callId)
                     return@postDelayed
                 }
                 if (retryCount < MAX_RETRIES) {
-                    Log.w("SYNKING_DEBUG", "⚠️ [BRIDGE] No ACK for onTelecomCallAnswered (callId=${call.callId}), RETRY #${retryCount + 1}")
+                    Log.w("SYNKING_DEBUG", "âš ï¸ [BRIDGE] No ACK for onTelecomCallAnswered (callId=${call.callId}), RETRY #${retryCount + 1}")
                     sendAcceptDirect(call, retryCount + 1)
                 } else {
-                    Log.e("SYNKING_DEBUG", "❌ [BRIDGE] FAILED: No ACK after $MAX_RETRIES retries for callId=${call.callId}")
+                    Log.e("SYNKING_DEBUG", "âŒ [BRIDGE] FAILED: No ACK after $MAX_RETRIES retries for callId=${call.callId}")
                 }
             }, RETRY_DELAY_MS)
         }
@@ -503,6 +561,7 @@ class TelecomModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
         }
 
         fun emitDeclineEvent(callId: String) {
+            lastNotifiedCallId = null
             val ctx = reactContext ?: return
             val params = Arguments.createMap().apply { putString("callId", callId) }
             ctx.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
@@ -525,6 +584,7 @@ class TelecomModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
         }
 
         fun emitEndCallEvent() {
+            lastNotifiedCallId = null
             reactContext?.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                 ?.emit("onTelecomEndCall", null)
         }
@@ -535,26 +595,27 @@ class TelecomModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
             val params = Arguments.createMap().apply {
                 putString("partnerId", partnerId)
             }
-            Log.d("SYNKING_DEBUG", "📤 [BRIDGE] emitOpenChatEvent -> onOpenChatRequested: partnerId=$partnerId")
+            Log.d("SYNKING_DEBUG", "ðŸ“¤ [BRIDGE] emitOpenChatEvent -> onOpenChatRequested: partnerId=$partnerId")
             ctx.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                 .emit("onOpenChatRequested", params)
         }
 
-        fun emitPipModeChanged(isInPipMode: Boolean) {
+        fun emitPipChangeEvent(isInPip: Boolean) {
             val ctx = reactContext ?: return
             if (!ctx.hasActiveCatalystInstance()) return
-            val params = Arguments.createMap().apply {
-                putBoolean("isInPictureInPictureMode", isInPipMode)
+            try {
+                ctx.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                    ?.emit("NATIVE_PIP_CHANGED", if (isInPip) "entered" else "exited")
+                Log.d("SYNKING_PIP", "ðŸ“¤ [BRIDGE] emitPipChangeEvent: isInPip=$isInPip")
+            } catch (e: Exception) {
+                Log.e("SYNKING_PIP", "emitPipChangeEvent error: ${e.message}")
             }
-            Log.d("SYNKING_DEBUG", "📤 [BRIDGE] emitPipModeChanged: isInPictureInPictureMode=$isInPipMode")
-            ctx.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                .emit("onPictureInPictureModeChanged", params)
         }
 
         fun flushPendingEvents() {
             while (pendingEvents.isNotEmpty()) {
                 val call = pendingEvents.poll() ?: break
-                Log.i("SYNKING_DEBUG", "🔄 [BRIDGE] Flushing queued call event: ${call.callId}")
+                Log.i("SYNKING_DEBUG", "ðŸ”„ [BRIDGE] Flushing queued call event: ${call.callId}")
                 sendAcceptDirect(call)
             }
         }
@@ -568,3 +629,4 @@ class TelecomModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
         }
     }
 }
+

@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, Platform, NativeModules, StatusBar } from 'react-native';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { CallModal } from './CallModal';
 import { WebRTCService } from '../services/webrtcService';
 import { CallSession } from '../types';
 import '../services/telecomBridge';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { RealtimeBridge } from '../services/realtimeBridge';
 
 /**
  * CallApp: Standalone Isolated Root Component for CallActivity.
@@ -15,6 +18,16 @@ export default function CallApp() {
   const hadSessionRef = React.useRef(false);
 
   useEffect(() => {
+    // 👤 Register socket with logged-in userId in CallActivity
+    AsyncStorage.getItem('synking_my_user').then(stored => {
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && parsed.id) {
+          RealtimeBridge.registerUser(parsed.id);
+        }
+      }
+    }).catch(() => {});
+
     // 🚀 Cold-boot recovery: If React opens before bridge emits, query native module directly
     if (!WebRTCService.getCurrentSession() && Platform.OS === 'android' && NativeModules.CallIntentModule?.getPendingCall) {
       NativeModules.CallIntentModule.getPendingCall().then((pending: any) => {
@@ -60,6 +73,27 @@ export default function CallApp() {
     };
   }, []);
 
+  // 💡 Keep Screen Awake as long as CallActivity call is active
+  useEffect(() => {
+    if (session?.status === 'connected' || session?.status === 'calling' || session?.status === 'ringing') {
+      activateKeepAwakeAsync('synkin_callapp_screen').catch(() => {});
+      if (Platform.OS === 'android' && NativeModules.CallWakeLockModule?.acquireScreenWakeLock) {
+        NativeModules.CallWakeLockModule.acquireScreenWakeLock().catch(() => {});
+      }
+    } else {
+      deactivateKeepAwake('synkin_callapp_screen').catch(() => {});
+      if (Platform.OS === 'android' && NativeModules.CallWakeLockModule?.releaseScreenWakeLock) {
+        NativeModules.CallWakeLockModule.releaseScreenWakeLock().catch(() => {});
+      }
+    }
+    return () => {
+      deactivateKeepAwake('synkin_callapp_screen').catch(() => {});
+      if (Platform.OS === 'android' && NativeModules.CallWakeLockModule?.releaseScreenWakeLock) {
+        NativeModules.CallWakeLockModule.releaseScreenWakeLock().catch(() => {});
+      }
+    };
+  }, [session?.status]);
+
   const handleEndCall = () => {
     WebRTCService.endCall();
     if (Platform.OS === 'android' && NativeModules.TelecomModule?.endCall) {
@@ -70,7 +104,7 @@ export default function CallApp() {
   const handleAcceptCall = () => {
     WebRTCService.acceptCall();
     if (Platform.OS === 'android' && NativeModules.TelecomModule?.startOngoingCall) {
-      NativeModules.TelecomModule.startOngoingCall(session?.callerName || 'Sunao Call').catch(() => {});
+      NativeModules.TelecomModule.startOngoingCall(session?.callerName || 'Synkin Call').catch(() => {});
     }
   };
 
@@ -94,6 +128,7 @@ export default function CallApp() {
       <StatusBar hidden={false} barStyle="light-content" translucent backgroundColor="transparent" />
       <CallModal
         session={session}
+        isLockscreen={true}
         onEndCall={handleEndCall}
         onAcceptCall={handleAcceptCall}
         onMinimize={handleMinimizeToChat}
@@ -108,6 +143,6 @@ export default function CallApp() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#05060A',
+    backgroundColor: '#000000',
   },
 });

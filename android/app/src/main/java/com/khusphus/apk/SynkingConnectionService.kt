@@ -1,19 +1,32 @@
-package com.khusphus.apk
+﻿package com.khusphus.apk
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.graphics.BitmapFactory
+import android.graphics.Color
+import android.os.Build
 import android.telecom.Connection
 import android.telecom.ConnectionRequest
 import android.telecom.ConnectionService
 import android.telecom.PhoneAccountHandle
 import android.util.Log
+import androidx.core.app.NotificationCompat
+import androidx.core.app.Person
+import androidx.core.graphics.drawable.IconCompat
+import java.net.URL
 
 class SynkingConnectionService : ConnectionService() {
 
     companion object {
         var instance: SynkingConnectionService? = null
 
-        fun startCallForeground(notification: android.app.Notification) {
+        fun startCallForeground(notification: Notification) {
             try {
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     instance?.startForeground(
                         MyFirebaseMessagingService.NOTIFICATION_ID,
                         notification,
@@ -32,59 +45,108 @@ class SynkingConnectionService : ConnectionService() {
 
         private var callStartTime: Long = 0L
 
-        fun updateOngoingCallForeground(callerName: String) {
-            val service = instance ?: return
+        fun updateOngoingCallForeground(callerName: String, callerPhoto: String = "", isVideo: Boolean = false) {
+            val context: Context = instance 
+                ?: TelecomModule.reactContextInstance 
+                ?: TelecomModule.globalReactContext 
+                ?: return
+
             try {
                 if (callStartTime == 0L) {
                     callStartTime = System.currentTimeMillis()
                 }
-                val nm = service.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
-                val channelId = "synking_ongoing_call"
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                    val channel = android.app.NotificationChannel(
+                val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+                val channelId = "synking_ongoing_calls_v3"
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    val channel = NotificationChannel(
                         channelId,
                         "Active Call",
-                        android.app.NotificationManager.IMPORTANCE_LOW
+                        NotificationManager.IMPORTANCE_DEFAULT
                     ).apply {
                         setSound(null, null)
                         enableVibration(false)
+                        lockscreenVisibility = NotificationCompat.VISIBILITY_PUBLIC
                     }
                     nm?.createNotificationChannel(channel)
                 }
 
                 val targetClass = if (CallActivity.currentCallActivity != null) CallActivity::class.java else MainActivity::class.java
-                val tapIntent = android.content.Intent(service, targetClass).apply {
-                    flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
+                val tapIntent = Intent(context, targetClass).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
                 }
-                val piFlags = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                    android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+                val piFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                 } else {
-                    android.app.PendingIntent.FLAG_UPDATE_CURRENT
+                    PendingIntent.FLAG_UPDATE_CURRENT
                 }
-                val tapPendingIntent = android.app.PendingIntent.getActivity(service, 1122, tapIntent, piFlags)
+                val tapPendingIntent = PendingIntent.getActivity(context, 1122, tapIntent, piFlags)
 
-                val endCallIntent = android.content.Intent(service, CallActionReceiver::class.java).apply {
+                val endCallIntent = Intent(context, CallActionReceiver::class.java).apply {
                     action = "ACTION_END_CALL"
                 }
-                val endCallPendingIntent = android.app.PendingIntent.getBroadcast(service, 1123, endCallIntent, piFlags)
+                val endCallPendingIntent = PendingIntent.getBroadcast(context, 1123, endCallIntent, piFlags)
 
                 val displayName = if (callerName.isNotBlank()) callerName else "SYNKING Call"
-                val notification = androidx.core.app.NotificationCompat.Builder(service, channelId)
+                val personBuilder = Person.Builder()
+                    .setName(displayName)
+                    .setImportant(true)
+
+                val callStyle = NotificationCompat.CallStyle.forOngoingCall(
+                    personBuilder.build(),
+                    endCallPendingIntent
+                ).setIsVideo(isVideo)
+                 .setDeclineButtonColorHint(Color.parseColor("#DC2626"))
+
+                val builder = NotificationCompat.Builder(context, channelId)
                     .setSmallIcon(R.mipmap.ic_launcher)
+                    .setStyle(callStyle)
                     .setContentTitle(displayName)
-                    .setContentText("Call in progress • Tap to return")
-                    .setCategory(androidx.core.app.NotificationCompat.CATEGORY_CALL)
-                    .setOngoing(true)
+                    .setContentText(if (isVideo) "Active video call" else "Active voice call")
+                    .setSubText("SYNKING")
+                    .setCategory(NotificationCompat.CATEGORY_CALL)
+                    .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                    .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                    .setOngoing(true) // ðŸ”’ Locked: Cannot be swiped away while call is ongoing!
+                    .setAutoCancel(false)
                     .setWhen(callStartTime)
                     .setShowWhen(true)
-                    .setUsesChronometer(true)
+                    .setUsesChronometer(true) // â±ï¸ Live chronometer timer on notification panel
                     .setContentIntent(tapPendingIntent)
-                    .addAction(android.R.drawable.ic_menu_close_clear_cancel, "End Call", endCallPendingIntent)
-                    .setPriority(androidx.core.app.NotificationCompat.PRIORITY_LOW)
-                    .build()
 
-                startCallForeground(notification)
-                Log.d("SYNKING_TELECOM", "[FGS] Ongoing call foreground updated: $displayName with chronometer at $callStartTime")
+                val notification = builder.build()
+                notification.flags = notification.flags or
+                    Notification.FLAG_ONGOING_EVENT or
+                    Notification.FLAG_NO_CLEAR
+
+                if (instance != null) {
+                    startCallForeground(notification)
+                }
+                nm?.notify(MyFirebaseMessagingService.NOTIFICATION_ID, notification)
+                Log.d("SYNKING_TELECOM", "[FGS] Ongoing call notification locked with live chronometer at $callStartTime for $displayName")
+
+                if (callerPhoto.isNotBlank() && (callerPhoto.startsWith("http://") || callerPhoto.startsWith("https://"))) {
+                    Thread {
+                        try {
+                            val url = URL(callerPhoto)
+                            val stream = url.openStream()
+                            val bmp = BitmapFactory.decodeStream(stream)
+                            if (bmp != null) {
+                                val updatedPerson = personBuilder.setIcon(IconCompat.createWithBitmap(bmp)).build()
+                                val updatedCallStyle = NotificationCompat.CallStyle.forOngoingCall(
+                                    updatedPerson,
+                                    endCallPendingIntent
+                                ).setIsVideo(isVideo)
+                                 .setDeclineButtonColorHint(Color.parseColor("#DC2626"))
+                                builder.setStyle(updatedCallStyle)
+                                val updatedNotif = builder.build()
+                                updatedNotif.flags = updatedNotif.flags or
+                                    Notification.FLAG_ONGOING_EVENT or
+                                    Notification.FLAG_NO_CLEAR
+                                nm?.notify(MyFirebaseMessagingService.NOTIFICATION_ID, updatedNotif)
+                            }
+                        } catch (e: Exception) {}
+                    }.start()
+                }
             } catch (e: Exception) {
                 Log.e("SYNKING_TELECOM", "[FGS] updateOngoingCallForeground error: ${e.message}")
             }
@@ -99,10 +161,11 @@ class SynkingConnectionService : ConnectionService() {
                     @Suppress("DEPRECATION")
                     instance?.stopForeground(true)
                 }
-                instance?.let { s ->
-                    val nm = s.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
-                    nm?.cancel(MyFirebaseMessagingService.NOTIFICATION_ID)
-                }
+                val context = instance
+                    ?: TelecomModule.reactContextInstance
+                    ?: TelecomModule.globalReactContext
+                val nm = context?.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
+                nm?.cancel(MyFirebaseMessagingService.NOTIFICATION_ID)
                 Log.d("SYNKING_TELECOM", "[FGS] stopCallForeground: Notification completely removed")
             } catch (e: Exception) {
                 Log.e("SYNKING_TELECOM", "[FGS] stopCallForeground error: ${e.message}")
@@ -142,9 +205,15 @@ class SynkingConnectionService : ConnectionService() {
             ?: rawExtras?.getString("type") 
             ?: "audio"
 
+        val callerPhoto = incomingExtras?.getString("callerPhoto") 
+            ?: incomingExtras?.getString("photo") 
+            ?: rawExtras?.getString("callerPhoto") 
+            ?: rawExtras?.getString("photo") 
+            ?: ""
+
         Log.d("SYNKING_TELECOM", "[TELECOM] CONNECTION_CREATED: Handling incoming for $callerName ($callId) from $callerId")
 
-        val connection = SynkingConnection(applicationContext, callId, callerId, callerName, callType)
+        val connection = SynkingConnection(applicationContext, callId, callerId, callerName, callType, callerPhoto)
         connection.setInitializing()
         connection.setRinging()
         
@@ -163,3 +232,4 @@ class SynkingConnectionService : ConnectionService() {
         Log.e("SYNKING_TELECOM", "[TELECOM] ERROR: onCreateIncomingConnectionFailed")
     }
 }
+

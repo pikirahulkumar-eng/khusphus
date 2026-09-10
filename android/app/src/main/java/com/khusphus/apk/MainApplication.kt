@@ -26,6 +26,7 @@ class MainApplication : Application(), ReactApplication {
         add(AudioRoutePackage())
         add(CallIntentPackage())
         add(TelecomPackage())
+        add(CallWakeLockPackage())
       }
     )
   }

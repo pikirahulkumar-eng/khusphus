@@ -316,6 +316,59 @@ app.get('/api/online-users', (req, res) => {
   res.json(Array.from(connectedUsers.keys()));
 });
 
+// Native Call Decline Endpoint (Lockscreen / Headless Notification Action)
+app.post('/api/call/decline', async (req, res) => {
+  try {
+    const { callId, callerId } = req.body;
+    if (callId && callerId) {
+      const callerSockets = await getSocketsForTarget(callerId);
+      if (callerSockets && callerSockets.length > 0) {
+        callerSockets.forEach((sId) => {
+          io.to(sId).emit('message', {
+            type: 'CALL_DECLINED',
+            payload: { callId, callerId },
+            targetUserId: callerId
+          });
+        });
+        console.log(`[HTTP_DECLINE] Forwarded CALL_DECLINED to caller ${callerId}`);
+        return res.json({ success: true });
+      }
+    }
+    res.json({ success: false });
+  } catch (e) {
+    console.error('[HTTP_DECLINE_ERR]', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Native Call Signal Relay (Telecom / Headless Service Bridge)
+app.post('/api/call/signal', async (req, res) => {
+  try {
+    const { type, callId, targetUserId, callerId, senderId, payload } = req.body;
+    const signalType = type;
+    const target = targetUserId || callerId;
+    console.log(`📡 [NATIVE_CALL_SIGNAL_RECEIVED] type=${signalType} callId=${callId} target=${target} from=${senderId}`);
+
+    if (target) {
+      const targetSockets = await getSocketsForTarget(target);
+      if (targetSockets && targetSockets.length > 0) {
+        targetSockets.forEach((sId) => {
+          io.to(sId).emit('message', {
+            type: signalType,
+            payload: payload || { callId, callerId: senderId, receiverId: target },
+            targetUserId: target
+          });
+        });
+        console.log(`✅ [NATIVE_CALL_SIGNAL_RELAYED] ${signalType} delivered to ${targetSockets.length} socket(s)`);
+      }
+    }
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[NATIVE_CALL_SIGNAL_ERR]', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Canonical conversation thread ID helper (e.g. "1234567890_9837628163")
 function getThreadId(phoneA, phoneB) {
   const cleanA = String(phoneA || '').replace(/\D/g, '').slice(-10);

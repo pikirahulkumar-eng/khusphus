@@ -1,12 +1,18 @@
 import { NativeModules, Platform } from 'react-native';
 
-const { AudioRouteModule } = NativeModules;
+const { AudioRouteModule, TelecomModule } = NativeModules;
 
 export const AudioRouteService = {
   setSpeakerOn: async (enableSpeaker: boolean): Promise<boolean> => {
-    if (Platform.OS === 'android' && AudioRouteModule?.setSpeakerphoneOn) {
+    if (Platform.OS === 'android') {
       try {
-        return await AudioRouteModule.setSpeakerphoneOn(enableSpeaker);
+        if (AudioRouteModule?.setSpeakerphoneOn) {
+          await AudioRouteModule.setSpeakerphoneOn(enableSpeaker);
+        }
+        if (TelecomModule?.setSpeakerOn) {
+          await TelecomModule.setSpeakerOn(enableSpeaker);
+        }
+        return enableSpeaker;
       } catch (e) {
         console.warn('[AudioRouteService] setSpeakerphoneOn error:', e);
       }
@@ -15,9 +21,22 @@ export const AudioRouteService = {
   },
 
   isSpeakerOn: async (): Promise<boolean> => {
-    if (Platform.OS === 'android' && AudioRouteModule?.isSpeakerphoneOn) {
+    if (Platform.OS === 'android') {
       try {
-        return await AudioRouteModule.isSpeakerphoneOn();
+        if (AudioRouteModule?.isSpeakerphoneOn) {
+          return await AudioRouteModule.isSpeakerphoneOn();
+        }
+      } catch (e) {}
+    }
+    return false;
+  },
+
+  isBluetoothConnected: async (): Promise<boolean> => {
+    if (Platform.OS === 'android') {
+      try {
+        if (AudioRouteModule?.isBluetoothConnected) {
+          return await AudioRouteModule.isBluetoothConnected();
+        }
       } catch (e) {}
     }
     return false;
@@ -32,10 +51,16 @@ export const AudioRouteService = {
   },
 
   resetAudioRoute: async (): Promise<void> => {
-    if (Platform.OS === 'android' && AudioRouteModule?.resetAudioMode) {
+    if (Platform.OS === 'android') {
       try {
-        await AudioRouteModule.resetAudioMode();
+        if (AudioRouteModule?.resetAudioMode) {
+          await AudioRouteModule.resetAudioMode();
+        }
+        if (TelecomModule?.resetAudioRoute) {
+          await TelecomModule.resetAudioRoute();
+        }
       } catch (e) {}
     }
   }
 };
+
