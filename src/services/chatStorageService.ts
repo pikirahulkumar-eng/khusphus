@@ -48,6 +48,47 @@ export const isDummyContact = (c: any): boolean => {
 
 export const getRecentKey = (phone: string) => `@sunao_recent_${phone}`;
 
+const TURSO_PIPELINE_URL = 'https://khusphus-khusphus.turso.io/v2/pipeline';
+const TURSO_TOKEN = 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODg4OTA3MDIsImlkIjoiMDFhMDU1ZTMtYTMwMS03MzhhLTg3YjQtZGIyOWM0NTA5YzQxIiwia2lkIjoiYXV1RnlEbnFzdkV1Tnp6YzVsb2ltN2dJQTNvcExiSHlJa29UR3VfM2dPQSIsInJpZCI6Ijg4YTVhZWZlLWU0ZmQtNDZkMy05MGY0LWFmNDRiMmU3NmI2MyJ9.33neAHtCPg_xcyapPdZASKNHKsEUadkXMiCKpqKqJHUApAkgaQKkZSlxrI1JPAV6Q6StRz9e1YJUwV3t8E4MCA';
+
+async function queryTurso(sql: string, args: any[] = []): Promise<any[]> {
+  try {
+    const res = await fetch(TURSO_PIPELINE_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${TURSO_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        requests: [
+          {
+            type: 'execute',
+            stmt: {
+              sql,
+              args: args.map((a) => ({ type: 'text', value: String(a) })),
+            },
+          },
+        ],
+      }),
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const result = data?.results?.[0]?.response?.result;
+    if (!result || !result.cols || !result.rows) return [];
+    const cols = result.cols.map((c: any) => c.name);
+    return result.rows.map((r: any) => {
+      const obj: any = {};
+      r.forEach((val: any, idx: number) => {
+        obj[cols[idx]] = val?.value ?? null;
+      });
+      return obj;
+    });
+  } catch (e) {
+    console.warn('[TURSO_QUERY_ERR]', e);
+    return [];
+  }
+}
+
 export const ChatStorageService = {
   /**
    * Check if a conversation thread has ever been created or opened
@@ -104,55 +145,180 @@ export const ChatStorageService = {
       const cleanContact = String(contactPhone || '').replace(/\D/g, '').slice(-10);
       if (!cleanMe || !cleanContact) return await this.getMessages(myPhone, contactPhone);
 
-      const baseUrl = getBackendUrl();
-      const res = await fetch(`${baseUrl}/api/messages/history?myPhone=${cleanMe}&contactPhone=${cleanContact}&limit=150`);
-      if (res.ok) {
-        const cloudMessages = await res.json();
-        if (Array.isArray(cloudMessages) && cloudMessages.length > 0) {
-          const current = await this.getMessages(myPhone, contactPhone);
-          const currentMap = new Map(current.map((m) => [m.id, m]));
+      let cloudMessages: any[] = [];
+      try {
+        const baseUrl = getBackendUrl();
+        const res = await fetch(`${baseUrl}/api/messages/history?myPhone=${cleanMe}&contactPhone=${cleanContact}&limit=150`);
+        if (res.ok) {
+          cloudMessages = await res.json();
+        }
+      } catch (_) {}
 
-          let changed = false;
-          for (const cm of cloudMessages) {
-            const isMe = String(cm.senderId).replace(/\D/g, '').slice(-10) === cleanMe;
-            const normalized: LocalMessage = {
-              id: cm.id,
-              senderId: isMe ? myPhone : contactPhone,
-              receiverId: isMe ? contactPhone : myPhone,
-              text: cm.text || '',
-              time: cm.timestamp ? new Date(Number(cm.timestamp)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-              timestamp: Number(cm.timestamp) || Date.now(),
-              sender: isMe ? 'me' : 'them',
-              status: (cm.status as any) || 'sent',
-              type: (cm.type as any) || 'text',
-              audioUrl: cm.audioUrl || undefined,
-              duration: cm.duration || undefined,
-            };
+      // Fallback: Query Turso HTTP pipeline directly if backend endpoint is unavailable
+      if (!Array.isArray(cloudMessages) || cloudMessages.length === 0) {
+        const rows = await queryTurso(
+          'SELECT id, sender_phone as senderId, receiver_phone as receiverId, text, type, media_url as audioUrl, duration, status, created_at as timestamp FROM messages WHERE (sender_phone = ? AND receiver_phone = ?) OR (sender_phone = ? AND receiver_phone = ?) ORDER BY created_at ASC LIMIT 150',
+          [cleanMe, cleanContact, cleanContact, cleanMe]
+        );
+        if (Array.isArray(rows) && rows.length > 0) {
+          cloudMessages = rows;
+        }
+      }
 
-            if (!currentMap.has(cm.id)) {
-              currentMap.set(cm.id, normalized);
+      if (Array.isArray(cloudMessages) && cloudMessages.length > 0) {
+        const current = await this.getMessages(myPhone, contactPhone);
+        const currentMap = new Map(current.map((m) => [m.id, m]));
+
+        let changed = false;
+        for (const cm of cloudMessages) {
+          const isMe = String(cm.senderId).replace(/\D/g, '').slice(-10) === cleanMe;
+          const normalized: LocalMessage = {
+            id: String(cm.id),
+            senderId: isMe ? myPhone : contactPhone,
+            receiverId: isMe ? contactPhone : myPhone,
+            text: cm.text || '',
+            time: cm.timestamp ? new Date(Number(cm.timestamp)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+            timestamp: Number(cm.timestamp) || Date.now(),
+            sender: isMe ? 'me' : 'them',
+            status: (cm.status as any) || 'sent',
+            type: (cm.type as any) || 'text',
+            audioUrl: cm.audioUrl || undefined,
+            duration: cm.duration || undefined,
+          };
+
+          if (!currentMap.has(cm.id)) {
+            currentMap.set(cm.id, normalized);
+            changed = true;
+          } else {
+            const existing = currentMap.get(cm.id)!;
+            if (existing.status !== normalized.status && normalized.status) {
+              existing.status = normalized.status;
               changed = true;
-            } else {
-              const existing = currentMap.get(cm.id)!;
-              if (existing.status !== normalized.status && normalized.status) {
-                existing.status = normalized.status;
-                changed = true;
-              }
             }
           }
+        }
 
-          if (changed) {
-            const merged = Array.from(currentMap.values()).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-            const key = getChatKey(myPhone, contactPhone);
-            await AsyncStorage.setItem(key, JSON.stringify(merged));
-            return merged;
-          }
+        if (changed) {
+          const merged = Array.from(currentMap.values()).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+          const key = getChatKey(myPhone, contactPhone);
+          await AsyncStorage.setItem(key, JSON.stringify(merged));
+          return merged;
         }
       }
     } catch (err) {
       console.warn('[STORAGE] Cloud sync failed:', err);
     }
     return await this.getMessages(myPhone, contactPhone);
+  },
+
+  /**
+   * Restore all cloud conversations and registered users into main chat tab on app open
+   */
+  async restoreCloudChats(myPhone: string, registeredUsers: any[] = []): Promise<ChatItemData[]> {
+    try {
+      const cleanMe = String(myPhone || '').replace(/\D/g, '').slice(-10);
+      if (!cleanMe) return [];
+
+      // 1. Fetch all cloud messages involving this user from Turso
+      const rows = await queryTurso(
+        'SELECT id, thread_id, sender_phone, receiver_phone, text, type, media_url, duration, status, created_at FROM messages WHERE sender_phone = ? OR receiver_phone = ? ORDER BY created_at ASC',
+        [cleanMe, cleanMe]
+      );
+
+      const messagesByContact = new Map<string, LocalMessage[]>();
+      for (const row of rows) {
+        const sPhone = String(row.sender_phone || '').replace(/\D/g, '').slice(-10);
+        const rPhone = String(row.receiver_phone || '').replace(/\D/g, '').slice(-10);
+        const contactPhone = sPhone === cleanMe ? rPhone : sPhone;
+        if (!contactPhone || isDummyContact({ phone: contactPhone })) continue;
+
+        const isMe = sPhone === cleanMe;
+        const msgTime = row.created_at ? new Date(Number(row.created_at)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+        const norm: LocalMessage = {
+          id: String(row.id),
+          senderId: isMe ? myPhone : contactPhone,
+          receiverId: isMe ? contactPhone : myPhone,
+          text: row.text || '',
+          time: msgTime,
+          timestamp: Number(row.created_at) || Date.now(),
+          sender: isMe ? 'me' : 'them',
+          status: (row.status as any) || 'sent',
+          type: (row.type as any) || 'text',
+          audioUrl: row.media_url || undefined,
+          duration: row.duration || undefined,
+        };
+
+        if (!messagesByContact.has(contactPhone)) {
+          messagesByContact.set(contactPhone, []);
+        }
+        messagesByContact.get(contactPhone)!.push(norm);
+      }
+
+      // 2. Save each conversation thread locally so offline access works
+      for (const [contactPhone, msgs] of messagesByContact.entries()) {
+        const key = getChatKey(myPhone, contactPhone);
+        await AsyncStorage.setItem(key, JSON.stringify(msgs));
+      }
+
+      // 3. Build comprehensive recent chats list
+      const chatItemsMap = new Map<string, ChatItemData>();
+
+      // A. Existing chats with messages from cloud
+      for (const [contactPhone, msgs] of messagesByContact.entries()) {
+        const lastMsg = msgs[msgs.length - 1];
+        const registered = registeredUsers.find((u) => String(u.phone).replace(/\D/g, '').slice(-10) === contactPhone);
+        const contactName = registered?.name || contactPhone;
+        const avatarUri = registered?.avatarUri;
+
+        let timeStr = '';
+        if (lastMsg.timestamp) {
+          const date = new Date(lastMsg.timestamp);
+          const now = new Date();
+          if (date.toDateString() === now.toDateString()) {
+            timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          } else {
+            timeStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+          }
+        }
+
+        const unreadCount = msgs.filter((m) => m.sender === 'them' && m.status !== 'read').length;
+
+        chatItemsMap.set(contactPhone, {
+          phone: contactPhone,
+          name: contactName,
+          avatarUri,
+          lastMessage: lastMsg.text || (lastMsg.type === 'voice' ? '🎤 Voice message' : 'Message'),
+          timestamp: timeStr,
+          unreadCount,
+          messageStatus: lastMsg.sender === 'me' ? lastMsg.status : undefined,
+          sentByMe: lastMsg.sender === 'me',
+        });
+      }
+
+      // B. Include all other registered contacts on Sunao so user immediately sees everyone
+      for (const u of registeredUsers) {
+        const cleanPhone = String(u.phone || '').replace(/\D/g, '').slice(-10);
+        if (!cleanPhone || cleanPhone === cleanMe || isDummyContact(u)) continue;
+        if (!chatItemsMap.has(cleanPhone)) {
+          chatItemsMap.set(cleanPhone, {
+            phone: u.phone,
+            name: u.name || u.phone,
+            avatarUri: u.avatarUri,
+            lastMessage: u.about || 'Available on Sunao 🚀',
+            timestamp: '',
+            unreadCount: 0,
+          });
+        }
+      }
+
+      const result = Array.from(chatItemsMap.values());
+      const key = getRecentKey(myPhone);
+      await AsyncStorage.setItem(key, JSON.stringify(result));
+      return result;
+    } catch (e) {
+      console.warn('[RESTORE_CLOUD_CHATS_ERR]', e);
+      return [];
+    }
   },
 
   /**

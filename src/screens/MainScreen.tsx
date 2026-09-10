@@ -213,6 +213,22 @@ export default function MainScreen({
               return updated;
             });
 
+            // 🌟 Cloud Auto-Sync: Automatically restore cloud conversations & contacts so Chats list is never empty!
+            ChatStorageService.restoreCloudChats(currentUserPhone, validRegistered).then((cloudChats) => {
+              if (isMounted && Array.isArray(cloudChats) && cloudChats.length > 0) {
+                setChats((prev) => {
+                  // Keep any local unread count or optimistic updates, prefer cloud messages
+                  if (prev.length === 0) return cloudChats;
+                  const prevMap = new Map(prev.map((c) => [c.phone, c]));
+                  const merged = cloudChats.map((cc) => {
+                    const local = prevMap.get(cc.phone);
+                    return local ? { ...cc, ...local, name: cc.name || local.name, avatarUri: cc.avatarUri || local.avatarUri } : cc;
+                  });
+                  return merged;
+                });
+              }
+            }).catch(() => {});
+
             // Purge any dummy or ghost entries from calls list
             setCallsList((prev) => prev.filter((c) => !isDummyContact(c)));
           }
