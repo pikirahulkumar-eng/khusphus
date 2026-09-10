@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ChatItemData } from '../components/main/ChatsTab';
 import { getBackendUrl } from './firebase';
+import { encryptE2EEMessage, decryptE2EEMessage } from '../utils/encryption';
 
 export interface LocalMessage {
   id: string;
@@ -191,11 +192,15 @@ export const ChatStorageService = {
         let changed = false;
         for (const cm of cloudMessages) {
           const isMe = String(cm.senderId).replace(/\D/g, '').slice(-10) === cleanMe;
+          let msgText = cm.text || '';
+          if (msgText && typeof msgText === 'string' && msgText.startsWith('E2EE::')) {
+            msgText = await decryptE2EEMessage(msgText, isMe ? cleanMe : cleanContact, isMe ? cleanContact : cleanMe);
+          }
           const normalized: LocalMessage = {
             id: String(cm.id),
             senderId: isMe ? myPhone : contactPhone,
             receiverId: isMe ? contactPhone : myPhone,
-            text: cm.text || '',
+            text: msgText,
             time: cm.timestamp ? new Date(Number(cm.timestamp)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
             timestamp: Number(cm.timestamp) || Date.now(),
             sender: isMe ? 'me' : 'them',
@@ -252,12 +257,16 @@ export const ChatStorageService = {
         if (!contactPhone || contactPhone === cleanMe || isDummyContact({ phone: contactPhone })) continue;
 
         const isMe = sPhone === cleanMe;
+        let msgText = row.text || '';
+        if (msgText && typeof msgText === 'string' && msgText.startsWith('E2EE::')) {
+          msgText = await decryptE2EEMessage(msgText, isMe ? cleanMe : contactPhone, isMe ? contactPhone : cleanMe);
+        }
         const msgTime = row.created_at ? new Date(Number(row.created_at)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
         const norm: LocalMessage = {
           id: String(row.id),
           senderId: isMe ? myPhone : contactPhone,
           receiverId: isMe ? contactPhone : myPhone,
-          text: row.text || '',
+          text: msgText,
           time: msgTime,
           timestamp: Number(row.created_at) || Date.now(),
           sender: isMe ? 'me' : 'them',
@@ -363,6 +372,14 @@ export const ChatStorageService = {
       const cleanReceiver = normalizePhone(message.receiverId);
       if (!cleanSender || !cleanReceiver) return;
       const threadId = [cleanSender, cleanReceiver].sort().join('_');
+
+      // 🔒 Enforce E2EE: Always encrypt text before sending to Turso Cloud DB
+      let textToStore = message.text || '';
+      if (textToStore && typeof textToStore === 'string' && !textToStore.startsWith('E2EE::')) {
+        const enc = await encryptE2EEMessage(textToStore, cleanSender, cleanReceiver);
+        textToStore = enc.ciphertext;
+      }
+
       await queryTurso(
         'INSERT OR REPLACE INTO messages (id, thread_id, sender_phone, receiver_phone, text, type, media_url, duration, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [
@@ -370,7 +387,7 @@ export const ChatStorageService = {
           threadId,
           cleanSender,
           cleanReceiver,
-          message.text || '',
+          textToStore,
           message.type || 'text',
           message.audioUrl || null,
           message.duration || null,
