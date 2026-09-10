@@ -21,7 +21,8 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons, MaterialIcons, Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { KhusPhusTheme } from '../constants/theme';
-import { ChatStorageService, LocalMessage, getChatKey } from '../services/chatStorageService';
+import { ChatStorageService, LocalMessage, getChatKey, normalizePhone } from '../services/chatStorageService';
+import { ChatItemData } from '../components/main/ChatsTab';
 import { RealtimeBridge } from '../services/realtimeBridge';
 import { getBackendUrl } from '../services/firebase';
 import { VoiceService } from '../services/voiceRecordingService';
@@ -216,10 +217,23 @@ export default function ChatScreen({
   const timerIntervalRef = useRef<any>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  // WhatsApp-grade Interactions: Reactions, Reply & Edit
+  // WhatsApp-grade Interactions: Reactions, Reply, Forward & Edit
   const [selectedMessage, setSelectedMessage] = useState<LocalMessage | null>(null);
   const [replyingToMessage, setReplyingToMessage] = useState<LocalMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<LocalMessage | null>(null);
+  const [forwardingMessage, setForwardingMessage] = useState<LocalMessage | null>(null);
+  const [showForwardModal, setShowForwardModal] = useState(false);
+  const [forwardContacts, setForwardContacts] = useState<ChatItemData[]>([]);
+  const [forwardSearch, setForwardSearch] = useState('');
+
+  const filteredForwardContacts = useMemo(() => {
+    const q = forwardSearch.trim().toLowerCase();
+    if (!q) return forwardContacts;
+    return forwardContacts.filter((c) =>
+      (c.name && c.name.toLowerCase().includes(q)) ||
+      (c.phone && c.phone.includes(q))
+    );
+  }, [forwardContacts, forwardSearch]);
 
   // Read Receipts preference (@sunao_read_receipts)
   const [readReceiptsEnabled, setReadReceiptsEnabled] = useState<boolean>(() => {
@@ -753,6 +767,57 @@ export default function ChatScreen({
     setSelectedMessage(null);
   };
 
+  const handleStartForward = async () => {
+    if (!selectedMessage) return;
+    const msgToFwd = selectedMessage;
+    setSelectedMessage(null);
+    setForwardingMessage(msgToFwd);
+    setForwardSearch('');
+    try {
+      const recents = await ChatStorageService.getRecentChats(currentUserPhone);
+      setForwardContacts(recents || []);
+    } catch (e) {
+      setForwardContacts([]);
+    }
+    setShowForwardModal(true);
+  };
+
+  const handleSendForward = async (targetContact: ChatItemData) => {
+    if (!forwardingMessage) return;
+    const targetPhone = targetContact.phone;
+    if (!targetPhone) return;
+
+    const forwardedMsg: LocalMessage = {
+      id: `fwd_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+      senderId: currentUserPhone,
+      receiverId: targetPhone,
+      text: forwardingMessage.text || '',
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      timestamp: Date.now(),
+      sender: 'me',
+      status: 'sent',
+      type: forwardingMessage.type || 'text',
+      audioUrl: forwardingMessage.audioUrl,
+      duration: forwardingMessage.duration,
+      isForwarded: true,
+    };
+
+    if (normalizePhone(targetPhone) === normalizePhone(contactPhone)) {
+      setMessages((prev) => [...prev, forwardedMsg]);
+    }
+
+    try {
+      await ChatStorageService.saveMessage(currentUserPhone, targetPhone, forwardedMsg);
+      ChatStorageService.saveMessageToCloud(forwardedMsg).catch(() => {});
+      RealtimeBridge.sendChatMessage(targetPhone, forwardedMsg);
+    } catch (e) {
+      console.warn('[FORWARD_ERR]', e);
+    }
+
+    setShowForwardModal(false);
+    setForwardingMessage(null);
+  };
+
   // Voice recording pulse animation
   useEffect(() => {
     let loop: Animated.CompositeAnimation | null = null;
@@ -1084,7 +1149,12 @@ export default function ChatScreen({
                     activeOpacity={0.88}
                     onLongPress={() => setSelectedMessage(item)}
                     delayLongPress={260}
-                    style={{ maxWidth: '82%' }}
+                    // @ts-ignore
+                    onContextMenu={(e: any) => {
+                      if (e && e.preventDefault) e.preventDefault();
+                      setSelectedMessage(item);
+                    }}
+                    style={{ maxWidth: '82%', position: 'relative' }}
                   >
                     {item.type === 'voice' ? (
                       <VoiceNoteBubble
@@ -1106,6 +1176,27 @@ export default function ChatScreen({
                           },
                         ]}
                       >
+                        {/* Forwarded Badge */}
+                        {item.isForwarded && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 3 }}>
+                            <Ionicons name="arrow-redo" size={11} color={isMe ? 'rgba(255, 255, 255, 0.75)' : '#94A3B8'} style={{ marginRight: 3 }} />
+                            <Text style={[{ fontSize: 10.5, fontStyle: 'italic' }, isMe ? { color: 'rgba(255, 255, 255, 0.75)' } : { color: '#94A3B8' }]}>
+                              Forwarded
+                            </Text>
+                          </View>
+                        )}
+
+                        {/* WhatsApp-Web Quick Action Dropdown Trigger (Clickable on Desktop) */}
+                        {!item.isDeleted && (
+                          <TouchableOpacity
+                            style={styles.messageChevronBtn}
+                            onPress={() => setSelectedMessage(item)}
+                            activeOpacity={0.65}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <Ionicons name="chevron-down" size={13} color={isMe ? 'rgba(255, 255, 255, 0.65)' : '#94A3B8'} />
+                          </TouchableOpacity>
+                        )}
                         {/* Quoted Message Preview Header */}
                         {item.replyTo && (
                           <View style={[styles.quotedBubble, isMe ? styles.quotedBubbleMe : styles.quotedBubbleThem]}>
@@ -1624,6 +1715,11 @@ export default function ChatScreen({
                   <Text style={[styles.actionMenuText, isDark && { color: '#FFFFFF' }]}>Reply</Text>
                 </TouchableOpacity>
 
+                <TouchableOpacity style={styles.actionMenuItem} onPress={handleStartForward}>
+                  <Ionicons name="arrow-redo-outline" size={19} color={isDark ? '#38BDF8' : '#0284C7'} />
+                  <Text style={[styles.actionMenuText, isDark && { color: '#FFFFFF' }]}>Forward</Text>
+                </TouchableOpacity>
+
                 <TouchableOpacity style={styles.actionMenuItem} onPress={handleToggleStar}>
                   <Ionicons
                     name={selectedMessage.isStarred ? 'star' : 'star-outline'}
@@ -1680,6 +1776,105 @@ export default function ChatScreen({
               </View>
             </View>
           )}
+        </Pressable>
+      </Modal>
+
+      {/* WhatsApp-Style Forward Message Modal */}
+      <Modal
+        visible={showForwardModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setShowForwardModal(false);
+          setForwardingMessage(null);
+        }}
+      >
+        <Pressable
+          style={[styles.modalOverlay, isDark && { backgroundColor: 'rgba(0, 0, 0, 0.75)' }]}
+          onPress={() => {
+            setShowForwardModal(false);
+            setForwardingMessage(null);
+          }}
+        >
+          <Pressable
+            style={[
+              styles.forwardModalContent,
+              isDark && { backgroundColor: '#0B0F14', borderColor: 'rgba(255, 255, 255, 0.12)' },
+            ]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.forwardModalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="arrow-redo" size={20} color="#059669" style={{ marginRight: 8 }} />
+                <Text style={[styles.forwardModalTitle, isDark && { color: '#FFFFFF' }]}>Forward message</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowForwardModal(false);
+                  setForwardingMessage(null);
+                }}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="close" size={22} color={isDark ? '#E2E8F0' : '#475569'} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Preview of message being forwarded */}
+            {forwardingMessage && (
+              <View style={[styles.forwardPreviewBox, isDark && { backgroundColor: '#131922', borderColor: 'rgba(255, 255, 255, 0.08)' }]}>
+                <Text style={[styles.forwardPreviewText, isDark && { color: '#E2E8F0' }]} numberOfLines={2}>
+                  {forwardingMessage.text || (forwardingMessage.type === 'voice' ? '🎤 Voice Message' : 'Media')}
+                </Text>
+              </View>
+            )}
+
+            {/* Search Box */}
+            <View style={[styles.forwardSearchBox, isDark && { backgroundColor: '#131922', borderColor: 'rgba(255, 255, 255, 0.08)' }]}>
+              <Ionicons name="search-outline" size={16} color="#94A3B8" style={{ marginRight: 8 }} />
+              <TextInput
+                style={[styles.forwardSearchInput, isDark && { color: '#FFFFFF' }]}
+                placeholder="Search contact or phone..."
+                placeholderTextColor="#94A3B8"
+                value={forwardSearch}
+                onChangeText={setForwardSearch}
+              />
+            </View>
+
+            {/* Contacts List */}
+            <ScrollView style={{ maxHeight: 280 }} showsVerticalScrollIndicator={false}>
+              {filteredForwardContacts.length === 0 ? (
+                <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+                  <Text style={{ color: '#94A3B8', fontSize: 13 }}>No recent chats found</Text>
+                </View>
+              ) : (
+                filteredForwardContacts.map((contact) => (
+                  <TouchableOpacity
+                    key={contact.phone}
+                    style={[styles.forwardContactItem, isDark && { borderBottomColor: 'rgba(255, 255, 255, 0.06)' }]}
+                    onPress={() => handleSendForward(contact)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.forwardAvatar}>
+                      <Text style={styles.forwardAvatarText}>
+                        {(contact.name || contact.phone || '?').charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <Text style={[styles.forwardContactName, isDark && { color: '#FFFFFF' }]} numberOfLines={1}>
+                        {contact.name || contact.phone}
+                      </Text>
+                      <Text style={styles.forwardContactPhone} numberOfLines={1}>
+                        {contact.phone}
+                      </Text>
+                    </View>
+                    <View style={styles.forwardSendBtn}>
+                      <Ionicons name="send" size={14} color="#FFFFFF" />
+                    </View>
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+          </Pressable>
         </Pressable>
       </Modal>
     </KeyboardAvoidingView>
@@ -1760,11 +1955,13 @@ const styles = StyleSheet.create({
   messageWrapperMe: { justifyContent: 'flex-end' },
   messageWrapperThem: { justifyContent: 'flex-start' },
   messageBubble: {
-    minWidth: 88,
-    paddingHorizontal: 13,
+    minWidth: 92,
+    paddingLeft: 12,
+    paddingRight: 22,
     paddingVertical: 8,
     borderRadius: 16,
     elevation: 1,
+    position: 'relative',
   },
   messageBubbleMe: {
     backgroundColor: '#059669',
@@ -2182,5 +2379,107 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1E293B',
     marginLeft: 12,
+  },
+  messageChevronBtn: {
+    position: 'absolute',
+    top: 3,
+    right: 4,
+    padding: 2,
+    borderRadius: 8,
+    zIndex: 10,
+  },
+  forwardModalContent: {
+    width: '90%',
+    maxWidth: 420,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  forwardModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  forwardModalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  forwardPreviewBox: {
+    backgroundColor: '#F1F5F9',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#059669',
+    marginBottom: 12,
+  },
+  forwardPreviewText: {
+    fontSize: 12.5,
+    color: '#334155',
+  },
+  forwardSearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 10,
+  },
+  forwardSearchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#0F172A',
+    padding: 0,
+  },
+  forwardContactItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  forwardAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#10B981',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  forwardAvatarText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  forwardContactName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0F172A',
+    marginBottom: 2,
+  },
+  forwardContactPhone: {
+    fontSize: 12,
+    color: '#94A3B8',
+  },
+  forwardSendBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#059669',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

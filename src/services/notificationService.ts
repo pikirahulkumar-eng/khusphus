@@ -116,15 +116,21 @@ class NotificationServiceClass {
         const data = notification.request?.content?.data;
         CallDebugger.logStage('FCM MESSAGE RECEIVED', 'OK', { 
           callId: data?.callId, 
-          caller: data?.callerUser?.name,
+          caller: data?.callerUser?.name || data?.callerName,
           type: data?.type || data?.callType 
         });
 
-        if (data && (data.type === 'INCOMING_CALL' || data.callId) && data.callerUser) {
+        const callerUser = data?.callerUser || (data?.callerId ? {
+          id: data.callerId,
+          name: data.callerName || 'Someone',
+          photo: data.callerPhoto || ''
+        } : null);
+
+        if (data && (data.type === 'INCOMING_CALL' || data.callId) && callerUser) {
           try {
             CallDebugger.logStage('MESSAGE HANDLER', 'OK', { launchingCall: true });
             const { WebRTCService } = require('./webrtcService');
-            WebRTCService.receiveIncomingCall(data.callerUser, data.callType || data.type || 'audio', data.callId);
+            WebRTCService.receiveIncomingCall(callerUser, data.callType || data.type || 'audio', data.callId);
           } catch (e: any) {
             CallDebugger.logStage('MESSAGE HANDLER', 'FAIL', { error: e?.message });
           }
@@ -213,6 +219,7 @@ class NotificationServiceClass {
           fbMessaging = require('@react-native-firebase/messaging');
         } catch (e) {}
         if (fbMessaging && fbMessaging.default) {
+          await fbMessaging.default().requestPermission().catch(() => {});
           const nativeToken = await fbMessaging.default().getToken().catch(() => null);
           if (nativeToken) {
             fcmPushToken = nativeToken;
@@ -270,6 +277,7 @@ class NotificationServiceClass {
       },
       body: JSON.stringify({
         userId,
+        phone: cleanPhone || phoneNumber,
         pushToken: expoPushToken || fcmPushToken,
         expoPushToken,
         fcmPushToken,

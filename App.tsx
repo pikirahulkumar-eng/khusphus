@@ -9,6 +9,7 @@ import CallModal from './src/components/CallModal';
 import FloatingCallOverlay from './src/components/FloatingCallOverlay';
 import { WebRTCService } from './src/services/webrtcService';
 import { RealtimeBridge } from './src/services/realtimeBridge';
+import { NotificationService } from './src/services/notificationService';
 import { getBackendUrl } from './src/services/firebase';
 import { isDummyContact } from './src/services/chatStorageService';
 import { E2eeKeyManager } from './src/utils/e2eeKeyManager';
@@ -229,6 +230,10 @@ function AppMain() {
           const registerId = (storedUserId && storedUserId.trim()) || activePhone;
           RealtimeBridge.registerUser(registerId, activePhone);
 
+          // Register push notifications & native FCM token for background / dead-state wakeup
+          NotificationService.initialize().catch(() => {});
+          NotificationService.registerForPushNotificationsAsync(registerId, activePhone).catch(() => {});
+
           // Background sync to backend users database so profile is active and searchable
           const serverUrl = getBackendUrl();
           E2eeKeyManager.getOrGenerateKeyPair().then((keys) => {
@@ -365,6 +370,10 @@ function AppMain() {
       setIsAuthenticated(true);
       // Register with realtime socket using opaque UUID and phone
       RealtimeBridge.registerUser(userId, cleanPhone);
+
+      // Register push notifications & native FCM token for background / dead-state wakeup
+      NotificationService.initialize().catch(() => {});
+      NotificationService.registerForPushNotificationsAsync(userId, cleanPhone).catch(() => {});
 
       // Register user profile on server so they are searchable from any device
       const serverUrl = getBackendUrl();

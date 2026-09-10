@@ -567,16 +567,26 @@ app.post('/api/call-signal', async (req, res) => {
 });
 
 // Push Token Sync Endpoint (Native Android -> Turso Database)
+// Push Token Sync Endpoint (Native Android & Expo -> Turso Database)
 app.post('/api/profiles/push-token', async (req, res) => {
   try {
-    const { userId, fcmPushToken } = req.body;
-    if (userId && fcmPushToken) {
+    const { userId, fcmPushToken, pushToken, expoPushToken, phone } = req.body;
+    const token = fcmPushToken || pushToken || expoPushToken;
+    if ((userId || phone) && token) {
+      const cleanPhone = String(phone || userId).replace(/\D/g, '').slice(-10);
       try { await turso.execute('ALTER TABLE users ADD COLUMN fcm_token TEXT'); } catch(e) {}
-      await turso.execute({
-        sql: 'UPDATE users SET fcm_token = ? WHERE phone = ?',
-        args: [fcmPushToken, userId]
+      
+      const r = await turso.execute({
+        sql: `UPDATE users 
+              SET fcm_token = ? 
+              WHERE userId = ? 
+                 OR userId = ? 
+                 OR phone = ? 
+                 OR phone = ? 
+                 OR phone LIKE ?`,
+        args: [token, userId || '', `user_${cleanPhone}`, phone || '', cleanPhone, `%${cleanPhone}%`]
       });
-      console.log(`[FCM_SYNC] Token updated for user: ${userId}`);
+      console.log(`[FCM_SYNC] Token updated for user=${userId} (phone=${cleanPhone}) rowsAffected=${r.rowsAffected || 0}`);
     }
     res.json({ success: true });
   } catch (err) {
@@ -762,34 +772,69 @@ io.on('connection', (socket) => {
       console.warn(`[CALL_TARGET_OFFLINE] No active socket for target ${data.to}`);
     }
 
-    // Always attempt to send an FCM push to wake up the device (or if offline)
+    // Always attempt to send an FCM push to wake up the device (or if offline / in background / screen locked)
     try {
       if (admin && admin.apps && admin.apps.length > 0) {
+        const cleanTo = String(data.to || '').replace(/\D/g, '').slice(-10);
+        const cleanFrom = String(data.from || '').replace(/\D/g, '').slice(-10);
+
         const result = await turso.execute({
-          sql: 'SELECT fcm_token FROM users WHERE phone = ? OR userId = ? LIMIT 1',
-          args: [data.to, data.to]
+          sql: `SELECT fcm_token, name, avatarUri 
+                FROM users 
+                WHERE phone = ? 
+                   OR phone LIKE ? 
+                   OR userId = ? 
+                   OR userId = ? 
+                   OR userId LIKE ? 
+                LIMIT 1`,
+          args: [cleanTo, `%${cleanTo}%`, data.to, `user_${cleanTo}`, `%${cleanTo}%`]
         });
-        const fcmToken = result.rows[0]?.fcm_token;
+
+        const targetRow = result.rows?.[0];
+        const fcmToken = targetRow?.fcm_token;
         if (fcmToken) {
+          let callerName = data.callerUser?.name || 'Someone';
+          let callerPhoto = data.callerUser?.photo || data.callerUser?.photos?.[0] || '';
+
+          if (callerName === 'Someone' && cleanFrom) {
+            try {
+              const callerRes = await turso.execute({
+                sql: 'SELECT name, avatarUri FROM users WHERE phone = ? OR phone LIKE ? OR userId = ? LIMIT 1',
+                args: [cleanFrom, `%${cleanFrom}%`, data.from]
+              });
+              if (callerRes.rows && callerRes.rows.length > 0) {
+                callerName = callerRes.rows[0].name || callerName;
+                callerPhoto = callerRes.rows[0].avatarUri || callerPhoto;
+              }
+            } catch (_) {}
+          }
+
+          const callId = String(data.callId || (data.from + '-' + Date.now()));
+          const callType = data.isVideo ? 'video' : 'audio';
+
           await admin.messaging().send({
             token: fcmToken,
             data: {
               type: 'INCOMING_CALL',
-              callId: data.from + '-' + Date.now(),
-              callerName: data.from,
-              callerId: data.from,
-              callType: data.isVideo ? 'video' : 'audio',
-              callerPhoto: ''
+              callId: callId,
+              callerName: String(callerName),
+              callerId: String(data.from || ''),
+              callType: callType,
+              call_type: callType,
+              callerPhoto: String(callerPhoto || '')
             },
             android: {
-              priority: 'high'
+              priority: 'high',
+              ttl: 45000
             }
           });
-          console.log(`Sent FCM wakeup to ${data.to}`);
+          console.log(`[FCM_WAKEUP_SENT] Sent FCM wakeup to ${data.to} (token=${fcmToken.substring(0, 15)}...) callId=${callId}`);
+        } else {
+          console.log(`[FCM_NO_TOKEN] No FCM token found for recipient ${data.to} (clean=${cleanTo})`);
         }
       }
     } catch (e) {
-      console.error('FCM Error:', e);
+      console.error('[FCM_CALL_ERROR]', e);
     }
   });
 
@@ -825,6 +870,33 @@ io.on('connection', (socket) => {
     const targetUserId = data?.targetUserId || data?.payload?.receiverId;
     const senderId = data?.payload?.senderId || data?.payload?.readerPhone || socket.userPhone || socket.userId;
     console.log(`[MSG_IN] type=${data?.type} to=${targetUserId} from=${senderId}`);
+
+    // Deliver CALL_ENDED cancel to wake-locked Android device if ringing in background
+    if ((data?.type === 'CALL_ENDED' || data?.type === 'CALL_REJECTED' || data?.type === 'CALL_CANCEL') && admin && admin.apps && admin.apps.length > 0) {
+      try {
+        const cleanT = String(targetUserId || data?.payload?.receiverId || '').replace(/\D/g, '').slice(-10);
+        if (cleanT) {
+          const r = await turso.execute({
+            sql: `SELECT fcm_token FROM users WHERE phone = ? OR phone LIKE ? OR userId = ? OR userId = ? LIMIT 1`,
+            args: [cleanT, `%${cleanT}%`, targetUserId, `user_${cleanT}`]
+          });
+          const fcmToken = r.rows?.[0]?.fcm_token;
+          if (fcmToken) {
+            await admin.messaging().send({
+              token: fcmToken,
+              data: {
+                type: 'CALL_ENDED',
+                callId: String(data?.payload?.callId || '')
+              },
+              android: { priority: 'high' }
+            });
+            console.log(`[FCM_CALL_ENDED_SENT] Sent CALL_ENDED FCM cancel to ${targetUserId}`);
+          }
+        }
+      } catch (err) {
+        console.error('[FCM_CALL_ENDED_ERR]', err);
+      }
+    }
 
     // 1. Deliver to all active devices of target recipient
     const targetSockets = await getSocketsForTarget(targetUserId);
