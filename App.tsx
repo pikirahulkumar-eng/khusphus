@@ -419,6 +419,28 @@ function AppMain() {
     });
   };
 
+  const renderCallUI = () => {
+    if (!callSession) return null;
+    return (
+      <CallModal
+        session={callSession}
+        onAcceptCall={() => WebRTCService.acceptCall()}
+        onEndCall={() => WebRTCService.endCall()}
+        onMinimize={() => {
+          if (Platform.OS === 'android') {
+            try {
+              const { NativeModules } = require('react-native');
+              NativeModules.TelecomModule?.enterPipMode?.();
+            } catch (_) {}
+          }
+        }}
+        onToggleMute={() => WebRTCService.toggleMute()}
+        onToggleVideo={() => WebRTCService.toggleVideo()}
+        onToggleSpeaker={() => WebRTCService.toggleSpeaker()}
+      />
+    );
+  };
+
   if (isCheckingAuth) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: isDark ? '#000000' : '#FFFFFF' }}>
@@ -463,17 +485,7 @@ function AppMain() {
           )}
         </View>
 
-        {callSession && (
-          <CallModal
-            session={callSession}
-            onAcceptCall={() => WebRTCService.acceptCall()}
-            onEndCall={() => WebRTCService.endCall()}
-            onMinimize={() => WebRTCService.setMinimized(true)}
-            onToggleMute={() => WebRTCService.toggleMute()}
-            onToggleVideo={() => WebRTCService.toggleVideo()}
-            onToggleSpeaker={() => WebRTCService.toggleSpeaker()}
-          />
-        )}
+        {renderCallUI()}
       </View>
     );
   }
@@ -490,17 +502,7 @@ function AppMain() {
           onStartCall={(isVideo: boolean) => startCall(activeChatUser.phone, activeChatUser.name, isVideo)}
           onCall={(isVideo: boolean) => startCall(activeChatUser.phone, activeChatUser.name, isVideo)}
         />
-        {callSession && (
-          <CallModal
-            session={callSession}
-            onAcceptCall={() => WebRTCService.acceptCall()}
-            onEndCall={() => WebRTCService.endCall()}
-            onMinimize={() => WebRTCService.setMinimized(true)}
-            onToggleMute={() => WebRTCService.toggleMute()}
-            onToggleVideo={() => WebRTCService.toggleVideo()}
-            onToggleSpeaker={() => WebRTCService.toggleSpeaker()}
-          />
-        )}
+        {renderCallUI()}
       </RootWrapper>
     );
   }
@@ -514,17 +516,7 @@ function AppMain() {
         onStartCall={(phone, name, isVideo) => startCall(phone, name, isVideo)}
         onLogout={handleLogout}
       />
-      {callSession && (
-        <CallModal
-          session={callSession}
-          onAcceptCall={() => WebRTCService.acceptCall()}
-          onEndCall={() => WebRTCService.endCall()}
-          onMinimize={() => WebRTCService.setMinimized(true)}
-          onToggleMute={() => WebRTCService.toggleMute()}
-          onToggleVideo={() => WebRTCService.toggleVideo()}
-          onToggleSpeaker={() => WebRTCService.toggleSpeaker()}
-        />
-      )}
+      {renderCallUI()}
     </RootWrapper>
   );
 }
