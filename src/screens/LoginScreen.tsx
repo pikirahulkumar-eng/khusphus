@@ -10,6 +10,7 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
@@ -157,17 +158,11 @@ export default function LoginScreen({
       >
         {/* Brand Header */}
         <View style={styles.brandHero}>
-          <View
-            style={[
-              styles.logoBadge,
-              isDark && {
-                backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                borderColor: 'rgba(16, 185, 129, 0.3)',
-              },
-            ]}
-          >
-            <Ionicons name="radio" size={32} color={isDark ? '#10B981' : '#059669'} />
-          </View>
+          <Image
+            source={require('../../assets/icon.png')}
+            style={{ width: 68, height: 68, borderRadius: 18, marginBottom: 12 }}
+            resizeMode="contain"
+          />
           <Text style={[styles.brandTitle, isDark && { color: '#FFFFFF' }]}>Sunao</Text>
           <Text style={[styles.brandSubtitle, isDark && { color: '#94A3B8' }]}>
             Direct Calls & Instant Chats • 100% Private
