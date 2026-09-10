@@ -20,6 +20,9 @@ class MainActivity : ReactActivity() {
 
   companion object {
     @Volatile var isLockscreenCall = false
+    @Volatile var isVideoCallActive = false
+    @Volatile var isAppInForeground = false
+    @JvmStatic var instance: MainActivity? = null
   }
 
   private var pendingIncomingCallIntent: Intent? = null
@@ -49,6 +52,7 @@ class MainActivity : ReactActivity() {
     // This is required for expo-splash-screen.
     setTheme(R.style.AppTheme);
     super.onCreate(null)
+    instance = this
     // Temporarily disabled for screenshots during development/testing:
     // window.setFlags(
     //   android.view.WindowManager.LayoutParams.FLAG_SECURE,
@@ -100,6 +104,12 @@ class MainActivity : ReactActivity() {
 
   override fun onResume() {
     super.onResume()
+    isAppInForeground = true
+  }
+
+  override fun onPause() {
+    super.onPause()
+    isAppInForeground = false
   }
 
   override fun onDestroy() {
@@ -108,6 +118,8 @@ class MainActivity : ReactActivity() {
       unregisterReceiver(callEndedReceiver)
     } catch (e: Exception) {}
     isLockscreenCall = false
+    isAppInForeground = false
+    instance = null
   }
 
   /**
@@ -191,7 +203,7 @@ class MainActivity : ReactActivity() {
   override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
     super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
     android.util.Log.d("SYNKING_DEBUG", "MainActivity onPictureInPictureModeChanged: isInPictureInPictureMode=$isInPictureInPictureMode")
-    TelecomModule.emitPipModeChanged(isInPictureInPictureMode)
+    TelecomModule.emitPipChangeEvent(isInPictureInPictureMode)
   }
 
   private fun handleIncomingCallIntent(intent: Intent?) {
