@@ -57,6 +57,7 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
   const [pinLockEnabled, setPinLockEnabled] = useState(false);
   const [readReceipts, setReadReceipts] = useState(true);
   const [lastSeenAudience, setLastSeenAudience] = useState<'Everyone' | 'My Contacts' | 'Nobody'>('My Contacts');
+  const [photoPrivacy, setPhotoPrivacy] = useState<'Everyone' | 'My Contacts' | 'Nobody'>('Everyone');
   const [screenSecurity, setScreenSecurity] = useState(true);
 
   // Studio Settings
@@ -122,6 +123,7 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
     AsyncStorage.getItem('@sunao_pin_enabled').then((val) => { setPinLockEnabled(val === 'true'); });
     AsyncStorage.getItem('@sunao_read_receipts').then((val) => { if (val !== null) setReadReceipts(val === 'true'); });
     AsyncStorage.getItem('@sunao_last_seen').then((val) => { if (val) setLastSeenAudience(val as any); });
+    AsyncStorage.getItem('@sunao_photo_privacy').then((val) => { if (val) setPhotoPrivacy(val as any); });
     AsyncStorage.getItem('@sunao_screen_security').then((val) => { if (val !== null) setScreenSecurity(val === 'true'); });
 
     // Studio
@@ -233,6 +235,8 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
       await AsyncStorage.setItem('@sunao_user_avatar', selectedAvatarPreset);
     }
 
+    await AsyncStorage.setItem('@sunao_photo_privacy', photoPrivacy);
+
     // Sync to backend so other users see this avatar & name in chat & search
     try {
       const baseUrl = getBackendUrl();
@@ -244,6 +248,7 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
           name: finalName,
           avatarUri: finalAvatar,
           about: finalBio,
+          photoPrivacy: photoPrivacy,
         }),
       }).catch(() => {});
     } catch (_) {}
@@ -797,6 +802,36 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
                       }}
                     >
                       <Text style={[styles.pillOptionText, lastSeenAudience === aud && styles.pillOptionTextActive]}>
+                        {aud}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.activeSettingRowColumn}>
+                <Text style={styles.activeSettingTitle}>Who can see my Profile Photo</Text>
+                <View style={styles.pillGroupRow}>
+                  {(['Everyone', 'My Contacts', 'Nobody'] as const).map((aud) => (
+                    <TouchableOpacity
+                      key={aud}
+                      style={[styles.pillOption, photoPrivacy === aud && styles.pillOptionActive]}
+                      onPress={() => {
+                        setPhotoPrivacy(aud);
+                        AsyncStorage.setItem('@sunao_photo_privacy', aud);
+                        const baseUrl = getBackendUrl();
+                        fetch(`${baseUrl}/api/user/profile`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            phone: currentUserPhone,
+                            photoPrivacy: aud,
+                          }),
+                        }).catch(() => {});
+                        showToast(`Profile photo visibility: ${aud}`);
+                      }}
+                    >
+                      <Text style={[styles.pillOptionText, photoPrivacy === aud && styles.pillOptionTextActive]}>
                         {aud}
                       </Text>
                     </TouchableOpacity>
@@ -1482,6 +1517,51 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
                 placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
                 multiline
               />
+
+              {/* Profile Photo Visibility / Privacy Rules */}
+              <View style={styles.privacySection}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <Text style={[styles.inputMiniLabel, isDark && { color: '#64748B' }, { marginTop: 0 }]}>
+                    WHO CAN SEE MY PHOTO
+                  </Text>
+                  <Ionicons name="shield-checkmark" size={14} color="#10B981" />
+                </View>
+                <View style={styles.privacyOptionRow}>
+                  {(['Everyone', 'My Contacts', 'Nobody'] as const).map((opt) => (
+                    <TouchableOpacity
+                      key={opt}
+                      style={[
+                        styles.privacyPillBtn,
+                        photoPrivacy === opt && styles.privacyPillBtnActive,
+                        isDark && { backgroundColor: photoPrivacy === opt ? 'rgba(16, 185, 129, 0.2)' : '#0A0D12', borderColor: photoPrivacy === opt ? '#10B981' : 'rgba(255, 255, 255, 0.1)' }
+                      ]}
+                      onPress={() => setPhotoPrivacy(opt)}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons
+                        name={opt === 'Everyone' ? 'globe-outline' : opt === 'My Contacts' ? 'people-outline' : 'lock-closed-outline'}
+                        size={13}
+                        color={photoPrivacy === opt ? '#10B981' : (isDark ? '#94A3B8' : '#64748B')}
+                        style={{ marginRight: 4 }}
+                      />
+                      <Text
+                        style={[
+                          styles.privacyPillText,
+                          photoPrivacy === opt && styles.privacyPillTextActive,
+                          isDark && photoPrivacy !== opt && { color: '#94A3B8' }
+                        ]}
+                      >
+                        {opt}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <Text style={[styles.privacyHintText, isDark && { color: '#64748B' }]}>
+                  {photoPrivacy === 'Everyone' && '🌐 Everyone: Anyone on Sunao can see your photo'}
+                  {photoPrivacy === 'My Contacts' && '👥 My Contacts: Only people in your chats and saved contacts can see your photo'}
+                  {photoPrivacy === 'Nobody' && '🔒 Nobody: Hidden from everyone. Shows fallback initials'}
+                </Text>
+              </View>
             </ScrollView>
 
             <View style={styles.customStatusActions}>
@@ -2646,5 +2726,47 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#0F172A',
     marginTop: 4,
+  },
+  privacySection: {
+    marginTop: 16,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  privacyOptionRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+  privacyPillBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 9,
+    paddingHorizontal: 4,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+  },
+  privacyPillBtnActive: {
+    borderColor: '#10B981',
+    backgroundColor: '#ECFDF5',
+  },
+  privacyPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  privacyPillTextActive: {
+    color: '#047857',
+  },
+  privacyHintText: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 8,
+    fontStyle: 'italic',
+    lineHeight: 15,
   },
 });

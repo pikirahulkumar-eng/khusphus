@@ -184,9 +184,9 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-// Profile Update Endpoint — syncs profile picture (avatarUri), name, and about text
+// Profile Update Endpoint — syncs profile picture (avatarUri), name, about text, and photoPrivacy rule
 app.post('/api/user/profile', async (req, res) => {
-  const { phone, name, avatarUri, about } = req.body;
+  const { phone, name, avatarUri, about, photoPrivacy } = req.body;
   if (!phone) return res.status(400).json({ error: 'phone is required' });
   let cleanPhone = String(phone).trim().replace(/\D/g, '');
   if (cleanPhone.length > 10 && cleanPhone.startsWith('91')) cleanPhone = cleanPhone.slice(2);
@@ -195,16 +195,18 @@ app.post('/api/user/profile', async (req, res) => {
   try {
     try { await turso.execute('ALTER TABLE users ADD COLUMN avatarUri TEXT'); } catch (_) {}
     try { await turso.execute('ALTER TABLE users ADD COLUMN about TEXT'); } catch (_) {}
+    try { await turso.execute('ALTER TABLE users ADD COLUMN photoPrivacy TEXT'); } catch (_) {}
 
     await turso.execute({
       sql: `UPDATE users SET 
               name = COALESCE(?, name), 
               avatarUri = COALESCE(?, avatarUri), 
-              about = COALESCE(?, about) 
+              about = COALESCE(?, about),
+              photoPrivacy = COALESCE(?, photoPrivacy) 
             WHERE phone = ?`,
-      args: [name || null, avatarUri || null, about || null, cleanPhone]
+      args: [name || null, avatarUri || null, about || null, photoPrivacy || null, cleanPhone]
     });
-    console.log(`[USER_PROFILE_UPDATED] phone=${cleanPhone} avatar=${Boolean(avatarUri)}`);
+    console.log(`[USER_PROFILE_UPDATED] phone=${cleanPhone} avatar=${Boolean(avatarUri)} photoPrivacy=${photoPrivacy}`);
     res.json({ success: true });
   } catch (err) {
     console.error('[PROFILE_UPDATE_ERR]', err);
@@ -212,9 +214,9 @@ app.post('/api/user/profile', async (req, res) => {
   }
 });
 
-// Search API Endpoint — queries Khusphus DB for registered user by phone number
+// Search API Endpoint — queries Khusphus DB for registered user by phone number with privacy filter
 app.get('/api/search', async (req, res) => {
-  const { query } = req.query;
+  const { query, requesterPhone } = req.query;
   if (!query || !query.trim()) return res.json([]);
   let q = query.trim().replace(/\D/g, '');
   if (q.length > 10 && q.startsWith('91')) {
@@ -225,12 +227,15 @@ app.get('/api/search', async (req, res) => {
   }
   if (q.length < 10) return res.json([]);
 
+  let reqPhone = requesterPhone ? String(requesterPhone).replace(/\D/g, '').slice(-10) : '';
+
   try {
     try { await turso.execute('ALTER TABLE users ADD COLUMN avatarUri TEXT'); } catch (_) {}
     try { await turso.execute('ALTER TABLE users ADD COLUMN about TEXT'); } catch (_) {}
+    try { await turso.execute('ALTER TABLE users ADD COLUMN photoPrivacy TEXT'); } catch (_) {}
 
     const result = await turso.execute({
-      sql: `SELECT userId, phone, name, avatarUri, about 
+      sql: `SELECT userId, phone, name, avatarUri, about, photoPrivacy 
             FROM users 
             WHERE (phone = ? OR phone LIKE ?)
               AND phone NOT LIKE 'user_%' 
@@ -240,17 +245,33 @@ app.get('/api/search', async (req, res) => {
             LIMIT 5`,
       args: [q, `%${q}%`]
     });
-    res.json(result.rows);
+
+    const rows = (result.rows || []).map((row) => {
+      const privacy = (row.photoPrivacy || 'Everyone').toString().toLowerCase();
+      let visibleAvatar = row.avatarUri;
+      // Nobody: only the user themselves can see their avatar
+      if (privacy === 'nobody' && row.phone !== reqPhone) {
+        visibleAvatar = null;
+      }
+      return {
+        ...row,
+        avatarUri: visibleAvatar,
+        photoPrivacy: row.photoPrivacy || 'Everyone',
+      };
+    });
+
+    res.json(rows);
   } catch (error) {
     console.error('Search error:', error);
     res.json([]);
   }
 });
 
-// All Users Endpoint — loads real registered users from DB for chat list & live rail
+// All Users Endpoint — loads real registered users from DB with privacy enforcement
 app.get('/api/users', async (req, res) => {
-  const { excludePhone } = req.query;
+  const { excludePhone, requesterPhone } = req.query;
   let cleanExclude = excludePhone ? String(excludePhone).replace(/\D/g, '').slice(-10) : '';
+  let reqPhone = requesterPhone ? String(requesterPhone).replace(/\D/g, '').slice(-10) : cleanExclude;
   const dummyFilter = `
     AND phone NOT LIKE 'user_%' 
     AND phone NOT LIKE 'reg_%'
@@ -258,13 +279,32 @@ app.get('/api/users', async (req, res) => {
     AND phone NOT IN ('test_123', 'space_live_room')
   `;
   try {
+    try { await turso.execute('ALTER TABLE users ADD COLUMN avatarUri TEXT'); } catch (_) {}
+    try { await turso.execute('ALTER TABLE users ADD COLUMN about TEXT'); } catch (_) {}
+    try { await turso.execute('ALTER TABLE users ADD COLUMN photoPrivacy TEXT'); } catch (_) {}
+
     const result = await turso.execute({
       sql: cleanExclude 
-        ? `SELECT userId, phone, name, avatarUri, about FROM users WHERE phone != ? ${dummyFilter} ORDER BY registered_at DESC LIMIT 50`
-        : `SELECT userId, phone, name, avatarUri, about FROM users WHERE 1=1 ${dummyFilter} ORDER BY registered_at DESC LIMIT 50`,
+        ? `SELECT userId, phone, name, avatarUri, about, photoPrivacy FROM users WHERE phone != ? ${dummyFilter} ORDER BY registered_at DESC LIMIT 50`
+        : `SELECT userId, phone, name, avatarUri, about, photoPrivacy FROM users WHERE 1=1 ${dummyFilter} ORDER BY registered_at DESC LIMIT 50`,
       args: cleanExclude ? [cleanExclude] : []
     });
-    res.json(result.rows);
+
+    const rows = (result.rows || []).map((row) => {
+      const privacy = (row.photoPrivacy || 'Everyone').toString().toLowerCase();
+      let visibleAvatar = row.avatarUri;
+      // Nobody: only the user themselves can see their avatar
+      if (privacy === 'nobody' && row.phone !== reqPhone) {
+        visibleAvatar = null;
+      }
+      return {
+        ...row,
+        avatarUri: visibleAvatar,
+        photoPrivacy: row.photoPrivacy || 'Everyone',
+      };
+    });
+
+    res.json(rows);
   } catch (e) {
     console.error('Fetch users error:', e);
     res.status(500).json({ error: 'Failed to fetch users' });

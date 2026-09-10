@@ -164,32 +164,46 @@ export default function MainScreen({
       // Automatically sync real users from database so registered contacts appear instantly
       try {
         const baseUrl = getBackendUrl();
-        const res = await fetch(`${baseUrl}/api/users?excludePhone=${encodeURIComponent(currentUserPhone || '')}`);
+        const res = await fetch(`${baseUrl}/api/users?excludePhone=${encodeURIComponent(currentUserPhone || '')}&requesterPhone=${encodeURIComponent(currentUserPhone || '')}`);
         if (res.ok) {
-          const registeredUsers: Array<{ userId: string; phone: string; name: string }> = await res.json();
+          const registeredUsers: Array<{ userId: string; phone: string; name: string; avatarUri?: string; about?: string; photoPrivacy?: string }> = await res.json();
           if (isMounted && Array.isArray(registeredUsers)) {
             const validRegistered = registeredUsers.filter(
               (u) => u.phone && u.phone !== currentUserPhone && !isDummyContact(u)
             );
 
-            // Populate contacts list for New Chat Modal
+            // Populate contacts list for New Chat Modal with avatars
             setContactsList(
               validRegistered.map((u) => ({
                 phone: u.phone,
                 name: u.name || u.phone,
-                about: 'Available on Sunao 🚀',
+                about: u.about || 'Available on Sunao 🚀',
+                avatarUri: u.avatarUri,
               }))
             );
 
-            // Update contact names on existing active chats if name was updated, and purge dummy contacts
+            // Update contact names and avatars on existing active chats respecting privacy rules
             setChats((prev) => {
               const cleaned = prev.filter((c) => !isDummyContact(c));
               let changed = cleaned.length !== prev.length;
               const updated = cleaned.map((c) => {
                 const found = validRegistered.find((u) => u.phone === c.phone);
-                if (found && found.name && found.name !== c.name) {
-                  changed = true;
-                  return { ...c, name: found.name };
+                if (found) {
+                  let itemChanged = false;
+                  let newName = c.name;
+                  let newAvatar = c.avatarUri;
+                  if (found.name && found.name !== c.name) {
+                    newName = found.name;
+                    itemChanged = true;
+                  }
+                  if (found.avatarUri !== undefined && found.avatarUri !== c.avatarUri) {
+                    newAvatar = found.avatarUri;
+                    itemChanged = true;
+                  }
+                  if (itemChanged) {
+                    changed = true;
+                    return { ...c, name: newName, avatarUri: newAvatar };
+                  }
                 }
                 return c;
               });
