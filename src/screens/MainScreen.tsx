@@ -161,6 +161,20 @@ export default function MainScreen({
         setChats(cleanStored);
       }
 
+      // 🌟 Immediate Cloud Auto-Restore (Direct from Turso without waiting for /api/users)
+      ChatStorageService.restoreCloudChats(currentUserPhone).then((cloudChats) => {
+        if (isMounted && Array.isArray(cloudChats) && cloudChats.length > 0) {
+          setChats((prev) => {
+            if (prev.length === 0) return cloudChats;
+            const prevMap = new Map(prev.map((c) => [normalizePhone(c.phone), c]));
+            return cloudChats.map((cc) => {
+              const local = prevMap.get(normalizePhone(cc.phone));
+              return local ? { ...cc, ...local, name: cc.name || local.name, avatarUri: cc.avatarUri || local.avatarUri } : cc;
+            });
+          });
+        }
+      }).catch(() => {});
+
       // Automatically sync real users from database so registered contacts appear instantly
       try {
         const baseUrl = getBackendUrl();

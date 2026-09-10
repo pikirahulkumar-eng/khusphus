@@ -240,7 +240,7 @@ export const ChatStorageService = {
 
       // 1. Fetch all cloud messages involving this user from Turso
       const rows = await queryTurso(
-        'SELECT id, thread_id, sender_phone, receiver_phone, text, type, media_url, duration, status, created_at FROM messages WHERE sender_phone = ? OR receiver_phone = ? ORDER BY created_at ASC',
+        "SELECT id, thread_id, sender_phone, receiver_phone, text, type, media_url, duration, status, created_at FROM messages WHERE sender_phone LIKE '%' || ? OR receiver_phone LIKE '%' || ? ORDER BY created_at ASC",
         [cleanMe, cleanMe]
       );
 
@@ -316,6 +316,9 @@ export const ChatStorageService = {
       const result = Array.from(chatItemsMap.values());
       const key = getRecentKey(myPhone);
       await AsyncStorage.setItem(key, JSON.stringify(result));
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(key, JSON.stringify(result));
+      }
       return result;
     } catch (e) {
       console.warn('[RESTORE_CLOUD_CHATS_ERR]', e);
