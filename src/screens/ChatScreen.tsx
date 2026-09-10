@@ -673,8 +673,14 @@ export default function ChatScreen({
       'sent'
     );
 
-    // Emit live to peer via Socket.IO
+    // Persist to Turso Cloud DB for 0ms cross-device sync (Web, Desktop, Mobile)
+    ChatStorageService.saveMessageToCloud(newMsg).catch(() => {});
+
+    // Emit live to peer via Socket.IO AND to own other devices (Web, Desktop, Mobile)
     RealtimeBridge.sendChatMessage(contactPhone, newMsg);
+    if (currentUserPhone && currentUserPhone !== contactPhone) {
+      RealtimeBridge.sendChatMessage(currentUserPhone, newMsg);
+    }
 
     setTimeout(() => {
       flatListRef.current?.scrollToEnd({ animated: true });
@@ -828,7 +834,13 @@ export default function ChatScreen({
         'sent'
       );
 
+      // Persist to Turso Cloud DB for 0ms cross-device sync (Web, Desktop, Mobile)
+      ChatStorageService.saveMessageToCloud(newVoiceMsg).catch(() => {});
+
       RealtimeBridge.sendChatMessage(contactPhone, newVoiceMsg);
+      if (currentUserPhone && currentUserPhone !== contactPhone) {
+        RealtimeBridge.sendChatMessage(currentUserPhone, newVoiceMsg);
+      }
 
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });

@@ -354,6 +354,35 @@ export const ChatStorageService = {
     }
   },
 
+  /**
+   * Persist a sent or received message directly to Turso Cloud DB for 0ms cross-device sync
+   */
+  async saveMessageToCloud(message: LocalMessage): Promise<void> {
+    try {
+      const cleanSender = normalizePhone(message.senderId);
+      const cleanReceiver = normalizePhone(message.receiverId);
+      if (!cleanSender || !cleanReceiver) return;
+      const threadId = [cleanSender, cleanReceiver].sort().join('_');
+      await queryTurso(
+        'INSERT OR REPLACE INTO messages (id, thread_id, sender_phone, receiver_phone, text, type, media_url, duration, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [
+          message.id,
+          threadId,
+          cleanSender,
+          cleanReceiver,
+          message.text || '',
+          message.type || 'text',
+          message.audioUrl || null,
+          message.duration || null,
+          message.status || 'sent',
+          String(message.timestamp || Date.now()),
+        ]
+      );
+    } catch (e) {
+      console.warn('[SAVE_TO_CLOUD_ERR]', e);
+    }
+  },
+
   async updateMessage(myPhone: string, contactPhone: string, messageId: string, updates: Partial<LocalMessage>): Promise<LocalMessage[]> {
     try {
       const current = await this.getMessages(myPhone, contactPhone);
