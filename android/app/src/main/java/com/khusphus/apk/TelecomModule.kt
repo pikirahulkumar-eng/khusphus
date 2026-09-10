@@ -1,4 +1,4 @@
-﻿package com.khusphus.apk
+package com.khusphus.apk
 
 import android.app.Activity
 import android.app.NotificationManager
@@ -324,10 +324,51 @@ class TelecomModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
                 .putString("current_user_id", userId)
                 .putString("current_user_name", userName)
                 .apply()
+
+            // Check if there was a pending token stored by onNewToken
+            val pendingToken = prefs.getString("pending_fcm_token", null)
+            if (!pendingToken.isNullOrEmpty()) {
+                saveFcmTokenToServer(userId, pendingToken)
+            }
+
+            // Immediately fetch current native FCM token directly from Firebase Messaging
+            try {
+                com.google.firebase.messaging.FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                    if (task.isSuccessful && !task.result.isNullOrEmpty()) {
+                        val token = task.result
+                        saveFcmTokenToServer(userId, token)
+                    }
+                }
+            } catch (fe: Exception) {
+                Log.w("SYNKING_TELECOM", "FirebaseMessaging token fetch failed: ${fe.message}")
+            }
+
             promise.resolve(true)
         } catch (e: Exception) {
             promise.resolve(false)
         }
+    }
+
+    private fun saveFcmTokenToServer(userId: String, fcmToken: String) {
+        Thread {
+            try {
+                val url = java.net.URL("https://p01--sunao-server--njm6yd7449gk.code.run/api/profiles/push-token")
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.doOutput = true
+                conn.connectTimeout = 10000
+                conn.readTimeout = 10000
+
+                val body = """{"userId":"$userId","fcmPushToken":"$fcmToken"}"""
+                conn.outputStream.write(body.toByteArray())
+                val code = conn.responseCode
+                Log.d("SYNKING_TELECOM", "Native FCM token sync to server: code=$code userId=$userId")
+                conn.disconnect()
+            } catch (e: Exception) {
+                Log.e("SYNKING_TELECOM", "Native FCM token sync error: ${e.message}")
+            }
+        }.start()
     }
 
     @ReactMethod

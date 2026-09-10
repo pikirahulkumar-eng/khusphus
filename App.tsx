@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Platform, ActivityIndicator, useWindowDimensions, StyleSheet, BackHandler, DeviceEventEmitter } from 'react-native';
+import { View, Text, Platform, ActivityIndicator, useWindowDimensions, StyleSheet, BackHandler, DeviceEventEmitter, NativeModules } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import LoginScreen from './src/screens/LoginScreen';
@@ -242,6 +242,10 @@ function AppMain() {
           NotificationService.initialize().catch(() => {});
           NotificationService.registerForPushNotificationsAsync(registerId, activePhone).catch(() => {});
 
+          if (Platform.OS === 'android' && NativeModules.TelecomModule?.setCurrentUser) {
+            NativeModules.TelecomModule.setCurrentUser(activePhone, activeName).catch(() => {});
+          }
+
           // Background sync to backend users database so profile is active and searchable
           const serverUrl = getBackendUrl();
           E2eeKeyManager.getOrGenerateKeyPair().then((keys) => {
@@ -382,6 +386,10 @@ function AppMain() {
       // Register push notifications & native FCM token for background / dead-state wakeup
       NotificationService.initialize().catch(() => {});
       NotificationService.registerForPushNotificationsAsync(userId, cleanPhone).catch(() => {});
+
+      if (Platform.OS === 'android' && NativeModules.TelecomModule?.setCurrentUser) {
+        NativeModules.TelecomModule.setCurrentUser(cleanPhone, cleanName).catch(() => {});
+      }
 
       // Register user profile on server so they are searchable from any device
       const serverUrl = getBackendUrl();
