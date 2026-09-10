@@ -15,8 +15,10 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../contexts/ThemeContext';
+import { getBackendUrl } from '../../services/firebase';
 
 interface ProfileTabProps {
   currentUserPhone: string;
@@ -162,26 +164,92 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
     showToast('Status cleared');
   };
 
+  const handlePickFromGallery = async () => {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        showToast('Gallery access permission required');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const pickedUri = result.assets[0].uri;
+        setSelectedAvatarPreset(pickedUri);
+        showToast('Photo selected! Tap Save to apply.');
+      }
+    } catch (err) {
+      console.warn('[GALLERY_PICK_ERR]', err);
+      showToast('Could not open gallery');
+    }
+  };
+
+  const handleTakePhoto = async () => {
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        showToast('Camera permission required');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const capturedUri = result.assets[0].uri;
+        setSelectedAvatarPreset(capturedUri);
+        showToast('Photo captured! Tap Save to apply.');
+      }
+    } catch (err) {
+      console.warn('[CAMERA_PICK_ERR]', err);
+      showToast('Could not open camera');
+    }
+  };
+
   const handleSaveProfile = async () => {
-    if (editNameInput.trim()) {
-      setUserName(editNameInput.trim());
-      await AsyncStorage.setItem('@sunao_user_name', editNameInput.trim());
-    }
-    if (editHandleInput.trim()) {
-      const handle = editHandleInput.trim().startsWith('@') ? editHandleInput.trim() : `@${editHandleInput.trim()}`;
-      setUserHandle(handle);
-      await AsyncStorage.setItem('@sunao_user_handle', handle);
-    }
-    if (editBioInput.trim()) {
-      setUserBio(editBioInput.trim());
-      await AsyncStorage.setItem('@sunao_user_bio', editBioInput.trim());
-    }
+    const finalName = editNameInput.trim() || userName;
+    const finalHandle = editHandleInput.trim()
+      ? (editHandleInput.trim().startsWith('@') ? editHandleInput.trim() : `@${editHandleInput.trim()}`)
+      : userHandle;
+    const finalBio = editBioInput.trim() || userBio;
+    const finalAvatar = selectedAvatarPreset || avatarUri;
+
+    setUserName(finalName);
+    await AsyncStorage.setItem('@sunao_user_name', finalName);
+
+    setUserHandle(finalHandle);
+    await AsyncStorage.setItem('@sunao_user_handle', finalHandle);
+
+    setUserBio(finalBio);
+    await AsyncStorage.setItem('@sunao_user_bio', finalBio);
+
     if (selectedAvatarPreset) {
       setAvatarUri(selectedAvatarPreset);
       await AsyncStorage.setItem('@sunao_user_avatar', selectedAvatarPreset);
     }
+
+    // Sync to backend so other users see this avatar & name in chat & search
+    try {
+      const baseUrl = getBackendUrl();
+      fetch(`${baseUrl}/api/user/profile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: currentUserPhone,
+          name: finalName,
+          avatarUri: finalAvatar,
+          about: finalBio,
+        }),
+      }).catch(() => {});
+    } catch (_) {}
+
     setShowEditProfileModal(false);
-    showToast('Profile updated successfully!');
+    showToast('Profile & picture updated! 📸');
   };
 
   const moods = [
@@ -1289,6 +1357,150 @@ export default function ProfileTab({ currentUserPhone, currentUserName, onLogout
           </View>
         </Pressable>
       </Modal>
+
+      {/* 10. Edit Profile Modal with Full Photo Upload */}
+      <Modal
+        visible={showEditProfileModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowEditProfileModal(false)}
+      >
+        <Pressable
+          style={[styles.modalOverlay, isDark && { backgroundColor: 'rgba(0, 0, 0, 0.85)' }]}
+          onPress={() => setShowEditProfileModal(false)}
+        >
+          <Pressable
+            style={[styles.editProfileCard, oledCardStyle, isDark && { borderWidth: 1 }]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.modalHeaderRow}>
+              <Text style={[styles.modalHeaderTitle, isDark && { color: '#FFFFFF' }]}>Edit Profile</Text>
+              <TouchableOpacity onPress={() => setShowEditProfileModal(false)}>
+                <Ionicons name="close" size={22} color={isDark ? '#94A3B8' : '#64748B'} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 480 }}>
+              {/* Profile Photo Preview & Action Buttons */}
+              <View style={styles.editAvatarSection}>
+                <View style={styles.editAvatarContainer}>
+                  <Image
+                    source={{ uri: selectedAvatarPreset || avatarUri }}
+                    style={styles.editAvatarLarge}
+                  />
+                  <TouchableOpacity
+                    style={styles.editAvatarFloatingBtn}
+                    onPress={handlePickFromGallery}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="camera" size={16} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Photo Action Buttons: Gallery, Camera, Remove */}
+                <View style={styles.photoActionButtonsRow}>
+                  <TouchableOpacity
+                    style={[styles.photoActionBtn, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5', borderColor: '#10B981' }]}
+                    onPress={handlePickFromGallery}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="images" size={16} color="#10B981" style={{ marginRight: 6 }} />
+                    <Text style={[styles.photoActionBtnText, { color: '#10B981' }]}>Gallery</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.photoActionBtn, { backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#F0F9FF', borderColor: '#38BDF8' }]}
+                    onPress={handleTakePhoto}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="camera" size={16} color={isDark ? '#38BDF8' : '#0284C7'} style={{ marginRight: 6 }} />
+                    <Text style={[styles.photoActionBtnText, { color: isDark ? '#38BDF8' : '#0284C7' }]}>Camera</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.photoActionBtn, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2', borderColor: '#FECDD3' }]}
+                    onPress={() => {
+                      setSelectedAvatarPreset(AVATAR_PRESETS[0]);
+                      showToast('Default photo restored');
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="trash-outline" size={15} color="#EF4444" style={{ marginRight: 4 }} />
+                    <Text style={[styles.photoActionBtnText, { color: '#EF4444' }]}>Remove</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Avatar Presets Selection */}
+              <Text style={[styles.inputMiniLabel, { marginTop: 16 }, isDark && { color: '#64748B' }]}>OR CHOOSE AVATAR PRESET</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 8 }}>
+                {AVATAR_PRESETS.map((preset, idx) => (
+                  <TouchableOpacity
+                    key={idx}
+                    style={[
+                      styles.presetThumbWrapper,
+                      selectedAvatarPreset === preset && styles.presetThumbActive,
+                    ]}
+                    onPress={() => setSelectedAvatarPreset(preset)}
+                  >
+                    <Image source={{ uri: preset }} style={styles.presetThumbImg} />
+                    {selectedAvatarPreset === preset && (
+                      <View style={styles.presetCheckmarkBadge}>
+                        <Ionicons name="checkmark" size={12} color="#FFFFFF" />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              {/* Form Fields: Name, Handle, About */}
+              <Text style={[styles.inputMiniLabel, { marginTop: 14 }, isDark && { color: '#64748B' }]}>DISPLAY NAME</Text>
+              <TextInput
+                style={[styles.editTextInput, isDark && { backgroundColor: '#0A0D12', color: '#FFFFFF', borderColor: 'rgba(255, 255, 255, 0.12)' }]}
+                value={editNameInput}
+                onChangeText={setEditNameInput}
+                placeholder="Enter your name"
+                placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
+              />
+
+              <Text style={[styles.inputMiniLabel, { marginTop: 12 }, isDark && { color: '#64748B' }]}>SUNAO HANDLE</Text>
+              <TextInput
+                style={[styles.editTextInput, isDark && { backgroundColor: '#0A0D12', color: '#FFFFFF', borderColor: 'rgba(255, 255, 255, 0.12)' }]}
+                value={editHandleInput}
+                onChangeText={setEditHandleInput}
+                placeholder="@username"
+                placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
+                autoCapitalize="none"
+              />
+
+              <Text style={[styles.inputMiniLabel, { marginTop: 12 }, isDark && { color: '#64748B' }]}>ABOUT / STATUS BIO</Text>
+              <TextInput
+                style={[styles.editTextInput, { height: 72, textAlignVertical: 'top' }, isDark && { backgroundColor: '#0A0D12', color: '#FFFFFF', borderColor: 'rgba(255, 255, 255, 0.12)' }]}
+                value={editBioInput}
+                onChangeText={setEditBioInput}
+                placeholder="Write something about yourself..."
+                placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
+                multiline
+              />
+            </ScrollView>
+
+            <View style={styles.customStatusActions}>
+              <TouchableOpacity
+                style={[styles.cancelStatusBtn, isDark && { backgroundColor: '#0A0D12', borderColor: 'rgba(255, 255, 255, 0.08)' }]}
+                onPress={() => setShowEditProfileModal(false)}
+              >
+                <Text style={[styles.cancelStatusBtnText, isDark && { color: '#94A3B8' }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.saveStatusBtn}
+                onPress={handleSaveProfile}
+              >
+                <Text style={styles.saveStatusBtnText}>Save Profile</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScrollView>
   );
 }
@@ -1740,13 +1952,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#A7F3D0',
-  },
-  editProfileCard: {
-    backgroundColor: '#FFFFFF',
-    width: '100%',
-    maxWidth: 400,
-    borderRadius: 22,
-    padding: 20,
   },
   avatarPresetOption: {
     padding: 2,
@@ -2337,5 +2542,109 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#0F172A',
+  },
+  editProfileCard: {
+    width: '92%',
+    maxWidth: 420,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 20,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+  },
+  editAvatarSection: {
+    alignItems: 'center',
+    marginVertical: 12,
+  },
+  editAvatarContainer: {
+    position: 'relative',
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+  },
+  editAvatarLarge: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+  },
+  editAvatarFloatingBtn: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#10B981',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoActionButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 10,
+    marginTop: 14,
+    width: '100%',
+  },
+  photoActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  photoActionBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  presetThumbWrapper: {
+    marginRight: 10,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    padding: 2,
+    position: 'relative',
+  },
+  presetThumbActive: {
+    borderColor: '#10B981',
+  },
+  presetThumbImg: {
+    width: 50,
+    height: 50,
+    borderRadius: 14,
+  },
+  presetCheckmarkBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#10B981',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  editTextInput: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#0F172A',
+    marginTop: 4,
   },
 });

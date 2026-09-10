@@ -303,6 +303,26 @@ class VoiceRecordingService {
     this.activePlaybackUrl = null;
   }
 
+  public setPlaybackRate(rate: number): void {
+    if (this.currentSound) {
+      try {
+        if (Platform.OS === 'web') {
+          this.currentSound.playbackRate = rate;
+        } else {
+          if ('playbackRate' in this.currentSound) {
+            this.currentSound.playbackRate = rate;
+          } else if (typeof this.currentSound.setPlaybackRate === 'function') {
+            this.currentSound.setPlaybackRate(rate);
+          } else if (typeof this.currentSound.setRateAsync === 'function') {
+            this.currentSound.setRateAsync(rate, true);
+          }
+        }
+      } catch (e) {
+        console.warn('[VOICE] setPlaybackRate exception:', e);
+      }
+    }
+  }
+
   public getActiveAudioUrl(): string | null {
     return this.activePlaybackUrl;
   }

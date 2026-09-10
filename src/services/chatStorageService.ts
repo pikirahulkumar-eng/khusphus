@@ -24,6 +24,7 @@ export interface LocalMessage {
   isEdited?: boolean;
   isDeleted?: boolean;
   isStarred?: boolean;
+  isForwarded?: boolean;
 }
 
 export const getChatKey = (myPhone: string, contactPhone: string) => {

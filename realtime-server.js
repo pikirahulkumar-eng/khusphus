@@ -184,6 +184,34 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
+// Profile Update Endpoint — syncs profile picture (avatarUri), name, and about text
+app.post('/api/user/profile', async (req, res) => {
+  const { phone, name, avatarUri, about } = req.body;
+  if (!phone) return res.status(400).json({ error: 'phone is required' });
+  let cleanPhone = String(phone).trim().replace(/\D/g, '');
+  if (cleanPhone.length > 10 && cleanPhone.startsWith('91')) cleanPhone = cleanPhone.slice(2);
+  if (cleanPhone.length > 10) cleanPhone = cleanPhone.slice(-10);
+
+  try {
+    try { await turso.execute('ALTER TABLE users ADD COLUMN avatarUri TEXT'); } catch (_) {}
+    try { await turso.execute('ALTER TABLE users ADD COLUMN about TEXT'); } catch (_) {}
+
+    await turso.execute({
+      sql: `UPDATE users SET 
+              name = COALESCE(?, name), 
+              avatarUri = COALESCE(?, avatarUri), 
+              about = COALESCE(?, about) 
+            WHERE phone = ?`,
+      args: [name || null, avatarUri || null, about || null, cleanPhone]
+    });
+    console.log(`[USER_PROFILE_UPDATED] phone=${cleanPhone} avatar=${Boolean(avatarUri)}`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[PROFILE_UPDATE_ERR]', err);
+    res.status(500).json({ error: 'Profile update failed' });
+  }
+});
+
 // Search API Endpoint — queries Khusphus DB for registered user by phone number
 app.get('/api/search', async (req, res) => {
   const { query } = req.query;
@@ -198,8 +226,11 @@ app.get('/api/search', async (req, res) => {
   if (q.length < 10) return res.json([]);
 
   try {
+    try { await turso.execute('ALTER TABLE users ADD COLUMN avatarUri TEXT'); } catch (_) {}
+    try { await turso.execute('ALTER TABLE users ADD COLUMN about TEXT'); } catch (_) {}
+
     const result = await turso.execute({
-      sql: `SELECT userId, phone, name 
+      sql: `SELECT userId, phone, name, avatarUri, about 
             FROM users 
             WHERE (phone = ? OR phone LIKE ?)
               AND phone NOT LIKE 'user_%' 
@@ -229,8 +260,8 @@ app.get('/api/users', async (req, res) => {
   try {
     const result = await turso.execute({
       sql: cleanExclude 
-        ? `SELECT userId, phone, name FROM users WHERE phone != ? ${dummyFilter} ORDER BY registered_at DESC LIMIT 50`
-        : `SELECT userId, phone, name FROM users WHERE 1=1 ${dummyFilter} ORDER BY registered_at DESC LIMIT 50`,
+        ? `SELECT userId, phone, name, avatarUri, about FROM users WHERE phone != ? ${dummyFilter} ORDER BY registered_at DESC LIMIT 50`
+        : `SELECT userId, phone, name, avatarUri, about FROM users WHERE 1=1 ${dummyFilter} ORDER BY registered_at DESC LIMIT 50`,
       args: cleanExclude ? [cleanExclude] : []
     });
     res.json(result.rows);

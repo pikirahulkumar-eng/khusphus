@@ -23,6 +23,7 @@ export default function VoiceNoteBubble({
 }: VoiceNoteBubbleProps) {
   const { isDark } = useTheme();
   const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
 
   useEffect(() => {
     const active = VoiceService.getActiveAudioUrl();
@@ -30,6 +31,13 @@ export default function VoiceNoteBubble({
       setIsPlaying(true);
     }
   }, [audioUrl]);
+
+  const cycleSpeed = (e: any) => {
+    e?.stopPropagation?.();
+    const nextSpeed = playbackSpeed === 1 ? 1.5 : playbackSpeed === 1.5 ? 2 : 1;
+    setPlaybackSpeed(nextSpeed);
+    VoiceService.setPlaybackRate(nextSpeed);
+  };
 
   const togglePlay = async () => {
     if (!audioUrl) return;
@@ -42,6 +50,7 @@ export default function VoiceNoteBubble({
       await VoiceService.playAudio(audioUrl, (playing) => {
         setIsPlaying(playing);
       });
+      VoiceService.setPlaybackRate(playbackSpeed);
     }
   };
 
@@ -109,17 +118,39 @@ export default function VoiceNoteBubble({
         </View>
       </View>
 
-      {/* Meta Row: Duration + Timestamp + Blue Tick */}
+      {/* Meta Row: Duration + Speed Multiplier + Timestamp + Blue Tick */}
       <View style={styles.metaRow}>
-        <Text
-          style={[
-            styles.durationText,
-            isMe ? styles.durationMe : styles.durationThem,
-            !isMe && isDark && { color: '#94A3B8' },
-          ]}
-        >
-          {isPlaying ? 'Playing...' : duration}
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Text
+            style={[
+              styles.durationText,
+              isMe ? styles.durationMe : styles.durationThem,
+              !isMe && isDark && { color: '#94A3B8' },
+            ]}
+          >
+            {isPlaying ? 'Playing...' : duration}
+          </Text>
+
+          <TouchableOpacity
+            style={[
+              styles.speedBadge,
+              isMe ? styles.speedBadgeMe : styles.speedBadgeThem,
+              !isMe && isDark && { backgroundColor: 'rgba(255, 255, 255, 0.12)', borderColor: 'rgba(255, 255, 255, 0.15)' },
+            ]}
+            onPress={cycleSpeed}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            activeOpacity={0.7}
+          >
+            <Text
+              style={[
+                styles.speedBadgeText,
+                isMe ? { color: '#FFFFFF' } : isDark ? { color: '#10B981' } : { color: '#059669' },
+              ]}
+            >
+              {playbackSpeed}x
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.timeAndTick}>
           <Text style={[styles.timeText, isMe && { color: 'rgba(255, 255, 255, 0.75)' }]}>{time}</Text>
@@ -236,5 +267,24 @@ const styles = StyleSheet.create({
   timeText: {
     fontSize: 11,
     color: '#94A3B8',
+  },
+  speedBadge: {
+    marginLeft: 7,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  speedBadgeMe: {
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    borderColor: 'rgba(255, 255, 255, 0.35)',
+  },
+  speedBadgeThem: {
+    backgroundColor: '#F1F5F9',
+    borderColor: '#CBD5E1',
+  },
+  speedBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
   },
 });
