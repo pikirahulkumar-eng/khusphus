@@ -442,7 +442,9 @@ export default function ChatScreen({
           const targetMsgId = event.payload.messageId;
           setMessages((prev) =>
             prev.map((m) => {
-              const isMyMsg = m.sender === 'me' || m.senderId === currentUserPhone;
+              const cleanMe = String(currentUserPhone || '').replace(/\D/g, '').slice(-10);
+              const senderClean = String(m.senderId || '').replace(/\D/g, '').slice(-10);
+              const isMyMsg = m.sender === 'me' || m.senderId === currentUserPhone || (Boolean(cleanMe && senderClean) && cleanMe === senderClean);
               if (isMyMsg && (targetMsgId ? m.id === targetMsgId : true)) {
                 return { ...m, status: 'read' };
               }
@@ -1049,7 +1051,11 @@ export default function ChatScreen({
             )
           }
           renderItem={({ item }) => {
-            const isMe = item.senderId === currentUserPhone || (item.sender === 'me' && (!item.senderId || item.senderId === currentUserPhone));
+            const cleanMe = String(currentUserPhone || '').replace(/\D/g, '').slice(-10);
+            const cleanSender = String(item.senderId || '').replace(/\D/g, '').slice(-10);
+            const isMe = (Boolean(cleanMe && cleanSender) && cleanMe === cleanSender) ||
+                         item.sender === 'me' ||
+                         item.senderId === currentUserPhone;
             return (
               <SwipeableMessageRow
                 key={item.id}
@@ -1090,7 +1096,7 @@ export default function ChatScreen({
                         {item.replyTo && (
                           <View style={[styles.quotedBubble, isMe ? styles.quotedBubbleMe : styles.quotedBubbleThem]}>
                             <Text style={[styles.quotedSenderName, isMe ? { color: '#A7F3D0' } : { color: '#059669' }]} numberOfLines={1}>
-                              {item.replyTo.senderId === currentUserPhone ? 'You' : contactName}
+                              {(cleanMe && String(item.replyTo.senderId || '').replace(/\D/g, '').slice(-10) === cleanMe) || item.replyTo.senderId === currentUserPhone ? 'You' : contactName}
                             </Text>
                             <Text style={[styles.quotedSnippetText, isMe ? { color: 'rgba(255, 255, 255, 0.85)' } : { color: '#64748B' }]} numberOfLines={1}>
                               {item.replyTo.text}
@@ -1623,10 +1629,14 @@ export default function ChatScreen({
                 )}
 
                 {/* Edit (Me only, within 15 mins, not deleted, text only) */}
-                {(selectedMessage.senderId === currentUserPhone || selectedMessage.sender === 'me') &&
+                {Boolean(
+                  (selectedMessage.senderId === currentUserPhone ||
+                   selectedMessage.sender === 'me' ||
+                   (String(currentUserPhone || '').replace(/\D/g, '').slice(-10) === String(selectedMessage.senderId || '').replace(/\D/g, '').slice(-10))) &&
                   !selectedMessage.isDeleted &&
                   selectedMessage.type !== 'voice' &&
-                  Date.now() - (selectedMessage.timestamp || 0) < 15 * 60 * 1000 && (
+                  Date.now() - (selectedMessage.timestamp || 0) < 15 * 60 * 1000
+                ) && (
                     <TouchableOpacity style={styles.actionMenuItem} onPress={handleStartEdit}>
                       <Ionicons name="pencil-outline" size={19} color={isDark ? '#10B981' : '#059669'} />
                       <Text style={[styles.actionMenuText, isDark && { color: '#FFFFFF' }]}>Edit (15m)</Text>
@@ -1642,8 +1652,12 @@ export default function ChatScreen({
                 </TouchableOpacity>
 
                 {/* Delete for everyone (Me only, not already deleted) */}
-                {(selectedMessage.senderId === currentUserPhone || selectedMessage.sender === 'me') &&
-                  !selectedMessage.isDeleted && (
+                {Boolean(
+                  (selectedMessage.senderId === currentUserPhone ||
+                   selectedMessage.sender === 'me' ||
+                   (String(currentUserPhone || '').replace(/\D/g, '').slice(-10) === String(selectedMessage.senderId || '').replace(/\D/g, '').slice(-10))) &&
+                  !selectedMessage.isDeleted
+                ) && (
                     <TouchableOpacity style={styles.actionMenuItem} onPress={handleDeleteForEveryone}>
                       <Ionicons name="trash-bin-outline" size={19} color="#EF4444" />
                       <Text style={[styles.actionMenuText, { color: '#EF4444' }]}>Delete for everyone</Text>

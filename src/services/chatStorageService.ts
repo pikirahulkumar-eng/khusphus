@@ -27,8 +27,14 @@ export interface LocalMessage {
   isForwarded?: boolean;
 }
 
+export const normalizePhone = (p?: string): string => {
+  return String(p || '').replace(/\D/g, '').slice(-10);
+};
+
 export const getChatKey = (myPhone: string, contactPhone: string) => {
-  return `@sunao_msgs_${myPhone}_${contactPhone}`;
+  const cleanMe = normalizePhone(myPhone);
+  const cleanContact = normalizePhone(contactPhone);
+  return `@sunao_msgs_${cleanMe}_${cleanContact}`;
 };
 
 const DUMMY_PHONES = new Set(['test_123', 'space_live_room']);
@@ -46,7 +52,7 @@ export const isDummyContact = (c: any): boolean => {
   return false;
 };
 
-export const getRecentKey = (phone: string) => `@sunao_recent_${phone}`;
+export const getRecentKey = (phone: string) => `@sunao_recent_${normalizePhone(phone) || phone}`;
 
 const TURSO_PIPELINE_URL = 'https://khusphus-khusphus.turso.io/v2/pipeline';
 const TURSO_TOKEN = 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODg4OTA3MDIsImlkIjoiMDFhMDU1ZTMtYTMwMS03MzhhLTg3YjQtZGIyOWM0NTA5YzQxIiwia2lkIjoiYXV1RnlEbnFzdkV1Tnp6YzVsb2ltN2dJQTNvcExiSHlJa29UR3VfM2dPQSIsInJpZCI6Ijg4YTVhZWZlLWU0ZmQtNDZkMy05MGY0LWFmNDRiMmU3NmI2MyJ9.33neAHtCPg_xcyapPdZASKNHKsEUadkXMiCKpqKqJHUApAkgaQKkZSlxrI1JPAV6Q6StRz9e1YJUwV3t8E4MCA';
@@ -112,12 +118,21 @@ export const ChatStorageService = {
    */
   async getMessages(myPhone: string, contactPhone: string): Promise<LocalMessage[]> {
     try {
+      const cleanMe = normalizePhone(myPhone);
+      const cleanContact = normalizePhone(contactPhone);
       const key = getChatKey(myPhone, contactPhone);
       let raw = await AsyncStorage.getItem(key);
+      if (!raw && (cleanMe !== myPhone || cleanContact !== contactPhone)) {
+        raw = await AsyncStorage.getItem(`@sunao_msgs_${myPhone}_${contactPhone}`);
+      }
       if (!raw) {
         // Legacy fallback to shared thread
         const [first, second] = [myPhone, contactPhone].sort();
         raw = await AsyncStorage.getItem(`@sunao_msgs_${first}_${second}`);
+      }
+      if (!raw && (cleanMe || cleanContact)) {
+        const [firstClean, secondClean] = [cleanMe, cleanContact].sort();
+        raw = await AsyncStorage.getItem(`@sunao_msgs_${firstClean}_${secondClean}`);
       }
       if (!raw) {
         raw = await AsyncStorage.getItem(`@khusphus_msgs_${[myPhone, contactPhone].sort().join('_')}`);
@@ -125,10 +140,14 @@ export const ChatStorageService = {
       if (raw) {
         const parsed: LocalMessage[] = JSON.parse(raw);
         // Ensure sender 'me' vs 'them' is dynamically and strictly calculated relative to myPhone
-        return parsed.map((m) => ({
-          ...m,
-          sender: m.senderId === myPhone ? 'me' : 'them',
-        }));
+        return parsed.map((m) => {
+          const senderClean = normalizePhone(m.senderId);
+          const isMe = (cleanMe && senderClean && senderClean === cleanMe) || m.sender === 'me' || m.senderId === myPhone;
+          return {
+            ...m,
+            sender: isMe ? ('me' as const) : ('them' as const),
+          };
+        });
       }
     } catch (e) {
       console.warn('[STORAGE] Error reading messages:', e);
@@ -216,7 +235,7 @@ export const ChatStorageService = {
    */
   async restoreCloudChats(myPhone: string, registeredUsers: any[] = []): Promise<ChatItemData[]> {
     try {
-      const cleanMe = String(myPhone || '').replace(/\D/g, '').slice(-10);
+      const cleanMe = normalizePhone(myPhone);
       if (!cleanMe) return [];
 
       // 1. Fetch all cloud messages involving this user from Turso
@@ -227,10 +246,10 @@ export const ChatStorageService = {
 
       const messagesByContact = new Map<string, LocalMessage[]>();
       for (const row of rows) {
-        const sPhone = String(row.sender_phone || '').replace(/\D/g, '').slice(-10);
-        const rPhone = String(row.receiver_phone || '').replace(/\D/g, '').slice(-10);
+        const sPhone = normalizePhone(row.sender_phone);
+        const rPhone = normalizePhone(row.receiver_phone);
         const contactPhone = sPhone === cleanMe ? rPhone : sPhone;
-        if (!contactPhone || isDummyContact({ phone: contactPhone })) continue;
+        if (!contactPhone || contactPhone === cleanMe || isDummyContact({ phone: contactPhone })) continue;
 
         const isMe = sPhone === cleanMe;
         const msgTime = row.created_at ? new Date(Number(row.created_at)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
@@ -260,14 +279,13 @@ export const ChatStorageService = {
         await AsyncStorage.setItem(key, JSON.stringify(msgs));
       }
 
-      // 3. Build comprehensive recent chats list
+      // 3. Build comprehensive recent chats list ONLY for real conversations
       const chatItemsMap = new Map<string, ChatItemData>();
 
-      // A. Existing chats with messages from cloud
       for (const [contactPhone, msgs] of messagesByContact.entries()) {
         const lastMsg = msgs[msgs.length - 1];
-        const registered = registeredUsers.find((u) => String(u.phone).replace(/\D/g, '').slice(-10) === contactPhone);
-        const contactName = registered?.name || contactPhone;
+        const registered = registeredUsers.find((u) => normalizePhone(u.phone) === contactPhone);
+        const contactName = registered?.name || registered?.phone || contactPhone;
         const avatarUri = registered?.avatarUri;
 
         let timeStr = '';
@@ -284,7 +302,7 @@ export const ChatStorageService = {
         const unreadCount = msgs.filter((m) => m.sender === 'them' && m.status !== 'read').length;
 
         chatItemsMap.set(contactPhone, {
-          phone: contactPhone,
+          phone: registered?.phone || contactPhone,
           name: contactName,
           avatarUri,
           lastMessage: lastMsg.text || (lastMsg.type === 'voice' ? '🎤 Voice message' : 'Message'),
@@ -293,22 +311,6 @@ export const ChatStorageService = {
           messageStatus: lastMsg.sender === 'me' ? lastMsg.status : undefined,
           sentByMe: lastMsg.sender === 'me',
         });
-      }
-
-      // B. Include all other registered contacts on Sunao so user immediately sees everyone
-      for (const u of registeredUsers) {
-        const cleanPhone = String(u.phone || '').replace(/\D/g, '').slice(-10);
-        if (!cleanPhone || cleanPhone === cleanMe || isDummyContact(u)) continue;
-        if (!chatItemsMap.has(cleanPhone)) {
-          chatItemsMap.set(cleanPhone, {
-            phone: u.phone,
-            name: u.name || u.phone,
-            avatarUri: u.avatarUri,
-            lastMessage: u.about || 'Available on Sunao 🚀',
-            timestamp: '',
-            unreadCount: 0,
-          });
-        }
       }
 
       const result = Array.from(chatItemsMap.values());
@@ -326,6 +328,9 @@ export const ChatStorageService = {
    */
   async saveMessage(myPhone: string, contactPhone: string, message: LocalMessage): Promise<LocalMessage[]> {
     try {
+      const cleanMe = normalizePhone(myPhone);
+      const senderClean = normalizePhone(message.senderId);
+      const isMe = (cleanMe && senderClean && senderClean === cleanMe) || message.sender === 'me' || message.senderId === myPhone;
       const key = getChatKey(myPhone, contactPhone);
       const current = await this.getMessages(myPhone, contactPhone);
       
@@ -333,7 +338,7 @@ export const ChatStorageService = {
       if (!current.some((m) => m.id === message.id)) {
         const normalizedMsg = {
           ...message,
-          sender: message.senderId === myPhone ? ('me' as const) : ('them' as const),
+          sender: isMe ? ('me' as const) : ('them' as const),
         };
         const updated = [...current, normalizedMsg];
         await AsyncStorage.setItem(key, JSON.stringify(updated));
@@ -378,19 +383,42 @@ export const ChatStorageService = {
   },
   async getRecentChats(myPhone: string, defaultChats: ChatItemData[] = []): Promise<ChatItemData[]> {
     try {
+      const cleanMe = normalizePhone(myPhone);
       const key = getRecentKey(myPhone);
       let raw = await AsyncStorage.getItem(key);
+      if (!raw && cleanMe !== myPhone) {
+        raw = await AsyncStorage.getItem(`@sunao_recent_${myPhone}`);
+      }
       if (!raw) {
         raw = await AsyncStorage.getItem(`@khusphus_recent_${myPhone}`);
       }
       if (raw) {
         let saved: ChatItemData[] = JSON.parse(raw);
         if (saved && Array.isArray(saved)) {
-          const clean = saved.filter((c) => !isDummyContact(c));
-          if (clean.length !== saved.length) {
-            AsyncStorage.setItem(key, JSON.stringify(clean)).catch(() => {});
+          // Clean out dummy contacts, empty placeholder ghosts, and self-chat
+          const clean = saved.filter((c) => {
+            if (isDummyContact(c)) return false;
+            const cClean = normalizePhone(c.phone);
+            if (!cClean || (cleanMe && cClean === cleanMe)) return false;
+            // Purge ghosts that have placeholder text with no real timestamp
+            if (c.lastMessage === 'Available on Sunao 🚀' && !c.timestamp) return false;
+            return true;
+          });
+
+          // Deduplicate by 10-digit phone number
+          const dedupedMap = new Map<string, ChatItemData>();
+          for (const item of clean) {
+            const cleanP = normalizePhone(item.phone);
+            if (!dedupedMap.has(cleanP)) {
+              dedupedMap.set(cleanP, item);
+            }
           }
-          return clean;
+          const deduped = Array.from(dedupedMap.values());
+
+          if (deduped.length !== saved.length) {
+            AsyncStorage.setItem(key, JSON.stringify(deduped)).catch(() => {});
+          }
+          return deduped;
         }
       }
       return defaultChats.filter((c) => !isDummyContact(c));
@@ -405,7 +433,14 @@ export const ChatStorageService = {
    */
   async saveCleanChats(myPhone: string, chats: ChatItemData[]): Promise<void> {
     try {
-      const clean = (chats || []).filter((c) => !isDummyContact(c));
+      const cleanMe = normalizePhone(myPhone);
+      const clean = (chats || []).filter((c) => {
+        if (isDummyContact(c)) return false;
+        const cClean = normalizePhone(c.phone);
+        if (!cClean || (cleanMe && cClean === cleanMe)) return false;
+        if (c.lastMessage === 'Available on Sunao 🚀' && !c.timestamp) return false;
+        return true;
+      });
       const key = getRecentKey(myPhone);
       await AsyncStorage.setItem(key, JSON.stringify(clean));
       if (typeof window !== 'undefined' && window.localStorage) {
@@ -430,18 +465,32 @@ export const ChatStorageService = {
       if (isDummyContact({ phone: contactPhone, name: contactName })) {
         return [];
       }
+      const cleanMe = normalizePhone(myPhone);
+      const cleanContact = normalizePhone(contactPhone);
+      if (!cleanContact || (cleanMe && cleanContact === cleanMe)) {
+        return [];
+      }
+
       const key = getRecentKey(myPhone);
       const raw = await AsyncStorage.getItem(key);
       let list: ChatItemData[] = raw ? JSON.parse(raw) : [];
-      list = list.filter((c) => !isDummyContact(c));
+      list = list.filter((c) => {
+        if (isDummyContact(c)) return false;
+        const cClean = normalizePhone(c.phone);
+        if (!cClean || (cleanMe && cClean === cleanMe)) return false;
+        if (c.lastMessage === 'Available on Sunao 🚀' && !c.timestamp) return false;
+        return true;
+      });
 
-      const existingIndex = list.findIndex((c) => c.phone === contactPhone);
+      const existingIndex = list.findIndex((c) => normalizePhone(c.phone) === cleanContact);
       const computedStatus = isIncoming ? undefined : (messageStatus || 'sent');
 
       if (existingIndex >= 0) {
         const existing = list[existingIndex];
         const updatedChat: ChatItemData = {
           ...existing,
+          phone: contactPhone || existing.phone,
+          name: (contactName && contactName !== contactPhone) ? contactName : existing.name,
           lastMessage,
           timestamp: time,
           unreadCount: isIncoming ? (existing.unreadCount || 0) + 1 : 0,
@@ -481,12 +530,13 @@ export const ChatStorageService = {
    */
   async markAsRead(myPhone: string, contactPhone: string): Promise<ChatItemData[]> {
     try {
+      const cleanContact = normalizePhone(contactPhone);
       const key = getRecentKey(myPhone);
       const raw = await AsyncStorage.getItem(key);
       if (!raw) return [];
 
       let list: ChatItemData[] = JSON.parse(raw);
-      const item = list.find((c) => c.phone === contactPhone);
+      const item = list.find((c) => normalizePhone(c.phone) === cleanContact);
       if (item && item.unreadCount) {
         item.unreadCount = 0;
         await AsyncStorage.setItem(key, JSON.stringify(list));

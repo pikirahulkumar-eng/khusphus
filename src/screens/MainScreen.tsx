@@ -11,7 +11,7 @@ import SunaoBottomNav, { MainNavTab } from '../components/main/SunaoBottomNav';
 import NewChatModal from '../components/main/NewChatModal';
 import SettingsModal from '../components/main/SettingsModal';
 import { SunaoTheme } from '../constants/theme';
-import { ChatStorageService, isDummyContact } from '../services/chatStorageService';
+import { ChatStorageService, isDummyContact, normalizePhone } from '../services/chatStorageService';
 import { RealtimeBridge } from '../services/realtimeBridge';
 import { getBackendUrl } from '../services/firebase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -219,9 +219,9 @@ export default function MainScreen({
                 setChats((prev) => {
                   // Keep any local unread count or optimistic updates, prefer cloud messages
                   if (prev.length === 0) return cloudChats;
-                  const prevMap = new Map(prev.map((c) => [c.phone, c]));
+                  const prevMap = new Map(prev.map((c) => [normalizePhone(c.phone), c]));
                   const merged = cloudChats.map((cc) => {
-                    const local = prevMap.get(cc.phone);
+                    const local = prevMap.get(normalizePhone(cc.phone));
                     return local ? { ...cc, ...local, name: cc.name || local.name, avatarUri: cc.avatarUri || local.avatarUri } : cc;
                   });
                   return merged;
@@ -271,7 +271,7 @@ export default function MainScreen({
 
         setChats((prev) => {
           const list = [...prev];
-          const idx = list.findIndex((c) => c.phone === peerPhone);
+          const idx = list.findIndex((c) => normalizePhone(c.phone) === normalizePhone(peerPhone));
           if (idx >= 0) {
             const existing = list[idx];
             const updated: ChatItemData = {
@@ -306,7 +306,7 @@ export default function MainScreen({
         const peer = event.payload.contactPhone || event.payload.senderId;
         if (peer) {
           setChats((prev) =>
-            prev.map((c) => (c.phone === peer ? { ...c, unreadCount: 0 } : c))
+            prev.map((c) => (normalizePhone(c.phone) === normalizePhone(peer) ? { ...c, unreadCount: 0 } : c))
           );
         }
       } else if (event.type === 'PRESENCE_UPDATE' && event.payload) {
@@ -370,7 +370,23 @@ export default function MainScreen({
 
   // Filtered Chats based on chips & search
   const filteredChats = useMemo(() => {
-    let result = chats.filter((c) => !isDummyContact(c));
+    const cleanMe = normalizePhone(currentUserPhone);
+    let result = chats.filter((c) => {
+      if (isDummyContact(c)) return false;
+      const cleanP = normalizePhone(c.phone);
+      if (!cleanP || (cleanMe && cleanP === cleanMe)) return false;
+      if (c.lastMessage === 'Available on Sunao 🚀' && !c.timestamp) return false;
+      return true;
+    });
+
+    // Deduplicate by 10-digit phone
+    const seenPhones = new Set<string>();
+    result = result.filter((c) => {
+      const cleanP = normalizePhone(c.phone);
+      if (seenPhones.has(cleanP)) return false;
+      seenPhones.add(cleanP);
+      return true;
+    });
 
     // Search filter: Filter existing chats AND include registered users from database
     if (searchQuery.trim().length > 0) {
