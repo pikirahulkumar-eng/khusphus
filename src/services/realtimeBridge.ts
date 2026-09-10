@@ -116,10 +116,9 @@ class RealtimeBridgeManager {
         this.notify({ type: 'ONLINE_USERS', payload: { users } });
       });
       
-      // Generic message handler if server uses broadcast
+      // Generic message handler for all server-routed events
       this.socket.on('message', (event) => {
-        // Skip duplicate INCOMING_CALL as it is handled cleanly via incoming-call event
-        if (event && event.type && event.type !== 'INCOMING_CALL') {
+        if (event && event.type) {
           this.notify(event);
         }
       });
@@ -163,10 +162,8 @@ class RealtimeBridgeManager {
 
   public broadcast(type: string, payload: any, targetUserId?: string) {
     if (this.socket && this.isConnected) {
-      // Deliver non-call signals via standard message
-      if (type !== 'INCOMING_CALL') {
-        this.socket.emit('message', { type, payload, targetUserId });
-      }
+      // Deliver all signals via standard message pipeline for universal server compatibility
+      this.socket.emit('message', { type, payload, targetUserId });
 
       // Dedicated single-path signaling handlers
       if (type === 'INCOMING_CALL') {

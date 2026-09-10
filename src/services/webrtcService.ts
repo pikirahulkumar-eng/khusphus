@@ -118,7 +118,16 @@ class WebRTCManager {
     // Listen for Targeted Real-Time Call Signaling from peer
     RealtimeBridge.subscribe(async ({ type, payload, targetUserId }) => {
       // We rely on the WebSocket server and AppContext to route messages correctly.
-      // If a WebRTC signaling message reaches here with a targetUserId, it was meant for us.
+      if (type === 'INCOMING_CALL' && payload) {
+        const callerUser = payload.callerUser || {
+          id: payload.from || payload.callerId || 'unknown',
+          name: payload.callerName || payload.from || 'Incoming Call',
+          phone: payload.from || payload.callerPhone || ''
+        };
+        const callType = (payload.type === 'video' || payload.callType === 'video' || payload.isVideo) ? 'video' : 'audio';
+        this.receiveIncomingCall(callerUser, callType, payload.callId);
+        return;
+      }
 
       if (type === 'CALL_RINGING' && payload) {
         if (this.currentSession && (this.currentSession.id === payload.callId || !payload.callId) && this.currentSession.status === 'calling') {
