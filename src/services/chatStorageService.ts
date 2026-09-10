@@ -282,9 +282,31 @@ export const ChatStorageService = {
         messagesByContact.get(contactPhone)!.push(norm);
       }
 
-      // 2. Save each conversation thread locally so offline access works
+      // Get existing local recent chats to preserve read status
+      let readChatMap = new Map<string, boolean>();
+      try {
+        const existingRaw = (typeof window !== 'undefined' && window.localStorage)
+          ? window.localStorage.getItem(getRecentKey(myPhone))
+          : await AsyncStorage.getItem(getRecentKey(myPhone));
+        if (existingRaw) {
+          const list: ChatItemData[] = JSON.parse(existingRaw);
+          for (const item of list) {
+            if (item.phone && (item.unreadCount === 0 || item.unreadCount === undefined)) {
+              readChatMap.set(normalizePhone(item.phone), true);
+            }
+          }
+        }
+      } catch (_) {}
+
+      // 2. Save each conversation thread locally, preserving existing read states
       for (const [contactPhone, msgs] of messagesByContact.entries()) {
         const key = getChatKey(myPhone, contactPhone);
+        const isLocallyRead = readChatMap.has(contactPhone);
+        if (isLocallyRead) {
+          for (const m of msgs) {
+            if (m.sender === 'them') m.status = 'read';
+          }
+        }
         await AsyncStorage.setItem(key, JSON.stringify(msgs));
       }
 
@@ -308,7 +330,8 @@ export const ChatStorageService = {
           }
         }
 
-        const unreadCount = msgs.filter((m) => m.sender === 'them' && m.status !== 'read').length;
+        const isLocallyRead = readChatMap.has(contactPhone);
+        const unreadCount = isLocallyRead ? 0 : msgs.filter((m) => m.sender === 'them' && m.status !== 'read').length;
 
         chatItemsMap.set(contactPhone, {
           phone: registered?.phone || contactPhone,
@@ -579,18 +602,48 @@ export const ChatStorageService = {
    */
   async markAsRead(myPhone: string, contactPhone: string): Promise<ChatItemData[]> {
     try {
+      const cleanMe = normalizePhone(myPhone);
       const cleanContact = normalizePhone(contactPhone);
-      const key = getRecentKey(myPhone);
-      const raw = await AsyncStorage.getItem(key);
-      if (!raw) return [];
+      if (!cleanMe || !cleanContact) return [];
 
-      let list: ChatItemData[] = JSON.parse(raw);
-      const item = list.find((c) => normalizePhone(c.phone) === cleanContact);
-      if (item && item.unreadCount) {
-        item.unreadCount = 0;
-        await AsyncStorage.setItem(key, JSON.stringify(list));
+      const key = getRecentKey(myPhone);
+      const raw = (typeof window !== 'undefined' && window.localStorage)
+        ? window.localStorage.getItem(key)
+        : await AsyncStorage.getItem(key);
+      if (raw) {
+        let list: ChatItemData[] = JSON.parse(raw);
+        const item = list.find((c) => normalizePhone(c.phone) === cleanContact);
+        if (item) {
+          item.unreadCount = 0;
+          await AsyncStorage.setItem(key, JSON.stringify(list));
+          if (typeof window !== 'undefined' && window.localStorage) {
+            window.localStorage.setItem(key, JSON.stringify(list));
+          }
+        }
       }
-      return list;
+
+      // Mark all incoming messages in this chat as 'read' in local storage
+      const chatKey = getChatKey(myPhone, contactPhone);
+      const msgs = await this.getMessages(myPhone, contactPhone);
+      let changed = false;
+      const updatedMsgs = msgs.map((m) => {
+        if (m.sender === 'them' && m.status !== 'read') {
+          changed = true;
+          return { ...m, status: 'read' as const };
+        }
+        return m;
+      });
+      if (changed) {
+        await AsyncStorage.setItem(chatKey, JSON.stringify(updatedMsgs));
+      }
+
+      // Persist 'read' status to Turso Cloud DB so future cloud syncs do not revert to unread
+      queryTurso(
+        "UPDATE messages SET status = 'read' WHERE receiver_phone LIKE '%' || ? AND sender_phone LIKE '%' || ?",
+        [cleanMe, cleanContact]
+      ).catch(() => {});
+
+      return await this.getRecentChats(myPhone);
     } catch (e) {
       return [];
     }
