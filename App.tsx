@@ -157,6 +157,14 @@ function AppMain() {
   // WebRTC Call Session
   const [callSession, setCallSession] = useState<any>(null);
 
+  // Subscribe to WebRTCService so incoming and outgoing call screens render
+  useEffect(() => {
+    const unsub = WebRTCService.subscribe((session) => {
+      setCallSession(session);
+    });
+    return () => unsub();
+  }, []);
+
   const handleOpenChat = (user: any) => {
     setActiveChatUser(user);
     if (user && user.phone) {
@@ -426,9 +434,11 @@ function AppMain() {
   };
 
   const startCall = (userId: string, userName: string, isVideo: boolean) => {
+    const cleanTarget = String(userId || '').replace(/\D/g, '').slice(-10);
+    const cleanCaller = String(currentUserPhone || '').replace(/\D/g, '').slice(-10);
     WebRTCService.startCall({
-      callerUser: { id: currentUserPhone || 'my_id', name: currentUserName || 'You', phone: currentUserPhone },
-      targetUser: { id: userId, name: userName, phone: userId },
+      callerUser: { id: cleanCaller || currentUserPhone, name: currentUserName || 'You', phone: cleanCaller || currentUserPhone },
+      targetUser: { id: cleanTarget || userId, name: userName || 'Contact', phone: cleanTarget || userId },
       type: isVideo ? 'video' : 'audio',
     });
   };
