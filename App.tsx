@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Platform, ActivityIndicator, useWindowDimensions, StyleSheet, BackHandler } from 'react-native';
+import { View, Text, Platform, ActivityIndicator, useWindowDimensions, StyleSheet, BackHandler, DeviceEventEmitter } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import LoginScreen from './src/screens/LoginScreen';
 import MainScreen from './src/screens/MainScreen';
 import ChatScreen from './src/screens/ChatScreen';
 import CallModal from './src/components/CallModal';
+import FloatingCallOverlay from './src/components/FloatingCallOverlay';
 import { WebRTCService } from './src/services/webrtcService';
 import { RealtimeBridge } from './src/services/realtimeBridge';
 import { getBackendUrl } from './src/services/firebase';
@@ -419,19 +420,48 @@ function AppMain() {
     });
   };
 
+  // Listen for native intent opening chat from incoming call or notification
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('onOpenChatRequested', (event: any) => {
+      const partnerId = event?.partnerId;
+      if (partnerId) {
+        WebRTCService.setMinimized(true);
+        handleOpenChat({ phone: partnerId, name: callSession?.callerName || partnerId, id: partnerId });
+      }
+    });
+    return () => sub.remove();
+  }, [callSession]);
+
+  useEffect(() => {
+    const targetUserId = WebRTCService.getTargetChatUserId();
+    if (targetUserId) {
+      WebRTCService.setTargetChatUserId(null);
+      const partnerName = callSession?.callerName || 'Chat';
+      handleOpenChat({ phone: targetUserId, name: partnerName, id: targetUserId });
+    }
+  }, [callSession?.isMinimized, callSession]);
+
   const renderCallUI = () => {
     if (!callSession) return null;
+    if (callSession.isMinimized) {
+      return (
+        <FloatingCallOverlay
+          session={callSession}
+          onExpand={() => WebRTCService.setMinimized(false)}
+          onEndCall={() => WebRTCService.endCall()}
+        />
+      );
+    }
     return (
       <CallModal
         session={callSession}
         onAcceptCall={() => WebRTCService.acceptCall()}
         onEndCall={() => WebRTCService.endCall()}
         onMinimize={() => {
-          if (Platform.OS === 'android') {
-            try {
-              const { NativeModules } = require('react-native');
-              NativeModules.TelecomModule?.enterPipMode?.();
-            } catch (_) {}
+          WebRTCService.setMinimized(true);
+          const partnerId = callSession.callerId === currentUserPhone ? callSession.receiverId : callSession.callerId;
+          if (partnerId) {
+            handleOpenChat({ phone: partnerId, name: callSession.callerName || partnerId, id: partnerId });
           }
         }}
         onToggleMute={() => WebRTCService.toggleMute()}

@@ -73,6 +73,9 @@ class WebRTCManager {
 
   public setMinimized(minimized: boolean) {
     this.isCallMinimized = minimized;
+    if (this.currentSession) {
+      this.currentSession.isMinimized = minimized;
+    }
     this.notify();
   }
 
@@ -244,6 +247,9 @@ class WebRTCManager {
   }
 
   private notify() {
+    if (this.currentSession) {
+      this.currentSession.isMinimized = this.isCallMinimized;
+    }
     this.listeners.forEach(cb => cb(this.currentSession ? { ...this.currentSession } : null));
   }
 
@@ -1461,6 +1467,7 @@ class WebRTCManager {
         this.remoteStream = null;
       }
 
+      this.isCallMinimized = false;
       this.currentSession = null;
       this.notify();
     } finally {
