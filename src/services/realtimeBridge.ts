@@ -1,6 +1,5 @@
 import { io, Socket } from 'socket.io-client';
-// @ts-ignore
-import messaging from '@react-native-firebase/messaging';
+import { Platform } from 'react-native';
 
 type RealtimeListener = (event: { type: string; payload: any; targetUserId?: string }) => void;
 
@@ -31,11 +30,17 @@ class RealtimeBridgeManager {
     if (phone) this.registeredUserPhone = phone;
     if (this.socket && this.isConnected && userId) {
       let fcmToken: string | null = null;
-      try {
-        if (typeof messaging === 'function') {
-          fcmToken = await messaging()?.getToken?.().catch(() => null);
-        }
-      } catch (e) { /* FCM not available in web/dev */ }
+      if (Platform.OS !== 'web') {
+        try {
+          let fbMessaging: any = null;
+          try {
+            fbMessaging = require('@react-native-firebase/messaging');
+          } catch (_) {}
+          if (fbMessaging && fbMessaging.default) {
+            fcmToken = await fbMessaging.default()?.getToken?.().catch(() => null);
+          }
+        } catch (e) { /* FCM not available in web/dev */ }
+      }
       this.socket.emit('register', { userId, phone: phone || this.registeredUserPhone, fcmToken });
       console.log(`[REALTIME_BRIDGE] Registered user: ${userId}, phone: ${phone || this.registeredUserPhone} fcm: ${!!fcmToken}`);
     }
