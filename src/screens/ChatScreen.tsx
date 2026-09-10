@@ -120,6 +120,7 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({ children, onS
       <Animated.View
         {...panResponder.panHandlers}
         style={{
+          width: '100%',
           transform: [{ translateX: pan }],
         }}
       >
@@ -1071,6 +1072,7 @@ export default function ChatScreen({
                     activeOpacity={0.88}
                     onLongPress={() => setSelectedMessage(item)}
                     delayLongPress={260}
+                    style={{ maxWidth: '82%' }}
                   >
                     {item.type === 'voice' ? (
                       <VoiceNoteBubble
@@ -1742,13 +1744,13 @@ const styles = StyleSheet.create({
     borderColor: '#A7F3D0',
   },
   chatBody: { flex: 1, backgroundColor: '#F8FAFC' },
-  messageWrapper: { flexDirection: 'row', marginBottom: 8 },
+  messageWrapper: { width: '100%', flexDirection: 'row', marginBottom: 8 },
   messageWrapperMe: { justifyContent: 'flex-end' },
   messageWrapperThem: { justifyContent: 'flex-start' },
   messageBubble: {
-    maxWidth: '82%',
-    paddingHorizontal: 14,
-    paddingVertical: 9,
+    minWidth: 88,
+    paddingHorizontal: 13,
+    paddingVertical: 8,
     borderRadius: 16,
     elevation: 1,
   },
@@ -1772,11 +1774,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-end',
-    marginTop: 3,
-    marginLeft: 14,
+    marginTop: 2,
+    marginLeft: 10,
   },
   messageTime: {
     fontSize: 11,
+    flexShrink: 0,
   },
   messageTimeMe: { color: 'rgba(255, 255, 255, 0.75)' },
   messageTimeThem: { color: '#94A3B8' },
