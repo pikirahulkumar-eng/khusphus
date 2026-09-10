@@ -30,12 +30,14 @@ class RealtimeBridgeManager {
     this.registeredUserId = userId;
     if (phone) this.registeredUserPhone = phone;
     if (this.socket && this.isConnected && userId) {
-      let fcmToken = null;
+      let fcmToken: string | null = null;
       try {
-        fcmToken = await messaging().getToken();
+        if (typeof messaging === 'function') {
+          fcmToken = await messaging()?.getToken?.().catch(() => null);
+        }
       } catch (e) { /* FCM not available in web/dev */ }
       this.socket.emit('register', { userId, phone: phone || this.registeredUserPhone, fcmToken });
-      console.log(`[REALTIME_BRIDGE] Registered user: ${userId}, phone: ${phone || this.registeredUserPhone}`);
+      console.log(`[REALTIME_BRIDGE] Registered user: ${userId}, phone: ${phone || this.registeredUserPhone} fcm: ${!!fcmToken}`);
     }
   }
 
@@ -283,7 +285,7 @@ class RealtimeBridgeManager {
   }
 
   public get myUserId(): string | null {
-    return this.registeredUserId;
+    return this.registeredUserPhone || this.registeredUserId;
   }
 
   public getUserId(): string | null {

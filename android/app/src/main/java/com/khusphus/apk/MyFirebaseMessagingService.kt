@@ -1,4 +1,4 @@
-﻿package com.khusphus.apk
+package com.khusphus.apk
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -55,7 +55,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     private fun saveFcmTokenToServer(userId: String, fcmToken: String) {
         Thread {
             try {
-                val url = java.net.URL("http://3.108.217.155:8082/api/profiles/push-token")
+                val url = java.net.URL("https://p01--sunao-server--njm6yd7449gk.code.run/api/profiles/push-token")
                 val conn = url.openConnection() as java.net.HttpURLConnection
                 conn.requestMethod = "POST"
                 conn.setRequestProperty("Content-Type", "application/json")

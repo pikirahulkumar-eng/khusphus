@@ -202,10 +202,10 @@ class NotificationServiceClass {
 
   // Register device push token to backend for background / closed app call wakeups
   public async registerForPushNotificationsAsync(userId: string, phoneNumber?: string) {
-    if (Platform.OS === 'web' || !Notifications || !userId) return;
+    if (Platform.OS === 'web' || !userId) return;
 
   try {
-    await this.initialize();
+    await this.initialize().catch(() => {});
 
     let expoPushToken: string | null = null;
     let fcmPushToken: string | null = null;

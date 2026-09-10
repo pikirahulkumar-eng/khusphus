@@ -219,14 +219,11 @@ class WebRTCManager {
 
   private getPeerUserId(): string {
     if (!this.currentSession) return '';
-    const myId = RealtimeBridge.myUserId;
-    if (myId && this.currentSession.callerId === myId) {
+    if (this.currentSession.isIncoming) {
+      return this.currentSession.callerId || '';
+    } else {
       return this.currentSession.receiverId || '';
     }
-    if (myId && this.currentSession.receiverId === myId) {
-      return this.currentSession.callerId || '';
-    }
-    return this.currentSession.callerId || this.currentSession.receiverId || '';
   }
 
   public onLog(listener: (msg: string) => void): () => void {
@@ -378,8 +375,8 @@ class WebRTCManager {
 
     const incomingSession: CallSession = {
       id: callId || `incoming_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      callerId: callerUser.id,
-      receiverId: 'my_user_id',
+      callerId: callerUser.id || (callerUser as any).phone || '',
+      receiverId: RealtimeBridge.myUserId || 'my_user_id',
       callerName: callerUser.name,
       callerPhoto: callerUser.photo || callerUser.photos?.[0] || '',
       type,
