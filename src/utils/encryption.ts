@@ -140,8 +140,16 @@ export async function encryptE2EEMessage(plainText: string, senderId: string, re
       };
     }
 
-    const sessionKey = getChatSessionKey(senderId, receiverId);
-    const keyHash = sha256Sync(sessionKey);
+    // 🔒 1. Derive ECDH Diffie-Hellman Shared Secret (Curve25519)
+    let keyHash = '';
+    try {
+      const { E2eeKeyManager } = require('./e2eeKeyManager');
+      keyHash = await E2eeKeyManager.getSharedSecretHash(senderId, receiverId);
+    } catch (_) {}
+    if (!keyHash) {
+      const sessionKey = getChatSessionKey(senderId, receiverId);
+      keyHash = sha256Sync(sessionKey);
+    }
 
     // Encrypt text into hex stream using derived key hash
     let encrypted = '';
@@ -183,19 +191,36 @@ export async function decryptE2EEMessage(cipherText: string, senderId: string, r
     const hexContent = cipherText.replace('E2EE::', '');
     const sessionKey = getChatSessionKey(senderId, receiverId);
 
-    // Smart dual-hash decryption:
-    // 1. Try modern universal SHA-256 (matches Node.js backend & updated apps)
-    // 2. Fall back to legacy hash if message was encrypted by older build
+    // Smart multi-hash decryption:
+    // 1. Try ECDH Diffie-Hellman Shared Secret (Curve25519)
+    // 2. Try modern universal SHA-256 session key
+    // 3. Fall back to legacy hash for older builds
+    let ecdhHash = '';
+    try {
+      const { E2eeKeyManager } = require('./e2eeKeyManager');
+      ecdhHash = await E2eeKeyManager.getSharedSecretHash(senderId, receiverId);
+    } catch (_) {}
+
     const shaHash = sha256Sync(sessionKey);
     const legHash = getLegacyHash(sessionKey);
 
-    const decSha = decryptWithDerivedHash(hexContent, shaHash);
-    const decLeg = decryptWithDerivedHash(hexContent, legHash);
+    const candidates = [
+      { dec: ecdhHash ? decryptWithDerivedHash(hexContent, ecdhHash) : '' },
+      { dec: decryptWithDerivedHash(hexContent, shaHash) },
+      { dec: decryptWithDerivedHash(hexContent, legHash) },
+    ].filter(c => c.dec.length > 0);
 
-    const qualitySha = calculateQuality(decSha);
-    const qualityLeg = calculateQuality(decLeg);
+    let bestDec = candidates[0]?.dec || hexContent;
+    let bestQuality = calculateQuality(bestDec);
+    for (let i = 1; i < candidates.length; i++) {
+      const q = calculateQuality(candidates[i].dec);
+      if (q > bestQuality) {
+        bestQuality = q;
+        bestDec = candidates[i].dec;
+      }
+    }
 
-    return qualitySha >= qualityLeg ? decSha : decLeg;
+    return bestDec;
   } catch (e) {
     return cipherText;
   }

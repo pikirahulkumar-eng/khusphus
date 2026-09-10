@@ -11,6 +11,7 @@ import { WebRTCService } from './src/services/webrtcService';
 import { RealtimeBridge } from './src/services/realtimeBridge';
 import { getBackendUrl } from './src/services/firebase';
 import { isDummyContact } from './src/services/chatStorageService';
+import { E2eeKeyManager } from './src/utils/e2eeKeyManager';
 let Updates: any = null;
 try {
   Updates = require('expo-updates');
@@ -230,10 +231,12 @@ function AppMain() {
 
           // Background sync to backend users database so profile is active and searchable
           const serverUrl = getBackendUrl();
-          fetch(`${serverUrl}/api/register`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: registerId, phone: activePhone, name: activeName }),
+          E2eeKeyManager.getOrGenerateKeyPair().then((keys) => {
+            fetch(`${serverUrl}/api/register`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId: registerId, phone: activePhone, name: activeName, publicKey: keys.publicKey }),
+            }).catch(() => {});
           }).catch(() => {});
         }
 
@@ -365,11 +368,12 @@ function AppMain() {
 
       // Register user profile on server so they are searchable from any device
       const serverUrl = getBackendUrl();
+      const keys = await E2eeKeyManager.getOrGenerateKeyPair();
 
       fetch(`${serverUrl}/api/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, phone: cleanPhone, name: cleanName }),
+        body: JSON.stringify({ userId, phone: cleanPhone, name: cleanName, publicKey: keys.publicKey }),
       }).then(r => r.json())
         .then(d => console.log('[USER_REGISTERED_SERVER]', d))
         .catch(e => console.warn('[REGISTER_SERVER_WARN]', e));

@@ -142,6 +142,7 @@ async function initDb() {
     try {
       await turso.execute('CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(thread_id, created_at)');
       await turso.execute('CREATE INDEX IF NOT EXISTS idx_messages_receiver ON messages(receiver_phone, status)');
+      await turso.execute('ALTER TABLE users ADD COLUMN public_key TEXT');
     } catch (_) {}
 
     console.log('[DB] users, pending_messages & messages tables ready in Khusphus Database');
@@ -153,7 +154,7 @@ initDb();
 
 // User Registration Endpoint — called on every login from the app
 app.post('/api/register', async (req, res) => {
-  const { userId, phone, name } = req.body;
+  const { userId, phone, name, publicKey } = req.body;
   if (!userId || !phone || !name) {
     return res.status(400).json({ error: 'userId, phone, name are required' });
   }
@@ -170,17 +171,36 @@ app.post('/api/register', async (req, res) => {
   }
 
   try {
+    try { await turso.execute('ALTER TABLE users ADD COLUMN public_key TEXT'); } catch (_) {}
     await turso.execute({
-      sql: `INSERT INTO users (userId, phone, name)
-            VALUES (?, ?, ?)
-            ON CONFLICT(userId) DO UPDATE SET phone=excluded.phone, name=excluded.name`,
-      args: [userId, cleanPhone, cleanName]
+      sql: `INSERT INTO users (userId, phone, name, public_key)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(userId) DO UPDATE SET phone=excluded.phone, name=excluded.name, public_key=COALESCE(excluded.public_key, users.public_key)`,
+      args: [userId, cleanPhone, cleanName, publicKey || null]
     });
-    console.log(`[USER_REGISTERED] userId=${userId} phone=${cleanPhone} name=${cleanName}`);
+    console.log(`[USER_REGISTERED] userId=${userId} phone=${cleanPhone} name=${cleanName} pubKey=${publicKey ? 'YES' : 'NO'}`);
     res.json({ success: true });
   } catch (error) {
     console.error('[REGISTER_ERR]', error);
     res.status(500).json({ error: 'Registration failed' });
+  }
+});
+
+// E2EE Public Key Endpoint — fetch peer's Curve25519 identity key
+app.get('/api/user/publickey', async (req, res) => {
+  const { phone } = req.query;
+  if (!phone) return res.status(400).json({ error: 'phone required' });
+  const cleanPhone = String(phone).replace(/\D/g, '').slice(-10);
+  try {
+    try { await turso.execute('ALTER TABLE users ADD COLUMN public_key TEXT'); } catch (_) {}
+    const result = await turso.execute({
+      sql: 'SELECT public_key FROM users WHERE phone = ? OR phone LIKE ? LIMIT 1',
+      args: [cleanPhone, `%${cleanPhone}%`]
+    });
+    const key = result?.rows?.[0]?.public_key || null;
+    res.json({ phone: cleanPhone, publicKey: key });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to fetch public key' });
   }
 });
 
